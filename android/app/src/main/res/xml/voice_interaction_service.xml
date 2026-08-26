@@ -1,1 +1,4 @@
-<voice-interaction-service xmlns:android="http://schemas.android.com/apk/res/android" android:sessionService="com.jarvis.mobile.assistant.JarvisVoiceSessionService" android:recognitionService="" android:supportsAssist="true"/>
+<voice-interaction-service xmlns:android="http://schemas.android.com/apk/res/android"
+    android:sessionService="com.jarvis.mobile.assistant.JarvisVoiceSessionService"
+    android:supportsAssist="true"
+    android:supportsLocalInteraction="true" />

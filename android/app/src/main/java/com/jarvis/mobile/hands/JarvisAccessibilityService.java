@@ -1,3 +1,133 @@
 package com.jarvis.mobile.hands;
-import android.accessibilityservice.*; import android.os.Bundle; import android.view.accessibility.*; import java.util.*;
-public class JarvisAccessibilityService extends AccessibilityService { static JarvisAccessibilityService s; public void onServiceConnected(){s=this;} public void onAccessibilityEvent(AccessibilityEvent e){} public void onInterrupt(){} public void onDestroy(){if(s==this)s=null;super.onDestroy();} public static boolean back(){return s!=null&&s.performGlobalAction(GLOBAL_ACTION_BACK);} public static boolean home(){return s!=null&&s.performGlobalAction(GLOBAL_ACTION_HOME);} public static boolean scrollForward(){AccessibilityNodeInfo r=s==null?null:s.getRootInActiveWindow();return act(r,AccessibilityNodeInfo.ACTION_SCROLL_FORWARD);} static boolean act(AccessibilityNodeInfo n,int a){if(n==null)return false;if(n.performAction(a))return true;for(int i=0;i<n.getChildCount();i++)if(act(n.getChild(i),a))return true;return false;} public static boolean clickText(String text){AccessibilityNodeInfo r=s==null?null:s.getRootInActiveWindow();if(r==null)return false;List<AccessibilityNodeInfo> xs=r.findAccessibilityNodeInfosByText(text);for(AccessibilityNodeInfo n:xs){AccessibilityNodeInfo p=n;while(p!=null){if(p.isClickable()&&p.performAction(AccessibilityNodeInfo.ACTION_CLICK))return true;p=p.getParent();}}return false;} public static boolean typeText(String text){AccessibilityNodeInfo r=s==null?null:s.getRootInActiveWindow();AccessibilityNodeInfo n=findEdit(r);if(n==null)return false;Bundle b=new Bundle();b.putCharSequence(AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,text);return n.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT,b);} static AccessibilityNodeInfo findEdit(AccessibilityNodeInfo n){if(n==null)return null;if(n.isEditable()&&n.isFocused())return n;for(int i=0;i<n.getChildCount();i++){AccessibilityNodeInfo x=findEdit(n.getChild(i));if(x!=null)return x;}return null;} public static String screenText(){StringBuilder b=new StringBuilder();collect(s==null?null:s.getRootInActiveWindow(),b);return b.toString().trim();} static void collect(AccessibilityNodeInfo n,StringBuilder b){if(n==null)return;CharSequence t=n.getText();if(t!=null&&t.length()>0)b.append(t).append(" ");CharSequence d=n.getContentDescription();if(d!=null&&d.length()>0)b.append(d).append(" ");for(int i=0;i<n.getChildCount();i++)collect(n.getChild(i),b);} }
+
+import android.accessibilityservice.AccessibilityService;
+import android.os.Bundle;
+import android.view.accessibility.AccessibilityEvent;
+import android.view.accessibility.AccessibilityNodeInfo;
+
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
+
+public class JarvisAccessibilityService extends AccessibilityService {
+    private static volatile JarvisAccessibilityService instance;
+
+    @Override
+    protected void onServiceConnected() {
+        super.onServiceConnected();
+        instance = this;
+    }
+
+    @Override
+    public void onAccessibilityEvent(AccessibilityEvent event) {
+    }
+
+    @Override
+    public void onInterrupt() {
+    }
+
+    @Override
+    public void onDestroy() {
+        if (instance == this) instance = null;
+        super.onDestroy();
+    }
+
+    public static boolean back() {
+        return instance != null && instance.performGlobalAction(GLOBAL_ACTION_BACK);
+    }
+
+    public static boolean home() {
+        return instance != null && instance.performGlobalAction(GLOBAL_ACTION_HOME);
+    }
+
+    public static boolean scrollForward() {
+        return performFirstAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD);
+    }
+
+    public static boolean scrollBackward() {
+        return performFirstAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD);
+    }
+
+    private static boolean performFirstAction(int action) {
+        AccessibilityNodeInfo root = root();
+        return performRecursive(root, action);
+    }
+
+    private static boolean performRecursive(AccessibilityNodeInfo node, int action) {
+        if (node == null) return false;
+        if (node.isScrollable() && node.performAction(action)) return true;
+        for (int i = 0; i < node.getChildCount(); i++) {
+            if (performRecursive(node.getChild(i), action)) return true;
+        }
+        return false;
+    }
+
+    public static boolean clickText(String text) {
+        AccessibilityNodeInfo root = root();
+        if (root == null || text == null || text.trim().isEmpty()) return false;
+        List<AccessibilityNodeInfo> matches = root.findAccessibilityNodeInfosByText(text.trim());
+        for (AccessibilityNodeInfo match : matches) {
+            AccessibilityNodeInfo candidate = match;
+            while (candidate != null) {
+                if (candidate.isClickable() && candidate.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
+                    return true;
+                }
+                candidate = candidate.getParent();
+            }
+        }
+        return false;
+    }
+
+    public static boolean typeText(String text) {
+        AccessibilityNodeInfo field = findEditable(root());
+        if (field == null) return false;
+        Bundle arguments = new Bundle();
+        arguments.putCharSequence(
+                AccessibilityNodeInfo.ACTION_ARGUMENT_SET_TEXT_CHARSEQUENCE,
+                text == null ? "" : text);
+        return field.performAction(AccessibilityNodeInfo.ACTION_SET_TEXT, arguments);
+    }
+
+    public static String screenText() {
+        AccessibilityNodeInfo root = root();
+        if (root == null) return "";
+        Set<String> values = new LinkedHashSet<>();
+        collectText(root, values);
+        StringBuilder result = new StringBuilder();
+        for (String value : values) {
+            if (result.length() > 0) result.append(" • ");
+            if (result.length() + value.length() > 2200) break;
+            result.append(value);
+        }
+        return result.toString().trim();
+    }
+
+    private static AccessibilityNodeInfo findEditable(AccessibilityNodeInfo node) {
+        if (node == null) return null;
+        if (node.isEditable() && (node.isFocused() || node.isAccessibilityFocused())) return node;
+        for (int i = 0; i < node.getChildCount(); i++) {
+            AccessibilityNodeInfo result = findEditable(node.getChild(i));
+            if (result != null) return result;
+        }
+        if (node.isEditable()) return node;
+        return null;
+    }
+
+    private static void collectText(AccessibilityNodeInfo node, Set<String> output) {
+        if (node == null) return;
+        add(output, node.getText());
+        add(output, node.getContentDescription());
+        add(output, node.getHintText());
+        for (int i = 0; i < node.getChildCount(); i++) collectText(node.getChild(i), output);
+    }
+
+    private static void add(Set<String> output, CharSequence value) {
+        if (value == null) return;
+        String clean = value.toString().trim().replaceAll("\\s+", " ");
+        if (!clean.isEmpty()) output.add(clean);
+    }
+
+    private static AccessibilityNodeInfo root() {
+        return instance == null ? null : instance.getRootInActiveWindow();
+    }
+}
