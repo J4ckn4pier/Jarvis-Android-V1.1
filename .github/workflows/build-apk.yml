@@ -35,11 +35,14 @@ jobs:
         run: |
           APK="android/app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
+          test "$(stat -c%s "$APK")" -gt 400000
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
           unzip -l "$APK" | grep -q "jarvis_normal"
           unzip -l "$APK" | grep -q "jarvis_active"
           unzip -l "$APK" | grep -q "background_mk3_active"
           unzip -l "$APK" | grep -q "button_normal"
+          test "$(unzip -Z1 "$APK" | grep -c '/background_mk3.jpg$')" -eq 1
+          ! unzip -Z1 "$APK" | grep -Eiq 'assets/dex|pocketsphinx|adcolony|tapjoy|vungle|flurry|revmob|startapp'
           sha256sum "$APK" > android/app/build/outputs/apk/debug/app-debug.apk.sha256
 
       - uses: actions/upload-artifact@v4
