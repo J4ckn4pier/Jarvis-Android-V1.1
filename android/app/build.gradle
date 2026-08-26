@@ -7,11 +7,12 @@ android {
     compileSdk 36
 
     defaultConfig {
-        applicationId 'com.jarvis.mobile'
+        // Preserve the original My Jarvis application identity for the donor transplant.
+        applicationId 'com.itsmylab.jarvis'
         minSdk 29
         targetSdk 36
-        versionCode 13
-        versionName '1.1-donor-beta3'
+        versionCode 2101
+        versionName '2.0.1-brain-transplant-v1.1'
     }
 
     compileOptions {

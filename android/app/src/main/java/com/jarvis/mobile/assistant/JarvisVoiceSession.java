@@ -57,40 +57,18 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         root.addView(background, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-        View veil = new View(getContext());
-        veil.setBackgroundColor(Color.argb(175, 0, 5, 9));
-        root.addView(veil, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
-
-        LinearLayout panel = new LinearLayout(getContext());
-        panel.setOrientation(LinearLayout.VERTICAL);
-        panel.setGravity(Gravity.CENTER_HORIZONTAL);
-        panel.setPadding(dp(24), dp(20), dp(24), dp(24));
-        root.addView(panel, new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-
-        face = new ImageView(getContext());
-        face.setImageResource(R.drawable.jarvis_active);
-        face.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
-        panel.addView(face, new LinearLayout.LayoutParams(dp(122), dp(122)));
-
-        TextView title = new TextView(getContext());
-        title.setText("J.A.R.V.I.S.");
-        title.setTextColor(Color.rgb(115, 235, 255));
-        title.setTextSize(23);
-        title.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
-        title.setGravity(Gravity.CENTER);
-        panel.addView(title);
-
         output = new TextView(getContext());
         output.setText("Listening…");
         output.setTextColor(Color.WHITE);
-        output.setTextSize(17);
-        output.setTypeface(Typeface.MONOSPACE);
+        output.setTextSize(16);
         output.setGravity(Gravity.CENTER);
-        output.setPadding(dp(8), dp(12), dp(8), dp(12));
-        panel.addView(output, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        output.setShadowLayer(5f, 0f, 1f, Color.BLACK);
+        output.setPadding(dp(18), dp(12), dp(18), dp(12));
+        FrameLayout.LayoutParams outputParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+        outputParams.bottomMargin = dp(98);
+        root.addView(output, outputParams);
 
         LinearLayout buttons = new LinearLayout(getContext());
         buttons.setGravity(Gravity.CENTER);
@@ -104,7 +82,11 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
             getContext().startActivity(intent);
         });
         buttons.addView(open);
-        panel.addView(buttons);
+        FrameLayout.LayoutParams buttonParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
+                Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+        buttonParams.bottomMargin = dp(10);
+        root.addView(buttons, buttonParams);
 
         viewReady = true;
         root.postDelayed(this::startListening, 180);

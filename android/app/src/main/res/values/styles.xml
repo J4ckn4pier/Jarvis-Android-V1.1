@@ -7,5 +7,13 @@
         <item name="android:navigationBarColor">#02070B</item>
         <item name="android:statusBarColor">#02070B</item>
         <item name="android:windowBackground">#02070B</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowFullscreen">true</item>
+    </style>
+    <style name="DonorPanelTheme" parent="android:style/Theme.Material.Light">
+        <item name="android:fontFamily">sans</item>
+        <item name="android:colorAccent">#008FA8</item>
+        <item name="android:navigationBarColor">#02070B</item>
+        <item name="android:statusBarColor">#05212A</item>
     </style>
 </resources>

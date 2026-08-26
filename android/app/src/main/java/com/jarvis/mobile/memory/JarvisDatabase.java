@@ -182,6 +182,19 @@ public final class JarvisDatabase extends SQLiteOpenHelper {
         return String.join("\n", lines);
     }
 
+    public synchronized int memoryCount() {
+        try (Cursor cursor = getReadableDatabase().rawQuery("SELECT COUNT(*) FROM memories", null)) {
+            return cursor.moveToFirst() ? cursor.getInt(0) : 0;
+        }
+    }
+
+    public synchronized int openTaskCount() {
+        try (Cursor cursor = getReadableDatabase().rawQuery(
+                "SELECT COUNT(*) FROM tasks WHERE status = 'open'", null)) {
+            return cursor.moveToFirst() ? cursor.getInt(0) : 0;
+        }
+    }
+
     private String safe(String value) {
         return value == null ? "" : value.trim();
     }

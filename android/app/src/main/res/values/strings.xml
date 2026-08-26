@@ -1,6 +1,8 @@
 <resources>
-    <string name="app_name">JARVIS</string>
+    <string name="app_name">Jarvis</string>
     <string name="notification_service_label">JARVIS Notification Awareness</string>
     <string name="accessibility_service_label">JARVIS Device Control</string>
     <string name="accessibility_description">Allows JARVIS to read visible screen text and perform user-requested taps, typing, scrolling, Back, and Home actions.</string>
+    <string name="widget_quick_description">Jarvis Quick Access</string>
+    <string name="widget_notes_description">Jarvis Notes</string>
 </resources>
