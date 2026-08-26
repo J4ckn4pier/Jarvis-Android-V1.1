@@ -1,59 +1,333 @@
 #!/usr/bin/env bash
 set -euo pipefail
-mkdir -p android/app/src/main/java/com/jarvis/mobile android/app/src/main/res/drawable android/app/src/main/res/values android/app/src/main/res/xml
-cat > android/settings.gradle <<'EOF'
-pluginManagement { repositories { google(); mavenCentral(); gradlePluginPortal() } }
-dependencyResolutionManagement { repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS); repositories { google(); mavenCentral() } }
-rootProject.name='JARVIS'; include ':app'
-EOF
-cat > android/build.gradle <<'EOF'
-plugins { id 'com.android.application' version '8.10.1' apply false }
-EOF
-cat > android/gradle.properties <<'EOF'
-android.useAndroidX=true
-org.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8
-EOF
-cat > android/app/build.gradle <<'EOF'
-plugins { id 'com.android.application' }
-android { namespace 'com.jarvis.mobile'; compileSdk 36
- defaultConfig { applicationId 'com.jarvis.mobile'; minSdk 29; targetSdk 36; versionCode 11; versionName '0.1.1' }
- compileOptions { sourceCompatibility JavaVersion.VERSION_17; targetCompatibility JavaVersion.VERSION_17 }
+rm -rf android
+mkdir -p android
+mkdir -p android
+cat > android/README_ANDROID.md <<'JARVISEOF_4990357575239060180'
+# JARVIS — Android-first architecture
+
+The Android phone is now the primary JARVIS node.
+
+## Framework choice
+
+We are **not** trying to clone proprietary Bixby or Google Assistant code.
+
+We are using the same *operating-system architecture pattern* through public Android APIs:
+
+1. Android `ROLE_ASSISTANT`
+2. `VoiceInteractionService`
+3. native speech recognition / TTS for the first build
+4. notification awareness
+5. Android intents and explicit app capabilities
+6. local SQLite durable memory
+7. local event/salience system
+8. replaceable local LLM provider
+9. PocketPal/llama.cpp-style GGUF inference as the target language cortex
+
+PocketPal AI is the preferred UI/inference foundation to fork because it is MIT licensed and
+already provides on-device Android GGUF inference, model management, chat, TTS and a mature mobile UI.
+
+The custom Java module in this directory is intentionally written mostly against platform Android
+APIs so the JARVIS system layer is not welded to React Native or one model engine.
+
+## What is already implemented here
+
+- installable Android project source
+- JARVIS UI shell
+- voice input + TTS output
+- request to become Android default Assistant
+- `VoiceInteractionService`
+- local SQLite memory
+- tasks
+- event log
+- notification awareness
+- salience engine
+- permission policy
+- Android action router
+- local cortex interface
+- rule-based offline fallback
+- boot initialization
+- zero paid API dependency
+
+## Local model plan
+
+The next integration is **not** to add Ollama to the phone.
+The phone should call llama.cpp/llama.rn directly, following the same proven approach used by
+PocketPal AI / Maid.
+
+Suggested model classes depend on phone RAM:
+
+- 4–6 GB: 1B–2B quantized model
+- 8 GB: 3B–4B quantized model
+- 12+ GB: 7B/8B may be practical depending on context and device
+
+JARVIS should use the smallest model that can solve the current task and reserve larger inference
+for difficult reasoning.
+
+## Build
+
+Open the `android/` directory in Android Studio and build the APK.
+
+This environment did not contain Android SDK/Gradle, so an APK binary is not included in this archive.
+The project is structured for Android Studio with compile/target SDK 36 and min SDK 29.
+
+## Assistant role
+
+After installation:
+
+1. Open JARVIS.
+2. Tap **Make JARVIS Default Assistant**.
+3. Approve Android's Assistant-role dialog.
+4. Enable notification awareness if desired.
+5. Grant microphone permission.
+
+The OEM controls which gestures/hotwords can invoke a third-party assistant. JARVIS can be the
+selected Android Assistant, but the proprietary "Hey Google"/Bixby hotword pipeline is not ours.
+A dedicated free local wake-word engine can be added later.
+JARVISEOF_4990357575239060180
+mkdir -p android
+cat > android/README_TRANSPLANT.md <<'JARVISEOF_8886298923858099167'
+# JARVIS Android V1 — Donor APK Transplant
+
+This is a clean Android 16-targeted rebuild that uses selected visual resources from the uploaded legacy
+`com.itsmylab.jarvis` APK as temporary private-beta donor assets. Its old DEX code, advertising SDKs,
+trackers, and command engine are **not** included.
+
+## V1 body
+
+Reused temporary donor assets:
+- reactor icon
+- JARVIS normal/active sprites
+- MK2/MK3 backgrounds
+- temporary button graphics
+- legacy JARVIS icon
+
+Not reused:
+- old DEX logic
+- PocketSphinx binaries
+- ad SDK DEX payloads
+- tracking/analytics SDKs
+- obsolete network code
+- legacy licensing code
+
+## Assistant popup
+
+JARVIS implements Android's Assistant role + `VoiceInteractionService` + a custom
+`VoiceInteractionSession`.
+
+When invoked as the default assistant, Android owns the assistant window and JARVIS injects the
+compact holographic panel into that session. It is therefore an assistant overlay rather than merely
+launching the full app.
+
+The HUD itself is programmatic and animates rings around the donor reactor asset so it can later be
+replaced by a 3D renderer without rewriting the brain.
+
+## Advanced hands
+
+An optional `AccessibilityService` provides user-enabled agentic phone control:
+- read accessibility-visible screen text
+- locate/tap controls by label
+- enter text into focused fields
+- scroll
+- Back/Home
+- infer active package
+
+This is intentionally opt-in and should be used with the JARVIS permission engine.
+
+## Deterministic actions implemented
+
+- open installed apps by name
+- open URLs/settings/camera
+- flashlight
+- volume
+- timers
+- alarms
+- web search
+- read screen accessibility context
+- tap visible control
+- type into field
+- back/home/scroll
+- local memories
+- local tasks
+- notification observation
+
+## Cortex
+
+The architecture includes a free local cortex bridge targeting an OpenAI-compatible llama.cpp server
+at `127.0.0.1:8080`.
+
+This is an interim bridge so the Android shell and brain are not coupled to a model engine. The next
+build step is to embed llama.cpp/llama.rn directly so no local server process is required.
+
+On a 12 GB Galaxy S26, target model classes are:
+- fast executive: ~3B/4B Q4 GGUF
+- heavier reasoning: ~7B/8B Q4 GGUF loaded on demand
+
+Do not count RAM Plus as physical model RAM.
+
+## What makes this V1 more capable than a traditional assistant architecture
+
+The differentiator is not a claim of universal benchmark superiority. It is the architecture:
+- persistent local memory
+- screen context through user-enabled Accessibility
+- generic UI actions
+- replaceable local LLM
+- notification/event awareness
+- deterministic tool layer
+- assistant overlay
+- permission boundary
+- offline-first operation
+- future specialist-agent routing
+
+## Build status
+
+This environment does not contain the Android SDK/NDK/Gradle toolchain, so this archive contains the
+rewritten Android Studio project, not a signed APK binary.
+
+Open `android/` in Android Studio and build `app-debug.apk`. The next engineering pass should merge
+direct llama.cpp inference and then produce the signed beta APK.
+JARVISEOF_8886298923858099167
+mkdir -p android/app
+cat > android/app/build.gradle <<'JARVISEOF_789137202360053280'
+plugins {
+    id 'com.android.application'
 }
-EOF
-cat > android/app/src/main/res/values/styles.xml <<'EOF'
-<resources><style name="AppTheme" parent="android:style/Theme.Material.NoActionBar"><item name="android:fontFamily">sans</item><item name="android:colorAccent">#33D9FF</item><item name="android:navigationBarColor">#06131E</item><item name="android:windowLightStatusBar">false</item><item name="android:statusBarColor">#06131E</item></style></resources>
-EOF
-cat > android/app/src/main/res/values/strings.xml <<'EOF'
-<resources><string name="app_name">JARVIS</string></resources>
-EOF
-cat > android/app/src/main/res/drawable/icon.xml <<'EOF'
-<vector xmlns:android="http://schemas.android.com/apk/res/android" android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108"><path android:fillColor="#06131E" android:pathData="M0,0h108v108h-108z"/><path android:fillColor="#33D9FF" android:pathData="M54,10 A44,44 0,1 0,54 98 A44,44 0,1 0,54 10 M54,26 A28,28 0,1 1,54 82 A28,28 0,1 1,54 26 M54,42 A12,12 0,1 0,54 66 A12,12 0,1 0,54 42"/></vector>
-EOF
-cat > android/app/src/main/res/xml/voice_interaction_service.xml <<'EOF'
-<voice-interaction-service xmlns:android="http://schemas.android.com/apk/res/android" android:sessionService="com.jarvis.mobile.JarvisVoiceSessionService" android:recognitionService="" android:supportsAssist="true" android:supportsLaunchVoiceAssistFromKeyguard="true" />
-EOF
-cat > android/app/src/main/res/xml/accessibility_service.xml <<'EOF'
-<accessibility-service xmlns:android="http://schemas.android.com/apk/res/android" android:accessibilityEventTypes="typeAllMask" android:accessibilityFeedbackType="feedbackGeneric" android:canRetrieveWindowContent="true" android:canPerformGestures="true" android:notificationTimeout="100" />
-EOF
-cat > android/app/src/main/AndroidManifest.xml <<'EOF'
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"><uses-permission android:name="android.permission.RECORD_AUDIO"/><uses-permission android:name="android.permission.INTERNET"/><uses-permission android:name="android.permission.POST_NOTIFICATIONS"/><application android:theme="@style/AppTheme" android:label="JARVIS" android:icon="@drawable/icon"><activity android:name=".MainActivity" android:exported="true"><intent-filter><action android:name="android.intent.action.MAIN"/><category android:name="android.intent.category.LAUNCHER"/></intent-filter><intent-filter><action android:name="android.intent.action.ASSIST"/><category android:name="android.intent.category.DEFAULT"/></intent-filter></activity><service android:name=".JarvisVoiceInteractionService" android:permission="android.permission.BIND_VOICE_INTERACTION" android:exported="true"><intent-filter><action android:name="android.service.voice.VoiceInteractionService"/></intent-filter><meta-data android:name="android.voice_interaction" android:resource="@xml/voice_interaction_service"/></service><service android:name=".JarvisVoiceSessionService" android:permission="android.permission.BIND_VOICE_INTERACTION" android:exported="true"/><service android:name=".JarvisAccessibilityService" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE" android:exported="true"><intent-filter><action android:name="android.accessibilityservice.AccessibilityService"/></intent-filter><meta-data android:name="android.accessibilityservice" android:resource="@xml/accessibility_service"/></service></application></manifest>
-EOF
-cat > android/app/src/main/java/com/jarvis/mobile/MainActivity.java <<'EOF'
+
+android {
+    namespace 'com.jarvis.mobile'
+    compileSdk 36
+
+    defaultConfig {
+        applicationId "com.jarvis.mobile"
+        minSdk 29
+        targetSdk 36
+        versionCode 1
+        versionName "0.1.0"
+    }
+
+    buildTypes {
+        debug {
+            debuggable true
+        }
+        release {
+            minifyEnabled false
+            shrinkResources false
+        }
+    }
+}
+JARVISEOF_789137202360053280
+mkdir -p android/app/src/main
+cat > android/app/src/main/AndroidManifest.xml <<'JARVISEOF_3238823459987615250'
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <uses-permission android:name="android.permission.VIBRATE"/>
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <uses-permission android:name="android.permission.FLASHLIGHT"/>
+    <uses-permission android:name="android.permission.SET_ALARM"/>
+    <uses-permission android:name="android.permission.READ_CONTACTS"/>
+    <uses-permission android:name="android.permission.CALL_PHONE"/>
+    <uses-permission android:name="android.permission.READ_CALENDAR"/>
+    <uses-permission android:name="android.permission.WRITE_CALENDAR"/>
+
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.MAIN"/>
+            <category android:name="android.intent.category.LAUNCHER"/>
+        </intent>
+    </queries>
+
+    <application
+        android:allowBackup="true"
+        android:label="JARVIS"
+        android:icon="@drawable/jarvis_widget_icon"
+        android:theme="@style/AppTheme"
+        android:supportsRtl="true">
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+            </intent-filter>
+        </activity>
+
+        <service
+            android:name=".assistant.JarvisVoiceInteractionService"
+            android:permission="android.permission.BIND_VOICE_INTERACTION"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.voice.VoiceInteractionService"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.voice_interaction"
+                android:resource="@xml/voice_interaction_service"/>
+        </service>
+
+        <service
+            android:name=".assistant.JarvisVoiceSessionService"
+            android:permission="android.permission.BIND_VOICE_INTERACTION" android:exported="true"/>
+
+        <service
+            android:name=".events.JarvisNotificationListener"
+            android:label="JARVIS Notification Awareness"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService"/>
+            </intent-filter>
+        </service>
+
+        <service
+            android:name=".hands.JarvisAccessibilityService"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+            android:exported="true"
+            android:label="JARVIS Device Control">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService"/>
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/accessibility_service"/>
+        </service>
+
+        <receiver
+            android:name=".events.BootReceiver"
+            android:enabled="true"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED"/>
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>
+JARVISEOF_3238823459987615250
+mkdir -p android/app/src/main/java/com/jarvis/mobile
+cat > android/app/src/main/java/com/jarvis/mobile/MainActivity.java <<'JARVISEOF_561950133379731899'
 package com.jarvis.mobile;
-import android.app.*;import android.os.*;import android.Manifest;import android.content.*;import android.provider.Settings;import android.graphics.Color;import android.view.*;import android.widget.*;import java.util.*;
-public class MainActivity extends Activity{
- LinearLayout root; TextView status; public void onCreate(Bundle b){super.onCreate(b); if(Build.VERSION.SDK_INT>=23&&checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=0)requestPermissions(new String[]{Manifest.permission.RECORD_AUDIO},7); root=new LinearLayout(this);root.setOrientation(LinearLayout.VERTICAL);root.setGravity(Gravity.CENTER);root.setPadding(36,36,36,36);root.setBackgroundColor(Color.rgb(6,19,30)); TextView h=t("J.A.R.V.I.S.",34,Color.rgb(51,217,255));root.addView(h);root.addView(t("ANDROID PRIVATE BETA • V1.1",14,Color.LTGRAY)); status=t("SYSTEM READY\n\nThis is the first installable JARVIS chassis. Set it as the phone assistant, grant microphone access, and test the popup voice session before we transplant the larger brain.",18,Color.WHITE);root.addView(status);Button a=btn("MAKE JARVIS DEFAULT ASSISTANT");a.setOnClickListener(v->startActivity(new Intent(Settings.ACTION_VOICE_INPUT_SETTINGS)));root.addView(a);Button s=btn("OPEN ACCESSIBILITY / DEVICE CONTROL");s.setOnClickListener(v->startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)));root.addView(s);Button m=btn("TEST JARVIS VOICE");m.setOnClickListener(v->startActivity(new Intent(Intent.ACTION_ASSIST)));root.addView(m);setContentView(root);} TextView t(String x,int z,int c){TextView v=new TextView(this);v.setText(x);v.setTextSize(z);v.setTextColor(c);v.setGravity(17);v.setPadding(10,24,10,24);return v;}Button btn(String x){Button b=new Button(this);b.setText(x);b.setAllCaps(false);return b;}}
-EOF
-cat > android/app/src/main/java/com/jarvis/mobile/JarvisVoiceInteractionService.java <<'EOF'
-package com.jarvis.mobile; import android.service.voice.VoiceInteractionService; public class JarvisVoiceInteractionService extends VoiceInteractionService { public void onReady(){super.onReady();} }
-EOF
-cat > android/app/src/main/java/com/jarvis/mobile/JarvisVoiceSessionService.java <<'EOF'
-package com.jarvis.mobile; import android.service.voice.*; public class JarvisVoiceSessionService extends VoiceInteractionSessionService { public VoiceInteractionSession onNewSession(android.os.Bundle b){return new JarvisVoiceSession(this);} }
-EOF
-cat > android/app/src/main/java/com/jarvis/mobile/JarvisVoiceSession.java <<'EOF'
-package com.jarvis.mobile; import android.service.voice.*;import android.content.*;import android.os.*;import android.speech.*;import android.graphics.*;import android.view.*;import android.widget.*;import java.util.*;
-public class JarvisVoiceSession extends VoiceInteractionSession{TextView text,state;SpeechRecognizer sr;public JarvisVoiceSession(Context c){super(c);}public void onCreate(){super.onCreate();LinearLayout r=new LinearLayout(getContext());r.setOrientation(LinearLayout.VERTICAL);r.setPadding(30,30,30,30);r.setBackgroundColor(Color.rgb(5,18,29));state=new TextView(getContext());state.setText("JARVIS • READY");state.setTextColor(Color.rgb(51,217,255));state.setTextSize(20);r.addView(state);text=new TextView(getContext());text.setText("At your service.");text.setTextColor(Color.WHITE);text.setTextSize(18);text.setPadding(0,18,0,18);r.addView(text);Button b=new Button(getContext());b.setText("LISTEN");b.setOnClickListener(v->listen());r.addView(b);setContentView(r);}public void onShow(Bundle b,int f){super.onShow(b,f);listen();}void listen(){if(!SpeechRecognizer.isRecognitionAvailable(getContext())){text.setText("Speech recognition unavailable.");return;}if(sr!=null)sr.destroy();sr=SpeechRecognizer.createSpeechRecognizer(getContext());sr.setRecognitionListener(new RecognitionListener(){public void onReadyForSpeech(Bundle b){state.setText("JARVIS • LISTENING");}public void onBeginningOfSpeech(){}public void onRmsChanged(float f){}public void onBufferReceived(byte[]b){}public void onEndOfSpeech(){state.setText("JARVIS • PROCESSING");}public void onError(int e){state.setText("JARVIS • READY");text.setText("I didn't catch that.");}public void onResults(Bundle b){ArrayList<String>x=b.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);String q=x==null||x.isEmpty()?"":x.get(0);reply(q);}public void onPartialResults(Bundle b){}public void onEvent(int t,Bundle b){}});Intent i=new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL,RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS,4000L);sr.startListening(i);}void reply(String q){state.setText("JARVIS • ACTIVE");if(q.isBlank())text.setText("At your service.");else text.setText("I heard: “"+q+"”\n\nThe Android assistant chassis is responding. The predictive cortex and custom routine engine are the next transplant layer.");}public void onDestroy(){if(sr!=null)sr.destroy();super.onDestroy();}}
-EOF
-cat > android/app/src/main/java/com/jarvis/mobile/JarvisAccessibilityService.java <<'EOF'
-package com.jarvis.mobile; import android.accessibilityservice.AccessibilityService;import android.view.accessibility.AccessibilityEvent; public class JarvisAccessibilityService extends AccessibilityService{public void onAccessibilityEvent(AccessibilityEvent e){}public void onInterrupt(){}}
-EOF
+
+import android.Manifest;
+import android.app.*;
+import android.app.role.RoleManager;
+import android.content.*;
+import android.content.pm.PackageManager;
+import android.graphics.*;
+import android.os.Bundle;
+import android.provider.Settings;
+import android.speech.*;
+import android.speech.tts.TextToSpeech;
+import android.view.*;
+import android.widget.*;
+import java.util.*;
+import com.jarvis.mobile.brain.JarvisBrain;
+import com.jarvis.mobile.ui.HudView;
+
+public class MainActivity extends Activity implements TextToSpeech.OnInit
