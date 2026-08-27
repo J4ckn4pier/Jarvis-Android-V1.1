@@ -12,3 +12,4 @@ java -cp out com.jarvis.brain.PlanValidationTest
 java -cp out com.jarvis.brain.AttentionConversationTest
 java -cp out com.jarvis.brain.HabitPredictionTest
 java -cp out com.jarvis.brain.StructuredPlanningTest
+java -cp out com.jarvis.brain.LongTermMemoryTest
