@@ -34,6 +34,6 @@ final class HttpJson {
         if (input == null) return "";
         ByteArrayOutputStream out = new ByteArrayOutputStream(); byte[] buffer = new byte[8192]; int total = 0, n;
         while ((n = input.read(buffer)) >= 0) { total += n; if (total > MAX) throw new IllegalStateException("Provider response too large"); out.write(buffer, 0, n); }
-        return out.toString(StandardCharsets.UTF_8);
+        return new String(out.toByteArray(), StandardCharsets.UTF_8);
     }
 }
