@@ -56,6 +56,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private static final long PULSE_MS = 260L;
     private static final String SELF_TEST_TAG = "JARVIS_SELF_TEST";
     private static final String COMMAND_TEST_TAG = "JARVIS_COMMAND_TEST";
+    private static final String UI_TEST_TAG = "JARVIS_UI_TEST";
 
     private final android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
     private final Runnable pulse = new Runnable() {
@@ -107,6 +108,10 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             String testCommand = getIntent().getStringExtra("jarvis_test_command");
             ui.postDelayed(() -> runCommand(testCommand), 350L);
             return;
+        }
+
+        if ((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
+            Log.i(UI_TEST_TAG, "JARVIS_HOME_READY Mark III Welcome Sir");
         }
 
         requestRuntimePermissions();

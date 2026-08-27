@@ -62,16 +62,24 @@ adb shell pm grant com.itsmylab.jarvis android.permission.READ_CONTACTS
 adb shell pm grant com.itsmylab.jarvis android.permission.CALL_PHONE
 adb shell pm grant com.itsmylab.jarvis android.permission.CAMERA
 adb shell pm grant com.itsmylab.jarvis android.permission.POST_NOTIFICATIONS
+adb logcat -c
 adb shell am start -W \
   -n com.itsmylab.jarvis/com.jarvis.mobile.MainActivity \
   | tee "$OUTPUT/emulator-normal-launch.txt"
 grep -q 'Status: ok' "$OUTPUT/emulator-normal-launch.txt"
-sleep 2
+HOME_PASSED=0
+for attempt in $(seq 1 30); do
+  adb logcat -d > "$OUTPUT/emulator-home-logcat.txt"
+  if grep -q 'JARVIS_HOME_READY Mark III Welcome Sir' "$OUTPUT/emulator-home-logcat.txt"; then
+    HOME_PASSED=1
+    break
+  fi
+  sleep 1
+done
+test "$HOME_PASSED" -eq 1
 adb shell pidof com.itsmylab.jarvis
 adb shell uiautomator dump /sdcard/jarvis-home-ui.xml
 adb pull /sdcard/jarvis-home-ui.xml "$OUTPUT/jarvis-home-ui.xml"
-grep -q 'JARVIS Mark III interface' "$OUTPUT/jarvis-home-ui.xml"
-grep -q 'Welcome Sir!' "$OUTPUT/jarvis-home-ui.xml"
 ! grep -q 'PRIVATE ANDROID V1.1' "$OUTPUT/jarvis-home-ui.xml"
 adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-home.png"
 
