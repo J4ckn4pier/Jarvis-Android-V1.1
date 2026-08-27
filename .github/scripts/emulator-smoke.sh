@@ -89,9 +89,12 @@ adb shell cmd role get-role-holders android.app.role.ASSISTANT \
 adb shell am force-stop com.itsmylab.jarvis
 adb shell input keyevent KEYCODE_HOME
 adb logcat -c
-adb shell am start -W -a android.intent.action.ASSIST \
+# Invoke the active VoiceInteractionService directly through Android's
+# voiceinteraction manager. ACTION_ASSIST is an activity intent and can be
+# legitimately resolved by an exported ASSIST activity instead of exercising
+# the VoiceInteractionService/VoiceInteractionSession lifecycle.
+adb shell cmd voiceinteraction show \
   | tee "$OUTPUT/emulator-assistant-launch.txt"
-grep -q 'Status: ok' "$OUTPUT/emulator-assistant-launch.txt"
 ASSISTANT_PASSED=0
 for attempt in $(seq 1 30); do
   adb logcat -d > "$OUTPUT/emulator-assistant-logcat.txt"
