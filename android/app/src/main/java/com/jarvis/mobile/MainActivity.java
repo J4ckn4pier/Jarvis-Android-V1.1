@@ -6,6 +6,7 @@ import android.app.AlertDialog;
 import android.app.role.RoleManager;
 import android.content.ComponentName;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
@@ -98,7 +99,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             return;
         }
 
-        if (BuildConfig.DEBUG && getIntent() != null &&
+        if ((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0 && getIntent() != null &&
                 getIntent().hasExtra("jarvis_test_command")) {
             String testCommand = getIntent().getStringExtra("jarvis_test_command");
             ui.postDelayed(() -> runCommand(testCommand), 350L);
