@@ -83,15 +83,36 @@ adb pull /sdcard/jarvis-home-ui.xml "$OUTPUT/jarvis-home-ui.xml"
 ! grep -q 'PRIVATE ANDROID V1.1' "$OUTPUT/jarvis-home-ui.xml"
 adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-home.png"
 
+# Assign JARVIS as the Android assistant and capture the framework state before
+# attempting invocation. These diagnostics distinguish "role holder" from an
+# actually parsed/bound VoiceInteractionService.
+adb logcat -c
 adb shell cmd role add-role-holder android.app.role.ASSISTANT com.itsmylab.jarvis
 adb shell cmd role get-role-holders android.app.role.ASSISTANT \
+  | tee "$OUTPUT/emulator-assistant-role.txt" \
   | grep -q '^com.itsmylab.jarvis$'
+sleep 3
+adb shell settings get secure assistant \
+  | tee "$OUTPUT/emulator-secure-assistant.txt" || true
+adb shell settings get secure voice_interaction_service \
+  | tee "$OUTPUT/emulator-secure-voice-interaction-service.txt" || true
+adb shell settings get secure voice_recognition_service \
+  | tee "$OUTPUT/emulator-secure-voice-recognition-service.txt" || true
+adb shell dumpsys voiceinteraction \
+  | tee "$OUTPUT/emulator-voiceinteraction-dumpsys.txt" || true
+adb shell dumpsys package com.itsmylab.jarvis \
+  | tee "$OUTPUT/emulator-package-dumpsys.txt" || true
+adb logcat -d > "$OUTPUT/emulator-assistant-preinvoke-logcat.txt"
+
+VOICE_SERVICE_READY=0
+if grep -q 'JARVIS_VOICE_SERVICE_READY' "$OUTPUT/emulator-assistant-preinvoke-logcat.txt"; then
+  VOICE_SERVICE_READY=1
+fi
+echo "JARVIS voice service ready before invocation: $VOICE_SERVICE_READY"
+
 adb shell am force-stop com.itsmylab.jarvis
 adb shell input keyevent KEYCODE_HOME
 adb logcat -c
-# Exercise the system-mediated voice-assistant path instead of the privileged
-# VoiceInteractionManager shell command. KEYCODE_VOICE_ASSIST is routed by the
-# system to the currently selected voice interaction assistant.
 adb shell input keyevent KEYCODE_VOICE_ASSIST \
   | tee "$OUTPUT/emulator-assistant-launch.txt"
 ASSISTANT_PASSED=0
@@ -103,6 +124,18 @@ for attempt in $(seq 1 30); do
   fi
   sleep 1
 done
+
+# Always capture post-invocation framework state before applying the gate.
+adb shell settings get secure assistant \
+  | tee "$OUTPUT/emulator-secure-assistant-post.txt" || true
+adb shell settings get secure voice_interaction_service \
+  | tee "$OUTPUT/emulator-secure-voice-interaction-service-post.txt" || true
+adb shell dumpsys voiceinteraction \
+  | tee "$OUTPUT/emulator-voiceinteraction-dumpsys-post.txt" || true
+adb logcat -d > "$OUTPUT/emulator-assistant-logcat.txt"
+grep -E 'VoiceInteraction|voiceinteraction|JARVIS_ASSISTANT_TEST|JarvisVoice|RecognitionService|SecurityException|FATAL EXCEPTION' \
+  "$OUTPUT/emulator-assistant-logcat.txt" || true
+
 test "$ASSISTANT_PASSED" -eq 1
 adb shell pidof com.itsmylab.jarvis
 adb shell uiautomator dump /sdcard/jarvis-assistant-ui.xml
