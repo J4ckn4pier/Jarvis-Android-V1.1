@@ -35,16 +35,25 @@ adb pull /sdcard/jarvis-self-test-ui.xml "$OUTPUT/jarvis-self-test-ui.xml"
 adb exec-out screencap -p > "$OUTPUT/jarvis-self-test.png"
 
 adb shell am force-stop com.itsmylab.jarvis
+adb logcat -c
 adb shell am start -W \
   -n com.itsmylab.jarvis/com.jarvis.mobile.MainActivity \
   --es jarvis_test_command "'help me!!!'" \
   | tee "$OUTPUT/emulator-command-launch.txt"
 grep -q 'Status: ok' "$OUTPUT/emulator-command-launch.txt"
-sleep 2
+COMMAND_PASSED=0
+for attempt in $(seq 1 30); do
+  adb logcat -d > "$OUTPUT/emulator-command-logcat.txt"
+  if grep -q 'JARVIS_COMMAND_RESULT.*You can speak naturally' "$OUTPUT/emulator-command-logcat.txt" && \
+     grep -q 'JARVIS_COMMAND_RESULT.*call contacts' "$OUTPUT/emulator-command-logcat.txt"; then
+    COMMAND_PASSED=1
+    break
+  fi
+  sleep 1
+done
+test "$COMMAND_PASSED" -eq 1
 adb shell uiautomator dump /sdcard/jarvis-command-ui.xml
 adb pull /sdcard/jarvis-command-ui.xml "$OUTPUT/jarvis-command-ui.xml"
-grep -q 'You can speak naturally' "$OUTPUT/jarvis-command-ui.xml"
-grep -q 'call contacts' "$OUTPUT/jarvis-command-ui.xml"
 adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-command.png"
 
 adb shell am force-stop com.itsmylab.jarvis

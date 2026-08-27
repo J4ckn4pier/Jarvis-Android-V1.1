@@ -55,6 +55,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private static final int ASSISTANT_ROLE_REQUEST = 71;
     private static final long PULSE_MS = 260L;
     private static final String SELF_TEST_TAG = "JARVIS_SELF_TEST";
+    private static final String COMMAND_TEST_TAG = "JARVIS_COMMAND_TEST";
 
     private final android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
     private final Runnable pulse = new Runnable() {
@@ -76,6 +77,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private boolean active;
     private boolean pulseFrame;
     private SharedPreferences preferences;
+    private boolean commandTestMode;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -101,6 +103,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
         if ((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0 && getIntent() != null &&
                 getIntent().hasExtra("jarvis_test_command")) {
+            commandTestMode = true;
             String testCommand = getIntent().getStringExtra("jarvis_test_command");
             ui.postDelayed(() -> runCommand(testCommand), 350L);
             return;
@@ -308,6 +311,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
     private void deliverResult(BrainResult result) {
         setActive(false, result.spokenText());
+        if (commandTestMode) Log.i(COMMAND_TEST_TAG, "JARVIS_COMMAND_RESULT " + result.spokenText());
         boolean needsNarration = result.spokenText().length() > 90;
         boolean playedOriginalLine = !needsNarration && legacyResponses != null &&
                 legacyResponses.play(result.cue());
