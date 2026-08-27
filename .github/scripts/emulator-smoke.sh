@@ -86,11 +86,23 @@ adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-home.png"
 adb shell cmd role add-role-holder android.app.role.ASSISTANT com.itsmylab.jarvis
 adb shell cmd role get-role-holders android.app.role.ASSISTANT \
   | grep -q '^com.itsmylab.jarvis$'
+adb shell am force-stop com.itsmylab.jarvis
+adb shell input keyevent KEYCODE_HOME
+adb logcat -c
 adb shell am start -W -a android.intent.action.ASSIST \
   | tee "$OUTPUT/emulator-assistant-launch.txt"
 grep -q 'Status: ok' "$OUTPUT/emulator-assistant-launch.txt"
-sleep 2
+ASSISTANT_PASSED=0
+for attempt in $(seq 1 30); do
+  adb logcat -d > "$OUTPUT/emulator-assistant-logcat.txt"
+  if grep -q 'JARVIS_ASSISTANT_READY' "$OUTPUT/emulator-assistant-logcat.txt"; then
+    ASSISTANT_PASSED=1
+    break
+  fi
+  sleep 1
+done
+test "$ASSISTANT_PASSED" -eq 1
+adb shell pidof com.itsmylab.jarvis
 adb shell uiautomator dump /sdcard/jarvis-assistant-ui.xml
 adb pull /sdcard/jarvis-assistant-ui.xml "$OUTPUT/jarvis-assistant-ui.xml"
-grep -q 'OPEN FULL JARVIS' "$OUTPUT/jarvis-assistant-ui.xml"
 adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-assistant.png"

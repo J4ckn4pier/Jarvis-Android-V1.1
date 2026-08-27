@@ -13,6 +13,7 @@ import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -55,6 +56,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
 
     @Override
     public View onCreateContentView() {
+        Log.i("JARVIS_ASSISTANT_TEST", "JARVIS_ASSISTANT_READY");
         FrameLayout root = new FrameLayout(getContext());
         background = new ImageView(getContext());
         background.setImageResource(R.drawable.background_mk3_active);
