@@ -37,7 +37,7 @@ adb exec-out screencap -p > "$OUTPUT/jarvis-self-test.png"
 adb shell am force-stop com.itsmylab.jarvis
 adb shell am start -W \
   -n com.itsmylab.jarvis/com.jarvis.mobile.MainActivity \
-  --es jarvis_test_command 'help me!!!' \
+  --es jarvis_test_command "'help me!!!'" \
   | tee "$OUTPUT/emulator-command-launch.txt"
 grep -q 'Status: ok' "$OUTPUT/emulator-command-launch.txt"
 sleep 2
