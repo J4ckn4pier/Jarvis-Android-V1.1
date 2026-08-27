@@ -83,9 +83,8 @@ adb pull /sdcard/jarvis-home-ui.xml "$OUTPUT/jarvis-home-ui.xml"
 ! grep -q 'PRIVATE ANDROID V1.1' "$OUTPUT/jarvis-home-ui.xml"
 adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-home.png"
 
-# Assign JARVIS as the Android assistant and capture the framework state before
-# attempting invocation. These diagnostics distinguish "role holder" from an
-# actually parsed/bound VoiceInteractionService.
+# Assign JARVIS as the Android assistant and prove the framework has selected,
+# parsed, and bound the VoiceInteractionService before testing invocation.
 adb logcat -c
 adb shell cmd role add-role-holder android.app.role.ASSISTANT com.itsmylab.jarvis
 adb shell cmd role get-role-holders android.app.role.ASSISTANT \
@@ -104,37 +103,54 @@ adb shell dumpsys package com.itsmylab.jarvis \
   | tee "$OUTPUT/emulator-package-dumpsys.txt" || true
 adb logcat -d > "$OUTPUT/emulator-assistant-preinvoke-logcat.txt"
 
-VOICE_SERVICE_READY=0
-if grep -q 'JARVIS_VOICE_SERVICE_READY' "$OUTPUT/emulator-assistant-preinvoke-logcat.txt"; then
-  VOICE_SERVICE_READY=1
-fi
-echo "JARVIS voice service ready before invocation: $VOICE_SERVICE_READY"
+grep -q 'JARVIS_VOICE_SERVICE_READY' "$OUTPUT/emulator-assistant-preinvoke-logcat.txt"
 
-adb shell am force-stop com.itsmylab.jarvis
+# Keep the assistant process warm first. A force-stop can put a package into a
+# stopped state that is not representative of a normal default-assistant gesture.
 adb shell input keyevent KEYCODE_HOME
-adb logcat -c
-adb shell input keyevent KEYCODE_VOICE_ASSIST \
-  | tee "$OUTPUT/emulator-assistant-launch.txt"
+sleep 1
 ASSISTANT_PASSED=0
-for attempt in $(seq 1 30); do
-  adb logcat -d > "$OUTPUT/emulator-assistant-logcat.txt"
-  if grep -q 'JARVIS_ASSISTANT_READY' "$OUTPUT/emulator-assistant-logcat.txt"; then
+
+# Trigger matrix, attempt 1: generic hardware ASSIST key.
+adb logcat -c
+adb shell input keyevent KEYCODE_ASSIST \
+  | tee "$OUTPUT/emulator-assistant-key-assist.txt"
+for attempt in $(seq 1 10); do
+  adb logcat -d > "$OUTPUT/emulator-assistant-key-assist-logcat.txt"
+  if grep -q 'JARVIS_ASSISTANT_READY' "$OUTPUT/emulator-assistant-key-assist-logcat.txt"; then
     ASSISTANT_PASSED=1
     break
   fi
   sleep 1
 done
 
-# Always capture post-invocation framework state before applying the gate.
+# Trigger matrix, attempt 2: voice-assist hardware key, only if generic assist
+# did not create/show a VoiceInteractionSession.
+if [ "$ASSISTANT_PASSED" -eq 0 ]; then
+  adb logcat -c
+  adb shell input keyevent KEYCODE_VOICE_ASSIST \
+    | tee "$OUTPUT/emulator-assistant-key-voice-assist.txt"
+  for attempt in $(seq 1 10); do
+    adb logcat -d > "$OUTPUT/emulator-assistant-key-voice-assist-logcat.txt"
+    if grep -q 'JARVIS_ASSISTANT_READY' "$OUTPUT/emulator-assistant-key-voice-assist-logcat.txt"; then
+      ASSISTANT_PASSED=1
+      break
+    fi
+    sleep 1
+  done
+fi
+
+# If both public shell key paths fail, capture which lifecycle boundary was
+# reached. This distinguishes key routing from session-service/session-view bugs.
+adb logcat -d > "$OUTPUT/emulator-assistant-logcat.txt"
+grep -E 'JARVIS_VOICE_SERVICE_READY|JARVIS_SESSION_SERVICE_NEW_SESSION|JARVIS_ASSISTANT_READY|VoiceInteraction|voiceinteraction|JarvisVoice|RecognitionService|SecurityException|FATAL EXCEPTION' \
+  "$OUTPUT/emulator-assistant-logcat.txt" || true
 adb shell settings get secure assistant \
   | tee "$OUTPUT/emulator-secure-assistant-post.txt" || true
 adb shell settings get secure voice_interaction_service \
   | tee "$OUTPUT/emulator-secure-voice-interaction-service-post.txt" || true
 adb shell dumpsys voiceinteraction \
   | tee "$OUTPUT/emulator-voiceinteraction-dumpsys-post.txt" || true
-adb logcat -d > "$OUTPUT/emulator-assistant-logcat.txt"
-grep -E 'VoiceInteraction|voiceinteraction|JARVIS_ASSISTANT_TEST|JarvisVoice|RecognitionService|SecurityException|FATAL EXCEPTION' \
-  "$OUTPUT/emulator-assistant-logcat.txt" || true
 
 test "$ASSISTANT_PASSED" -eq 1
 adb shell pidof com.itsmylab.jarvis
