@@ -49,11 +49,87 @@ jobs:
           ! unzip -Z1 "$APK" | grep -Eiq 'assets/dex|pocketsphinx|adcolony|tapjoy|vungle|flurry|revmob|startapp'
           sha256sum "$APK" > android/app/build/outputs/apk/debug/app-debug.apk.sha256
 
+      - name: Enable Android emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' \
+            | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Install, launch, and test inside Android
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 35
+          arch: x86_64
+          profile: pixel_6
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
+          script: |
+            set -euxo pipefail
+            OUTPUT="android/app/build/outputs/apk/debug"
+            APK="$OUTPUT/app-debug.apk"
+
+            adb install -r "$APK" | tee "$OUTPUT/emulator-install.txt"
+            grep -q '^Success$' "$OUTPUT/emulator-install.txt"
+
+            adb shell am start -W \
+              -n com.itsmylab.jarvis/com.jarvis.mobile.MainActivity \
+              --ez jarvis_self_test true \
+              | tee "$OUTPUT/emulator-self-test-launch.txt"
+            grep -q 'Status: ok' "$OUTPUT/emulator-self-test-launch.txt"
+
+            SELF_TEST_PASSED=0
+            for attempt in $(seq 1 30); do
+              adb logcat -d > "$OUTPUT/emulator-logcat.txt"
+              if grep -q 'JARVIS_SELF_TEST_PASS' "$OUTPUT/emulator-logcat.txt"; then
+                SELF_TEST_PASSED=1
+                break
+              fi
+              if grep -q 'JARVIS_SELF_TEST_FAIL' "$OUTPUT/emulator-logcat.txt"; then
+                grep -A 30 'JARVIS_SELF_TEST_FAIL' "$OUTPUT/emulator-logcat.txt"
+                exit 1
+              fi
+              sleep 1
+            done
+            test "$SELF_TEST_PASSED" -eq 1
+            adb shell pidof com.itsmylab.jarvis
+
+            adb shell uiautomator dump /sdcard/jarvis-self-test-ui.xml
+            adb pull /sdcard/jarvis-self-test-ui.xml "$OUTPUT/jarvis-self-test-ui.xml"
+            grep -q 'SELF TEST PASSED' "$OUTPUT/jarvis-self-test-ui.xml"
+            adb exec-out screencap -p > "$OUTPUT/jarvis-self-test.png"
+
+            adb shell am force-stop com.itsmylab.jarvis
+            adb shell pm grant com.itsmylab.jarvis android.permission.RECORD_AUDIO
+            adb shell pm grant com.itsmylab.jarvis android.permission.READ_CONTACTS
+            adb shell pm grant com.itsmylab.jarvis android.permission.CALL_PHONE
+            adb shell pm grant com.itsmylab.jarvis android.permission.CAMERA
+            adb shell pm grant com.itsmylab.jarvis android.permission.POST_NOTIFICATIONS
+            adb shell am start -W \
+              -n com.itsmylab.jarvis/com.jarvis.mobile.MainActivity \
+              | tee "$OUTPUT/emulator-normal-launch.txt"
+            grep -q 'Status: ok' "$OUTPUT/emulator-normal-launch.txt"
+            sleep 2
+            adb shell pidof com.itsmylab.jarvis
+            adb shell uiautomator dump /sdcard/jarvis-home-ui.xml
+            adb pull /sdcard/jarvis-home-ui.xml "$OUTPUT/jarvis-home-ui.xml"
+            grep -q 'JARVIS Mark III interface' "$OUTPUT/jarvis-home-ui.xml"
+            grep -q 'Welcome Sir!' "$OUTPUT/jarvis-home-ui.xml"
+            adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-home.png"
+
       - uses: actions/upload-artifact@v4
         with:
           name: JARVIS-Android-V1.1-donor-transplant
           path: |
             android/app/build/outputs/apk/debug/app-debug.apk
             android/app/build/outputs/apk/debug/app-debug.apk.sha256
+            android/app/build/outputs/apk/debug/emulator-install.txt
+            android/app/build/outputs/apk/debug/emulator-self-test-launch.txt
+            android/app/build/outputs/apk/debug/emulator-normal-launch.txt
+            android/app/build/outputs/apk/debug/emulator-logcat.txt
+            android/app/build/outputs/apk/debug/jarvis-self-test-ui.xml
+            android/app/build/outputs/apk/debug/jarvis-home-ui.xml
+            android/app/build/outputs/apk/debug/jarvis-self-test.png
+            android/app/build/outputs/apk/debug/jarvis-emulator-home.png
           if-no-files-found: error
           retention-days: 30

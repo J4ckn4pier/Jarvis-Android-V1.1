@@ -4,8 +4,10 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.role.RoleManager;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -18,6 +20,7 @@ import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
+import android.util.Log;
 import android.view.Gravity;
 import android.view.KeyEvent;
 import android.view.View;
@@ -33,6 +36,12 @@ import android.widget.PopupMenu;
 import android.widget.TextView;
 
 import com.jarvis.mobile.brain.JarvisBrain;
+import com.jarvis.mobile.assistant.JarvisVoiceInteractionService;
+import com.jarvis.mobile.assistant.JarvisVoiceSessionService;
+import com.jarvis.mobile.events.JarvisNotificationListener;
+import com.jarvis.mobile.hands.JarvisAccessibilityService;
+import com.jarvis.mobile.widgets.NotesWidget;
+import com.jarvis.mobile.widgets.QuickActivationWidget;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -43,6 +52,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private static final int PERMISSION_REQUEST = 70;
     private static final int ASSISTANT_ROLE_REQUEST = 71;
     private static final long PULSE_MS = 260L;
+    private static final String SELF_TEST_TAG = "JARVIS_SELF_TEST";
 
     private final android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
     private final Runnable pulse = new Runnable() {
@@ -76,6 +86,15 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         brain = new JarvisBrain(this);
         textToSpeech = new TextToSpeech(this, this);
         buildDonorShell();
+
+        // The build pipeline invokes this on the production activity after installing the
+        // finished APK in Android. It intentionally runs before permission prompts so CI can
+        // prove the transplanted brain, private memory, and declared Android components work.
+        if (getIntent() != null && getIntent().getBooleanExtra("jarvis_self_test", false)) {
+            ui.postDelayed(this::runEmbeddedSelfTest, 350L);
+            return;
+        }
+
         requestRuntimePermissions();
 
         if (!preferences.getBoolean("introduced", false)) {
@@ -278,6 +297,74 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             setActive(false, answer);
             speak(answer);
         }, 120L);
+    }
+
+    private void runEmbeddedSelfTest() {
+        setActive(true, "RUNNING DONOR-BRAIN SELF TEST ...");
+        try {
+            requireSelfTest("com.itsmylab.jarvis".equals(getPackageName()),
+                    "Donor package identity changed");
+
+            PackageInfo packageInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
+            long versionCode = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
+                    ? packageInfo.getLongVersionCode() : packageInfo.versionCode;
+            requireSelfTest(versionCode >= 2101L, "Unexpected version code " + versionCode);
+
+            requireSelfTest(getDrawable(R.drawable.background_mk2) != null, "MKII shell missing");
+            requireSelfTest(getDrawable(R.drawable.background_mk2_active) != null,
+                    "MKII active shell missing");
+            requireSelfTest(getDrawable(R.drawable.background_mk3) != null, "MKIII shell missing");
+            requireSelfTest(getDrawable(R.drawable.background_mk3_active) != null,
+                    "MKIII active shell missing");
+            requireSelfTest(getDrawable(R.drawable.menu_dots) != null, "Donor menu missing");
+            requireSelfTest(getDrawable(R.drawable.jarvis_normal) != null,
+                    "Donor normal reactor missing");
+            requireSelfTest(getDrawable(R.drawable.jarvis_active) != null,
+                    "Donor active reactor missing");
+
+            PackageManager packages = getPackageManager();
+            packages.getServiceInfo(new ComponentName(this, JarvisVoiceInteractionService.class), 0);
+            packages.getServiceInfo(new ComponentName(this, JarvisVoiceSessionService.class), 0);
+            packages.getServiceInfo(new ComponentName(this, JarvisNotificationListener.class), 0);
+            packages.getServiceInfo(new ComponentName(this, JarvisAccessibilityService.class), 0);
+            packages.getReceiverInfo(new ComponentName(this, NotesWidget.class), 0);
+            packages.getReceiverInfo(new ComponentName(this, QuickActivationWidget.class), 0);
+
+            String testId = "runtime " + System.currentTimeMillis();
+            String remember = brain.handle("remember " + testId + " is donor shell");
+            requireSelfTest(remember.toLowerCase(Locale.ROOT).contains("remember"),
+                    "Memory write failed: " + remember);
+            String recall = brain.handle("recall " + testId);
+            requireSelfTest(recall.toLowerCase(Locale.ROOT).contains("donor shell"),
+                    "Memory recall failed: " + recall);
+
+            String task = "runtime task " + System.currentTimeMillis();
+            String saved = brain.handle("add task " + task);
+            requireSelfTest(saved.toLowerCase(Locale.ROOT).contains("saved"),
+                    "Task write failed: " + saved);
+            requireSelfTest(brain.handle("list tasks").contains(task), "Task recall failed");
+            requireSelfTest(brain.handle("complete task " + task).contains("completed"),
+                    "Task completion failed");
+            requireSelfTest(!brain.handle("list tasks").contains(task),
+                    "Completed task remained open");
+
+            String capabilities = brain.handle("help").toLowerCase(Locale.ROOT);
+            requireSelfTest(capabilities.contains("call contacts") &&
+                            capabilities.contains("calendar") &&
+                            capabilities.contains("accessibility"),
+                    "Brain capability registry incomplete");
+
+            setActive(false, "SELF TEST PASSED");
+            Log.i(SELF_TEST_TAG, "JARVIS_SELF_TEST_PASS package=" + getPackageName() +
+                    " versionCode=" + versionCode);
+        } catch (Throwable failure) {
+            setActive(false, "SELF TEST FAILED");
+            Log.e(SELF_TEST_TAG, "JARVIS_SELF_TEST_FAIL", failure);
+        }
+    }
+
+    private void requireSelfTest(boolean condition, String message) {
+        if (!condition) throw new IllegalStateException(message);
     }
 
     private void listen() {
