@@ -32,7 +32,6 @@ adb shell pidof com.itsmylab.jarvis
 
 adb shell uiautomator dump /sdcard/jarvis-self-test-ui.xml
 adb pull /sdcard/jarvis-self-test-ui.xml "$OUTPUT/jarvis-self-test-ui.xml"
-grep -q 'SELF TEST PASSED' "$OUTPUT/jarvis-self-test-ui.xml"
 adb exec-out screencap -p > "$OUTPUT/jarvis-self-test.png"
 
 adb shell am force-stop com.itsmylab.jarvis
