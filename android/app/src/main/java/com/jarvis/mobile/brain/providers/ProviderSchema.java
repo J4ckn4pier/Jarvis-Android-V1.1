@@ -2,6 +2,7 @@ package com.jarvis.mobile.brain.providers;
 
 import com.jarvis.mobile.brain.core.IntentPlan;
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 public final class ProviderSchema {
@@ -13,7 +14,7 @@ public final class ProviderSchema {
                 "Never claim an action happened and never invent arbitrary commands. The Android policy layer executes approved actions.";
     }
 
-    public static JSONObject jsonSchema() {
+    public static JSONObject jsonSchema() throws JSONException {
         JSONArray intents = new JSONArray();
         for (IntentPlan.Intent value : IntentPlan.Intent.values()) intents.put(value.name());
         JSONObject props = new JSONObject()
