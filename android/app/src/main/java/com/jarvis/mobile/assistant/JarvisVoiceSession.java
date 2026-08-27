@@ -41,6 +41,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private ImageView face;
     private TextView output;
     private boolean viewReady;
+    private boolean autoListenTriggered;
 
     public JarvisVoiceSession(Context context) {
         super(context);
@@ -63,6 +64,14 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         background.setScaleType(ImageView.ScaleType.CENTER_CROP);
         root.addView(background, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
+
+        face = new ImageView(getContext());
+        face.setImageResource(R.drawable.jarvis_normal);
+        face.setScaleType(ImageView.ScaleType.CENTER_INSIDE);
+        FrameLayout.LayoutParams faceParams = new FrameLayout.LayoutParams(
+                dp(120), dp(120), Gravity.CENTER_HORIZONTAL | Gravity.TOP);
+        faceParams.topMargin = dp(48);
+        root.addView(face, faceParams);
 
         output = new TextView(getContext());
         output.setText("Listening…");
@@ -96,14 +105,20 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         root.addView(buttons, buttonParams);
 
         viewReady = true;
-        root.postDelayed(this::startListening, 180);
+        root.postDelayed(this::triggerAutoListen, 180);
         return root;
     }
 
     @Override
     public void onShow(Bundle args, int showFlags) {
         super.onShow(args, showFlags);
-        if (viewReady && output != null) output.postDelayed(this::startListening, 120);
+        if (viewReady && output != null) output.postDelayed(this::triggerAutoListen, 120);
+    }
+
+    private void triggerAutoListen() {
+        if (autoListenTriggered) return;
+        autoListenTriggered = true;
+        startListening();
     }
 
     private void startListening() {
