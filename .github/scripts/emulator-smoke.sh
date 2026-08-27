@@ -36,6 +36,19 @@ grep -q 'SELF TEST PASSED' "$OUTPUT/jarvis-self-test-ui.xml"
 adb exec-out screencap -p > "$OUTPUT/jarvis-self-test.png"
 
 adb shell am force-stop com.itsmylab.jarvis
+adb shell am start -W \
+  -n com.itsmylab.jarvis/com.jarvis.mobile.MainActivity \
+  --es jarvis_test_command 'help me!!!' \
+  | tee "$OUTPUT/emulator-command-launch.txt"
+grep -q 'Status: ok' "$OUTPUT/emulator-command-launch.txt"
+sleep 2
+adb shell uiautomator dump /sdcard/jarvis-command-ui.xml
+adb pull /sdcard/jarvis-command-ui.xml "$OUTPUT/jarvis-command-ui.xml"
+grep -q 'You can speak naturally' "$OUTPUT/jarvis-command-ui.xml"
+grep -q 'call contacts' "$OUTPUT/jarvis-command-ui.xml"
+adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-command.png"
+
+adb shell am force-stop com.itsmylab.jarvis
 adb shell pm grant com.itsmylab.jarvis android.permission.RECORD_AUDIO
 adb shell pm grant com.itsmylab.jarvis android.permission.READ_CONTACTS
 adb shell pm grant com.itsmylab.jarvis android.permission.CALL_PHONE
@@ -51,4 +64,17 @@ adb shell uiautomator dump /sdcard/jarvis-home-ui.xml
 adb pull /sdcard/jarvis-home-ui.xml "$OUTPUT/jarvis-home-ui.xml"
 grep -q 'JARVIS Mark III interface' "$OUTPUT/jarvis-home-ui.xml"
 grep -q 'Welcome Sir!' "$OUTPUT/jarvis-home-ui.xml"
+! grep -q 'PRIVATE ANDROID V1.1' "$OUTPUT/jarvis-home-ui.xml"
 adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-home.png"
+
+adb shell cmd role add-role-holder android.app.role.ASSISTANT com.itsmylab.jarvis
+adb shell cmd role get-role-holders android.app.role.ASSISTANT \
+  | grep -q '^com.itsmylab.jarvis$'
+adb shell am start -W -a android.intent.action.ASSIST \
+  | tee "$OUTPUT/emulator-assistant-launch.txt"
+grep -q 'Status: ok' "$OUTPUT/emulator-assistant-launch.txt"
+sleep 2
+adb shell uiautomator dump /sdcard/jarvis-assistant-ui.xml
+adb pull /sdcard/jarvis-assistant-ui.xml "$OUTPUT/jarvis-assistant-ui.xml"
+grep -q 'OPEN FULL JARVIS' "$OUTPUT/jarvis-assistant-ui.xml"
+adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-assistant.png"

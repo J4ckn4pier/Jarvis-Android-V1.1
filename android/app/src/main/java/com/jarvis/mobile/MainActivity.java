@@ -12,7 +12,6 @@ import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.media.AudioManager;
-import android.media.MediaPlayer;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
@@ -36,12 +35,14 @@ import android.widget.PopupMenu;
 import android.widget.TextView;
 
 import com.jarvis.mobile.brain.JarvisBrain;
+import com.jarvis.mobile.brain.core.BrainResult;
 import com.jarvis.mobile.assistant.JarvisVoiceInteractionService;
 import com.jarvis.mobile.assistant.JarvisVoiceSessionService;
 import com.jarvis.mobile.events.JarvisNotificationListener;
 import com.jarvis.mobile.hands.JarvisAccessibilityService;
 import com.jarvis.mobile.widgets.NotesWidget;
 import com.jarvis.mobile.widgets.QuickActivationWidget;
+import com.jarvis.mobile.voice.LegacyResponsePlayer;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -66,6 +67,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private JarvisBrain brain;
     private SpeechRecognizer speechRecognizer;
     private TextToSpeech textToSpeech;
+    private LegacyResponsePlayer legacyResponses;
     private ImageView background;
     private TextView status;
     private TextView modeStatus;
@@ -84,6 +86,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
         preferences = getSharedPreferences("jarvis_shell", MODE_PRIVATE);
         brain = new JarvisBrain(this);
+        legacyResponses = new LegacyResponsePlayer(this);
         textToSpeech = new TextToSpeech(this, this);
         buildDonorShell();
 
@@ -92,6 +95,13 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         // prove the transplanted brain, private memory, and declared Android components work.
         if (getIntent() != null && getIntent().getBooleanExtra("jarvis_self_test", false)) {
             ui.postDelayed(this::runEmbeddedSelfTest, 350L);
+            return;
+        }
+
+        if (BuildConfig.DEBUG && getIntent() != null &&
+                getIntent().hasExtra("jarvis_test_command")) {
+            String testCommand = getIntent().getStringExtra("jarvis_test_command");
+            ui.postDelayed(() -> runCommand(testCommand), 350L);
             return;
         }
 
@@ -133,16 +143,6 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         FrameLayout.LayoutParams modeParams = wrapFrame(Gravity.TOP | Gravity.END);
         modeParams.setMargins(0, dp(8), dp(8), 0);
         root.addView(modeStatus, modeParams);
-
-        TextView notice = donorText("PRIVATE ANDROID V1.1  •  DONOR TRANSPLANT", 10,
-                Color.rgb(90, 220, 240));
-        notice.setGravity(Gravity.CENTER);
-        notice.setAlpha(0.82f);
-        FrameLayout.LayoutParams noticeParams = new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
-                Gravity.TOP | Gravity.CENTER_HORIZONTAL);
-        noticeParams.setMargins(dp(18), dp(12), dp(18), 0);
-        root.addView(notice, noticeParams);
 
         status = donorText("Welcome Sir!", 16, Color.WHITE);
         status.setGravity(Gravity.CENTER);
@@ -292,11 +292,25 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         }
         setActive(true, "Processing ...");
         status.setText("Heard you say, “" + command + "”");
-        ui.postDelayed(() -> {
-            String answer = brain.handle(command);
-            setActive(false, answer);
-            speak(answer);
-        }, 120L);
+        ui.postDelayed(() -> brain.handle(command, this::deliverResult), 120L);
+    }
+
+    private void runCandidates(ArrayList<String> candidates) {
+        if (candidates == null || candidates.isEmpty()) {
+            setActive(false, "I didn’t catch that. Tap the reactor to try again.");
+            return;
+        }
+        setActive(true, "Processing ...");
+        status.setText("Heard you say, “" + candidates.get(0) + "”");
+        brain.handleCandidates(candidates, this::deliverResult);
+    }
+
+    private void deliverResult(BrainResult result) {
+        setActive(false, result.spokenText());
+        boolean needsNarration = result.spokenText().length() > 90;
+        boolean playedOriginalLine = !needsNarration && legacyResponses != null &&
+                legacyResponses.play(result.cue());
+        if (!playedOriginalLine) speak(result.spokenText());
     }
 
     private void runEmbeddedSelfTest() {
@@ -308,7 +322,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             PackageInfo packageInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
             long versionCode = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
                     ? packageInfo.getLongVersionCode() : packageInfo.versionCode;
-            requireSelfTest(versionCode >= 2101L, "Unexpected version code " + versionCode);
+            requireSelfTest(versionCode >= 2102L, "Unexpected version code " + versionCode);
 
             requireSelfTest(getDrawable(R.drawable.background_mk2) != null, "MKII shell missing");
             requireSelfTest(getDrawable(R.drawable.background_mk2_active) != null,
@@ -321,6 +335,9 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                     "Donor normal reactor missing");
             requireSelfTest(getDrawable(R.drawable.jarvis_active) != null,
                     "Donor active reactor missing");
+            requireSelfTest(R.raw.hello_sir != 0, "Donor hello response missing");
+            requireSelfTest(R.raw.didnt_understand != 0, "Donor fallback response missing");
+            requireSelfTest(R.raw.what_can_i_do != 0, "Donor help response missing");
 
             PackageManager packages = getPackageManager();
             packages.getServiceInfo(new ComponentName(this, JarvisVoiceInteractionService.class), 0);
@@ -353,6 +370,15 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                             capabilities.contains("calendar") &&
                             capabilities.contains("accessibility"),
                     "Brain capability registry incomplete");
+            requireSelfTest(brain.handle("help me!!!").toLowerCase(Locale.ROOT)
+                            .contains("speak naturally"),
+                    "Natural help phrasing failed");
+            requireSelfTest(brain.handle("what can you do?").toLowerCase(Locale.ROOT)
+                            .contains("call contacts"),
+                    "Punctuated help phrasing failed");
+            requireSelfTest(brain.handle("hello").toLowerCase(Locale.ROOT)
+                            .contains("service"),
+                    "JARVIS personality response failed");
 
             setActive(false, "SELF TEST PASSED");
             Log.i(SELF_TEST_TAG, "JARVIS_SELF_TEST_PASS package=" + getPackageName() +
@@ -378,7 +404,10 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             return;
         }
         if (speechRecognizer != null) speechRecognizer.destroy();
-        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
+        speechRecognizer = Build.VERSION.SDK_INT >= 31 &&
+                SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
+                ? SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
+                : SpeechRecognizer.createSpeechRecognizer(this);
         speechRecognizer.setRecognitionListener(new RecognitionListener() {
             @Override public void onReadyForSpeech(Bundle params) { setActive(true, "Listening ..."); }
             @Override public void onBeginningOfSpeech() { setActive(true, "Hearing you ..."); }
@@ -394,7 +423,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                     setActive(false, "I didn’t catch that. Tap the reactor to try again.");
                     return;
                 }
-                runCommand(matches.get(0));
+                runCandidates(matches);
             }
             @Override public void onPartialResults(Bundle partialResults) {
                 ArrayList<String> partial = partialResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
@@ -498,15 +527,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     }
 
     private void playReadyCue() {
-        if (!preferences.getBoolean("legacy_cues", true)) return;
-        try {
-            MediaPlayer cue = MediaPlayer.create(this, R.raw.ready_operational);
-            if (cue != null) {
-                cue.setOnCompletionListener(MediaPlayer::release);
-                cue.start();
-            }
-        } catch (Exception ignored) {
-        }
+        if (legacyResponses != null) legacyResponses.play("ready_operational");
     }
 
     private String speechError(int code) {
@@ -551,6 +572,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         ui.removeCallbacksAndMessages(null);
         if (speechRecognizer != null) speechRecognizer.destroy();
         if (textToSpeech != null) textToSpeech.shutdown();
+        if (legacyResponses != null) legacyResponses.release();
         super.onDestroy();
     }
 }

@@ -267,7 +267,7 @@ public final class AndroidActionRouter {
         } catch (Exception ignored) {
         }
         return launch(new Intent(Intent.ACTION_VIEW,
-                Uri.parse("https://www.google.com/search?q=" + Uri.encode(query))),
+                Uri.parse("https://duckduckgo.com/?q=" + Uri.encode(query))),
                 "Searching for " + query + ".");
     }
 

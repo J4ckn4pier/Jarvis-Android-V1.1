@@ -1,73 +1,154 @@
 package com.jarvis.mobile.brain;
 
 import android.content.Context;
+import android.os.BatteryManager;
+import android.os.Handler;
+import android.os.Looper;
 
 import com.jarvis.mobile.actions.AndroidActionRouter;
+import com.jarvis.mobile.brain.core.BrainResult;
+import com.jarvis.mobile.brain.core.IntentPlan;
+import com.jarvis.mobile.brain.core.LocalIntentEngine;
+import com.jarvis.mobile.brain.providers.CortexProvider;
+import com.jarvis.mobile.brain.providers.CortexProviderFactory;
 import com.jarvis.mobile.memory.JarvisDatabase;
 
+import java.text.DateFormat;
+import java.util.Calendar;
+import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
+/**
+ * Android executive cortex: understand, plan, validate, dispatch and synthesize.
+ * Providers may propose plans, but only this class can send canonical actions to Android hands.
+ */
 public final class JarvisBrain {
+    public interface Callback { void onResult(BrainResult result); }
+
+    private final Context context;
     private final JarvisDatabase memory;
     private final AndroidActionRouter actions;
+    private final LocalIntentEngine localLanguage;
+    private final Handler main;
+    private final ExecutorService providers;
 
     public JarvisBrain(Context context) {
-        Context app = context.getApplicationContext();
-        memory = JarvisDatabase.get(app);
+        this.context = context.getApplicationContext();
+        memory = JarvisDatabase.get(this.context);
         actions = new AndroidActionRouter(context);
+        localLanguage = new LocalIntentEngine();
+        main = new Handler(Looper.getMainLooper());
+        providers = Executors.newSingleThreadExecutor();
     }
 
+    /** Local-only synchronous path used by deterministic tests and reflex commands. */
     public String handle(String raw) {
-        if (raw == null || raw.trim().isEmpty()) return "I’m listening.";
-        String command = raw.trim();
-        String lower = command.toLowerCase(Locale.ROOT);
-        if (lower.startsWith("jarvis, ")) {
-            command = command.substring(8).trim();
-            lower = command.toLowerCase(Locale.ROOT);
-        } else if (lower.startsWith("jarvis ")) {
-            command = command.substring(7).trim();
-            lower = command.toLowerCase(Locale.ROOT);
+        return execute(localLanguage.plan(raw), "local").spokenText();
+    }
+
+    public void handle(String raw, Callback callback) {
+        IntentPlan local = localLanguage.plan(raw);
+        if (local.isResolved() && local.intent() != IntentPlan.Intent.KNOWLEDGE_QUERY) {
+            callback.onResult(execute(local, "local"));
+            return;
         }
-
-        try {
-            if (lower.startsWith("remember ")) return remember(command.substring(9).trim());
-            if (lower.startsWith("recall ")) return recall(command.substring(7).trim());
-            if (lower.equals("recall") || lower.equals("what do you remember")) return allMemories();
-            if (lower.startsWith("what do you remember about ")) {
-                return recall(command.substring("what do you remember about ".length()).trim());
-            }
-            if (lower.startsWith("what did i tell you about ")) {
-                return recall(command.substring("what did i tell you about ".length()).trim());
-            }
-
-            if (lower.startsWith("add task ")) return addTask(command.substring(9).trim());
-            if (lower.startsWith("create task ")) return addTask(command.substring(12).trim());
-            if (lower.startsWith("remind me to ")) return addTask(command.substring(13).trim());
-            if (lower.equals("tasks") || lower.equals("list tasks") ||
-                    lower.equals("what are my tasks") || lower.equals("what do i need to do")) {
-                return listTasks();
-            }
-            if (lower.startsWith("complete task ")) return completeTask(command.substring(14).trim());
-            if (lower.startsWith("finish task ")) return completeTask(command.substring(12).trim());
-
-            if (lower.equals("notifications") || lower.equals("read notifications") ||
-                    lower.equals("what are my notifications") || lower.equals("what did i miss")) {
-                String notifications = memory.recentNotifications(8);
-                return notifications.isEmpty()
-                        ? "I don’t have any captured notifications yet. Enable Notification Awareness first."
-                        : notifications;
-            }
-
-            if (lower.equals("help") || lower.equals("what can you do")) return help();
-
-            String actionResult = actions.execute(command);
-            if (actionResult != null) return actionResult;
-        } catch (Exception error) {
-            return "I couldn’t complete that: " +
-                    (error.getMessage() == null ? error.getClass().getSimpleName() : error.getMessage());
+        CortexProvider provider = CortexProviderFactory.create(context);
+        if (!provider.isConfigured() || "local".equals(provider.id())) {
+            callback.onResult(local.intent() == IntentPlan.Intent.KNOWLEDGE_QUERY
+                    ? execute(local, "local-search") : noCortexFallback(local));
+            return;
         }
+        providers.execute(() -> {
+            try {
+                IntentPlan plan = provider.propose(raw);
+                main.post(() -> callback.onResult(plan == null || !plan.isResolved()
+                        ? noCortexFallback(local) : execute(plan, provider.id())));
+            } catch (Exception failure) {
+                main.post(() -> callback.onResult(new BrainResult(local,
+                        "The optional reasoning service is unavailable, so I kept the request local, sir.", false)));
+            }
+        });
+    }
 
-        return "I don’t have a safe deterministic action for that yet. Try “help” for the current beta commands.";
+    public void handleCandidates(List<String> candidates, Callback callback) {
+        IntentPlan local = localLanguage.planCandidates(candidates);
+        if (local.isResolved() && local.intent() != IntentPlan.Intent.KNOWLEDGE_QUERY) {
+            callback.onResult(execute(local, "local-speech"));
+            return;
+        }
+        String bestTranscript = candidates == null || candidates.isEmpty() ? "" : candidates.get(0);
+        handle(bestTranscript, callback);
+    }
+
+    public String cortexStatus() { return CortexProviderFactory.status(context); }
+
+    private BrainResult execute(IntentPlan plan, String source) {
+        String answer;
+        switch (plan.intent()) {
+            case HELP:
+                answer = help();
+                break;
+            case REMEMBER:
+                answer = remember(plan.payload());
+                break;
+            case RECALL:
+                answer = recall(plan.payload());
+                break;
+            case ADD_TASK:
+                answer = addTask(plan.payload());
+                break;
+            case LIST_TASKS:
+                answer = listTasks();
+                break;
+            case COMPLETE_TASK:
+                answer = completeTask(plan.payload());
+                break;
+            case NOTIFICATIONS:
+                answer = notifications();
+                break;
+            case TIME:
+                answer = "It’s " + DateFormat.getTimeInstance(DateFormat.SHORT)
+                        .format(Calendar.getInstance().getTime()) + ", sir.";
+                break;
+            case DATE:
+                answer = "Today is " + DateFormat.getDateInstance(DateFormat.FULL)
+                        .format(Calendar.getInstance().getTime()) + ".";
+                break;
+            case BATTERY:
+                answer = batteryStatus();
+                break;
+            case KNOWLEDGE_QUERY:
+                answer = actions.execute("search " + plan.payload());
+                if (answer == null || answer.trim().isEmpty()) {
+                    answer = "I couldn’t open a private search for that question, sir.";
+                }
+                break;
+            case GREETING:
+            case IDENTITY:
+            case THANKS:
+            case CONVERSATION:
+                answer = plan.answer();
+                break;
+            case UNKNOWN:
+                return noCortexFallback(plan);
+            default:
+                answer = actions.execute(plan.canonicalCommand());
+                if (answer == null || answer.trim().isEmpty()) {
+                    answer = "I understood the request, but that Android capability is not connected yet, sir.";
+                }
+                break;
+        }
+        memory.logEvent("brain", source, plan.intent().name(), answer);
+        return new BrainResult(plan, answer, true);
+    }
+
+    private BrainResult noCortexFallback(IntentPlan plan) {
+        String answer = "I don’t yet have a reliable interpretation for that, sir. " +
+                "Say “show my commands,” rephrase it as a direct phone action, or configure an optional reasoning cortex in Settings.";
+        memory.logEvent("brain", "unresolved", plan.payload(), answer);
+        return new BrainResult(plan, answer, false);
     }
 
     private String remember(String statement) {
@@ -87,10 +168,11 @@ public final class JarvisBrain {
         }
         if (value.isEmpty()) return "Tell me the value you want remembered.";
         memory.remember(key, value);
-        return "I’ll remember " + (key.startsWith("note ") ? "that." : key + ".");
+        return key.startsWith("note ") ? "I’ll remember that, sir." : "I’ll remember " + key + ".";
     }
 
     private String recall(String key) {
+        if (key.isEmpty()) return allMemories();
         String result = memory.recall(key);
         return result.isEmpty() ? "I don’t have a memory matching " + key + "." : result;
     }
@@ -113,7 +195,23 @@ public final class JarvisBrain {
 
     private String completeTask(String query) {
         if (query.isEmpty()) return "Tell me the task number or name.";
-        return memory.completeTask(query) ? "Task completed." : "I couldn’t find an open task matching that.";
+        return memory.completeTask(query) ? "Task completed." :
+                "I couldn’t find an open task matching that.";
+    }
+
+    private String notifications() {
+        String result = memory.recentNotifications(8);
+        return result.isEmpty()
+                ? "I don’t have any captured notifications yet. Enable Notification Awareness first."
+                : result;
+    }
+
+    private String batteryStatus() {
+        BatteryManager manager = (BatteryManager) context.getSystemService(Context.BATTERY_SERVICE);
+        int level = manager == null ? -1
+                : manager.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY);
+        return level < 0 ? "Android did not report the battery level." :
+                "Battery power is at " + level + " percent, sir.";
     }
 
     private int indexOfIgnoreCase(String value, String needle) {
@@ -121,9 +219,10 @@ public final class JarvisBrain {
     }
 
     private String help() {
-        return "I can call contacts or numbers; draft texts and email; create calendar events and invites; " +
-                "set alarms and timers; open apps; search and navigate; control flashlight, volume, and media; " +
-                "read captured notifications; remember facts; store tasks; and use optional Accessibility control " +
-                "to read the screen, tap, type, scroll, go Back, or go Home.";
+        return "You can speak naturally. I can call contacts or dial numbers; prepare texts and email; " +
+                "create calendar events and invitations; set alarms and timers; open apps; search, show weather " +
+                "or news, and navigate; control the flashlight, volume, and media; read notifications; remember " +
+                "facts; manage tasks; report the time, date, and battery; and use optional Accessibility Device " +
+                "Control to read the screen, tap, type, scroll, go Back, or go Home.";
     }
 }

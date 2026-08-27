@@ -11,8 +11,8 @@ android {
         applicationId 'com.itsmylab.jarvis'
         minSdk 29
         targetSdk 36
-        versionCode 2101
-        versionName '2.0.1-brain-transplant-v1.1'
+        versionCode 2102
+        versionName '2.0.1-prefrontal-transplant-v1.2'
     }
 
     compileOptions {

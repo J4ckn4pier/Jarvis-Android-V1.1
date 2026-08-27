@@ -7,23 +7,31 @@ import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.text.InputType;
 import android.view.ViewGroup;
 import android.widget.Button;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
+import android.widget.Toast;
 
-/** Clean implementation of the donor General/Notifications/Quick Activation settings. */
+import com.jarvis.mobile.brain.providers.CortexProviderFactory;
+import com.jarvis.mobile.brain.providers.SecureSecretStore;
+
+/** Donor settings roles with a private, provider-neutral cortex configuration. */
 public class SettingsActivity extends Activity {
     private SharedPreferences preferences;
+    private SharedPreferences cortexPreferences;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         setTitle("JARVIS Settings");
         preferences = getSharedPreferences("jarvis_shell", MODE_PRIVATE);
+        cortexPreferences = getSharedPreferences("jarvis_cortex", MODE_PRIVATE);
 
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
@@ -33,6 +41,64 @@ public class SettingsActivity extends Activity {
         body.addView(header("GENERAL"), fullWrap());
         body.addView(toggle("Voice responses", "voice_enabled", true), fullWrap());
         body.addView(toggle("Legacy JARVIS audio cues", "legacy_cues", true), fullWrap());
+
+        body.addView(header("PREFRONTAL CORTEX"), fullWrap());
+        TextView cortexStatus = new TextView(this);
+        cortexStatus.setText(CortexProviderFactory.status(this));
+        cortexStatus.setTextColor(Color.DKGRAY);
+        cortexStatus.setPadding(dp(8), dp(4), dp(8), dp(8));
+        body.addView(cortexStatus, fullWrap());
+
+        String selectedProvider = cortexPreferences.getString(
+                "mode", CortexProviderFactory.MODE_LOCAL);
+        RadioGroup providers = new RadioGroup(this);
+        RadioButton local = radio("Private local executive (default)",
+                CortexProviderFactory.MODE_LOCAL.equals(selectedProvider));
+        RadioButton openAi = radio("Optional OpenAI Responses cortex",
+                CortexProviderFactory.MODE_OPENAI.equals(selectedProvider));
+        RadioButton anthropic = radio("Optional Anthropic Messages cortex",
+                CortexProviderFactory.MODE_ANTHROPIC.equals(selectedProvider));
+        providers.addView(local);
+        providers.addView(openAi);
+        providers.addView(anthropic);
+        body.addView(providers, fullWrap());
+
+        EditText model = textSetting("Model name", cortexPreferences.getString("model", ""));
+        body.addView(model, fullWrap());
+        EditText endpoint = textSetting(
+                "Optional custom HTTPS endpoint", cortexPreferences.getString("endpoint", ""));
+        body.addView(endpoint, fullWrap());
+        EditText apiKey = textSetting("API key (leave blank to keep saved key)", "");
+        apiKey.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        SecureSecretStore secrets = new SecureSecretStore(this);
+        if (!secrets.get("provider_api_key").isEmpty()) apiKey.setHint("API key saved securely");
+        body.addView(apiKey, fullWrap());
+
+        body.addView(action("SAVE CORTEX SETTINGS", () -> {
+            String provider = providers.getCheckedRadioButtonId() == openAi.getId()
+                    ? CortexProviderFactory.MODE_OPENAI
+                    : providers.getCheckedRadioButtonId() == anthropic.getId()
+                    ? CortexProviderFactory.MODE_ANTHROPIC
+                    : CortexProviderFactory.MODE_LOCAL;
+            cortexPreferences.edit()
+                    .putString("mode", provider)
+                    .putString("model", model.getText().toString().trim())
+                    .putString("endpoint", endpoint.getText().toString().trim())
+                    .apply();
+            try {
+                if (!apiKey.getText().toString().trim().isEmpty()) {
+                    secrets.put("provider_api_key", apiKey.getText().toString());
+                    apiKey.setText("");
+                    apiKey.setHint("API key saved securely");
+                }
+                cortexStatus.setText(CortexProviderFactory.status(this));
+                Toast.makeText(this, "Cortex settings saved.", Toast.LENGTH_SHORT).show();
+            } catch (Exception error) {
+                Toast.makeText(this, "Android Keystore could not save that key.", Toast.LENGTH_LONG).show();
+            }
+        }), fullWrap());
+        body.addView(action("RUN JARVIS DIAGNOSTICS", () ->
+                startActivity(new Intent(this, DiagnosticsActivity.class))), fullWrap());
 
         body.addView(header("MARK THEME"), fullWrap());
         RadioGroup themes = new RadioGroup(this);
@@ -54,7 +120,8 @@ public class SettingsActivity extends Activity {
         modes.addView(quiet);
         modes.addView(office);
         modes.setOnCheckedChangeListener((group, checkedId) -> {
-            String mode = checkedId == quiet.getId() ? "quiet" : checkedId == office.getId() ? "office" : "normal";
+            String mode = checkedId == quiet.getId() ? "quiet"
+                    : checkedId == office.getId() ? "office" : "normal";
             preferences.edit().putString("operating_mode", mode).apply();
         });
         body.addView(modes, fullWrap());
@@ -67,8 +134,11 @@ public class SettingsActivity extends Activity {
                 startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))), fullWrap());
 
         TextView privacy = new TextView(this);
-        privacy.setText("Private beta: memories remain in the app’s local SQLite database. " +
-                "The obsolete donor advertising, analytics, licensing, and legacy speech payloads are not included.");
+        privacy.setText("Private by default: memories remain in the app’s local SQLite database and the " +
+                "local executive handles recognized phone actions without a cloud model. If you explicitly " +
+                "enable an optional provider, unresolved requests and questions may be sent to that endpoint. " +
+                "No API credential is embedded in the APK. The obsolete donor advertising, analytics, " +
+                "licensing, and legacy speech payloads are not included.");
         privacy.setTextColor(Color.DKGRAY);
         privacy.setPadding(0, dp(20), 0, 0);
         body.addView(privacy, fullWrap());
@@ -101,7 +171,8 @@ public class SettingsActivity extends Activity {
         toggle.setTextSize(17);
         toggle.setPadding(dp(8), dp(10), dp(8), dp(10));
         toggle.setChecked(preferences.getBoolean(key, defaultValue));
-        toggle.setOnCheckedChangeListener((button, checked) -> preferences.edit().putBoolean(key, checked).apply());
+        toggle.setOnCheckedChangeListener((button, checked) ->
+                preferences.edit().putBoolean(key, checked).apply());
         return toggle;
     }
 
@@ -124,6 +195,15 @@ public class SettingsActivity extends Activity {
         params.setMargins(0, dp(4), 0, dp(4));
         button.setLayoutParams(params);
         return button;
+    }
+
+    private EditText textSetting(String hint, String value) {
+        EditText input = new EditText(this);
+        input.setHint(hint);
+        input.setText(value == null ? "" : value);
+        input.setSingleLine(true);
+        input.setPadding(dp(8), dp(8), dp(8), dp(8));
+        return input;
     }
 
     private LinearLayout.LayoutParams fullWrap() {

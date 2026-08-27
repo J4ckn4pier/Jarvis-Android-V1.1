@@ -6,6 +6,7 @@ import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
+import android.os.Build;
 import android.os.Bundle;
 import android.service.voice.VoiceInteractionSession;
 import android.speech.RecognitionListener;
@@ -24,6 +25,8 @@ import android.widget.TextView;
 import com.jarvis.mobile.MainActivity;
 import com.jarvis.mobile.R;
 import com.jarvis.mobile.brain.JarvisBrain;
+import com.jarvis.mobile.brain.core.BrainResult;
+import com.jarvis.mobile.voice.LegacyResponsePlayer;
 
 import java.util.ArrayList;
 import java.util.Locale;
@@ -32,6 +35,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private JarvisBrain brain;
     private SpeechRecognizer speechRecognizer;
     private TextToSpeech textToSpeech;
+    private LegacyResponsePlayer legacyResponses;
     private ImageView background;
     private ImageView face;
     private TextView output;
@@ -45,6 +49,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     public void onCreate() {
         super.onCreate();
         brain = new JarvisBrain(getContext());
+        legacyResponses = new LegacyResponsePlayer(getContext());
         textToSpeech = new TextToSpeech(getContext(), this);
     }
 
@@ -112,7 +117,10 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
             return;
         }
         if (speechRecognizer != null) speechRecognizer.destroy();
-        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(getContext());
+        speechRecognizer = Build.VERSION.SDK_INT >= 31 &&
+                SpeechRecognizer.isOnDeviceRecognitionAvailable(getContext())
+                ? SpeechRecognizer.createOnDeviceSpeechRecognizer(getContext())
+                : SpeechRecognizer.createSpeechRecognizer(getContext());
         speechRecognizer.setRecognitionListener(new RecognitionListener() {
             @Override public void onReadyForSpeech(Bundle params) {
                 output.setText("Listening…");
@@ -136,7 +144,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
                     setActive(false);
                     return;
                 }
-                execute(matches.get(0));
+                execute(matches);
             }
             @Override public void onPartialResults(Bundle partialResults) {
                 ArrayList<String> partial = partialResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
@@ -151,11 +159,19 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         speechRecognizer.startListening(intent);
     }
 
-    private void execute(String command) {
-        String answer = brain.handle(command);
-        output.setText("YOU: " + command + "\n\nJARVIS: " + answer);
-        if (textToSpeech != null) {
-            textToSpeech.speak(answer, TextToSpeech.QUEUE_FLUSH, null, "jarvis-session");
+    private void execute(ArrayList<String> candidates) {
+        String command = candidates.get(0);
+        output.setText("YOU: " + command + "\n\nJARVIS: Thinking…");
+        brain.handleCandidates(candidates, result -> deliver(command, result));
+    }
+
+    private void deliver(String command, BrainResult result) {
+        output.setText("YOU: " + command + "\n\nJARVIS: " + result.spokenText());
+        boolean needsNarration = result.spokenText().length() > 90;
+        boolean originalLine = !needsNarration && legacyResponses != null &&
+                legacyResponses.play(result.cue());
+        if (!originalLine && textToSpeech != null) {
+            textToSpeech.speak(result.spokenText(), TextToSpeech.QUEUE_FLUSH, null, "jarvis-session");
         }
         setActive(false);
     }
@@ -193,6 +209,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     public void onDestroy() {
         if (speechRecognizer != null) speechRecognizer.destroy();
         if (textToSpeech != null) textToSpeech.shutdown();
+        if (legacyResponses != null) legacyResponses.release();
         super.onDestroy();
     }
 }
