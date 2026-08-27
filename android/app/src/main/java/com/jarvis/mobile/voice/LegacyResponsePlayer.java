@@ -21,6 +21,9 @@ public final class LegacyResponsePlayer {
         }
         String safe = cue.toLowerCase().trim();
         if (!safe.matches("[a-z0-9_]{1,64}")) return false;
+        if ("at_your_service_sir".equals(safe)) safe = "jarvis_at_service";
+        if ("my_pleasure_sir".equals(safe)) safe = "for_anything_sir";
+        if ("one_moment_sir".equals(safe) || "right_away_sir".equals(safe)) safe = "on_it";
         int id = context.getResources().getIdentifier(safe, "raw", context.getPackageName());
         if (id == 0) return false;
         release();

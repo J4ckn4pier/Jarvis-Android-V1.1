@@ -12,7 +12,7 @@ public final class LocalIntentEngine {
 
     public IntentPlan plan(String raw) {
         String q = CommandNormalizer.normalize(raw);
-        if (q.isEmpty()) return p(Intent.UNKNOWN, "", "", "I’m listening, sir.", "at_your_service_sir", .0);
+        if (q.isEmpty()) return p(Intent.UNKNOWN, "", "", "I’m listening, sir.", "jarvis_at_service", .0);
 
         // Specific negatives and prefixes must precede their shorter collisions.
         if (one(q, "unmute", "unmute the phone", "turn the sound back on", "sound on"))
@@ -22,11 +22,11 @@ public final class LocalIntentEngine {
         if (one(q, "help", "help me", "what can you do", "show commands", "commands", "capabilities"))
             return p(Intent.HELP, "", "help", "At your service, sir. I can manage calls, messages, email, calendar, navigation, alarms, timers, apps, search, media, device controls, memories, tasks, and notifications.", "what_can_i_do", .99);
         if (one(q, "hello", "hi", "good morning", "good afternoon", "good evening", "you there"))
-            return p(Intent.GREETING, "", "", "Always, sir.", "hello_sir", .98);
+            return p(Intent.GREETING, "", "", "At your service, sir.", "hello_sir", .98);
         if (q.contains("who are you") || q.contains("what are you") || q.equals("your name"))
-            return p(Intent.IDENTITY, "", "", "I’m JARVIS, sir—your executive interface and device operator.", "at_your_service_sir", .98);
+            return p(Intent.IDENTITY, "", "", "I’m JARVIS, sir—your executive interface and device operator.", "jarvis_at_service", .98);
         if (q.equals("thanks") || q.equals("thank you") || q.equals("thank you jarvis"))
-            return p(Intent.THANKS, "", "", "Of course, sir.", "my_pleasure_sir", .98);
+            return p(Intent.THANKS, "", "", "Of course, sir.", "for_anything_sir", .98);
 
         if (q.startsWith("call ")) return contact(Intent.CALL, q.substring(5), "call ");
         if (q.startsWith("phone ")) return contact(Intent.CALL, q.substring(6), "call ");
