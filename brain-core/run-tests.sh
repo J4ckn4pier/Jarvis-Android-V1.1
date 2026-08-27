@@ -9,3 +9,5 @@ java -cp out com.jarvis.brain.BrainAdvancedAcceptanceTest
 java -cp out com.jarvis.brain.BrainProviderAcceptanceTest
 java -cp out com.jarvis.brain.AssistantBenchmarkTest
 java -cp out com.jarvis.brain.PlanValidationTest
+java -cp out com.jarvis.brain.AttentionConversationTest
+java -cp out com.jarvis.brain.HabitPredictionTest
