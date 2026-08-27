@@ -6,3 +6,4 @@ mkdir -p out
 javac -d out $(find src/main/java src/test/java -name '*.java' | sort)
 java -cp out com.jarvis.brain.BrainAcceptanceTest
 java -cp out com.jarvis.brain.BrainAdvancedAcceptanceTest
+java -cp out com.jarvis.brain.BrainProviderAcceptanceTest
