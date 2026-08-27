@@ -4,45 +4,35 @@ import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 public final class ToolRegistry {
-    public record RegisteredTool(ToolSpec spec, Tool implementation) {
-        public String name() { return spec.name(); }
-    }
-
+    public record RegisteredTool(ToolSpec spec, Tool implementation) { public String name() { return spec.name(); } }
     private final Map<String, RegisteredTool> byKey = new HashMap<>();
-
-    public void register(ToolSpec spec, Tool implementation) {
-        RegisteredTool registered = new RegisteredTool(spec, implementation);
-        byKey.put(normalize(spec.name()), registered);
-        for (String alias : spec.aliases()) byKey.put(normalize(alias), registered);
-    }
-
-    public Optional<RegisteredTool> resolve(String nameOrAlias) {
-        return Optional.ofNullable(byKey.get(normalize(nameOrAlias)));
-    }
-
+    public void register(ToolSpec spec, Tool implementation) { RegisteredTool registered = new RegisteredTool(spec, implementation); byKey.put(normalize(spec.name()), registered); for (String alias : spec.aliases()) byKey.put(normalize(alias), registered); }
+    public Optional<RegisteredTool> resolve(String nameOrAlias) { return Optional.ofNullable(byKey.get(normalize(nameOrAlias))); }
     public static ToolRegistry standard() {
-        ToolRegistry registry = new ToolRegistry();
-        registry.register(new ToolSpec("open_dialer", false,
-                        java.util.Set.of("phone", "phone app", "dialer", "calls", "call", "telephone")),
-                (args, ctx) -> ToolResult.success("dialer-ready"));
-        registry.register(new ToolSpec("discover_places", false,
-                        java.util.Set.of("restaurants", "find food", "dinner")),
-                (args, ctx) -> ToolResult.success("place-discovery-ready"));
-        registry.register(new ToolSpec("rank_options", false, java.util.Set.of()),
-                (args, ctx) -> ToolResult.success("ranking-ready"));
-        registry.register(new ToolSpec("resolve_business", false, java.util.Set.of()),
-                (args, ctx) -> ToolResult.success("business-resolution-ready"));
-        registry.register(new ToolSpec("place_conversational_call", true,
-                        java.util.Set.of("call business", "phone agent")),
-                (args, ctx) -> ToolResult.failure("telephony adapter not attached"));
-        registry.register(new ToolSpec("report_outcome", false, java.util.Set.of()),
-                (args, ctx) -> ToolResult.success("report-ready"));
-        return registry;
+        ToolRegistry r = new ToolRegistry();
+        r.register(spec("open_dialer", false, Set.of("phone", "phone app", "dialer", "calls", "call", "telephone"), Set.of(), "Open the phone dialer"), ready("dialer-ready"));
+        r.register(spec("discover_places", false, Set.of("restaurants", "find food", "dinner"), Set.of("category"), "Discover nearby places"), ready("place-discovery-ready"));
+        r.register(spec("rank_options", false, Set.of(), Set.of(), "Rank candidate options using user context"), ready("ranking-ready"));
+        r.register(spec("present_options", false, Set.of(), Set.of(), "Present ranked options"), ready("presentation-ready"));
+        r.register(spec("resolve_business", false, Set.of(), Set.of("business"), "Resolve a named business/entity"), ready("business-resolution-ready"));
+        r.register(spec("place_conversational_call", true, Set.of("call business", "phone agent"), Set.of("business", "goal"), "Conduct an approved outbound conversational call"), (a,c) -> ToolResult.failure("telephony adapter not attached"));
+        r.register(spec("report_outcome", false, Set.of(), Set.of(), "Report a completed multi-step action"), ready("report-ready"));
+        r.register(spec("weather_lookup", false, Set.of("weather", "forecast"), Set.of("when"), "Look up weather/forecast"), ready("weather-ready"));
+        r.register(spec("set_timer", false, Set.of("timer"), Set.of("amount", "unit"), "Set a device timer"), ready("timer-ready"));
+        r.register(spec("create_reminder", false, Set.of("reminder", "remind me"), Set.of("request"), "Create a personal reminder"), ready("reminder-ready"));
+        r.register(spec("navigate", false, Set.of("directions", "navigation"), Set.of("destination"), "Navigate to a destination"), ready("navigation-ready"));
+        r.register(spec("media_play", false, Set.of("play music", "play media"), Set.of("query"), "Play requested media"), ready("media-ready"));
+        r.register(spec("set_flashlight", false, Set.of("flashlight", "torch"), Set.of("state"), "Turn flashlight on/off"), ready("flashlight-ready"));
+        r.register(spec("calendar_query", false, Set.of("calendar", "schedule"), Set.of("when"), "Read calendar commitments"), ready("calendar-ready"));
+        r.register(spec("notification_query", false, Set.of("notifications"), Set.of(), "Read captured notifications"), ready("notifications-ready"));
+        r.register(spec("translate", false, Set.of("translation"), Set.of("request"), "Translate text"), ready("translation-ready"));
+        r.register(spec("send_message", true, Set.of("text", "message"), Set.of("recipient", "message"), "Send an external message on the user's behalf"), ready("message-ready"));
+        return r;
     }
-
-    private static String normalize(String value) {
-        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
-    }
+    private static ToolSpec spec(String name, boolean consequential, Set<String> aliases, Set<String> required, String description) { return new ToolSpec(name, consequential, aliases, required, description); }
+    private static Tool ready(String value) { return (args, ctx) -> ToolResult.success(value); }
+    private static String normalize(String value) { return value == null ? "" : value.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " "); }
 }
