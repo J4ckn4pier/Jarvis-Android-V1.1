@@ -13,7 +13,7 @@ public final class StructuredDiningFeedbackTest {
                 new DishFeedback("mushroom side", "negative", List.of(new FeedbackAspect("doneness","undercooked")))
         );
         memory.recordStructuredExplicitFeedback(episode, "lobster ragu was excellent; mushroom side undercooked", extracted, Instant.parse("2026-08-28T03:00:00Z"));
-        String pack = store.relevantContext("lobster ragu mushroom side", 10, Instant.parse("2026-08-28T04:00:00Z"));
+        String pack = store.memoryPack("lobster ragu mushroom side", Instant.parse("2026-08-28T04:00:00Z"), 10);
         check(pack.contains("lobster ragu"), "dish must be recallable");
         check(pack.contains("vodka sauce"), "positive aspect must be recallable");
         check(pack.contains("mushroom side"), "negative dish must be recallable");
