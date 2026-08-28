@@ -3,7 +3,7 @@ package com.jarvis.brain;
 import java.time.Duration;
 import java.time.Instant;
 
-/** Conservative pruning policy: only stale, low-importance memories are eligible. */
+/** Conservative pruning policy: only stale, low-importance, unused memories are eligible. */
 public final class MemoryRetentionPolicy {
     private final Duration staleAfter;
     private final double pruneBelowImportance;
@@ -19,7 +19,8 @@ public final class MemoryRetentionPolicy {
         if (memory == null || now == null) return false;
         if (memory.importance() >= protectedImportance) return false;
         if (memory.importance() > pruneBelowImportance) return false;
-        Duration age = Duration.between(memory.validFrom(), now);
+        Instant basis = memory.lastAccessedAt();
+        Duration age = Duration.between(basis, now);
         return !age.isNegative() && age.compareTo(staleAfter) >= 0;
     }
 
