@@ -11,6 +11,7 @@ import java.util.regex.Pattern;
 
 public final class LocalOpenAiCompatibleProvider implements ReasoningProvider {
     private static final Pattern CONTENT = Pattern.compile("\\\"content\\\"\\s*:\\s*\\\"((?:\\\\.|[^\\\"])*)\\\"");
+    private static final int DEFAULT_TOOL_CONTEXT_BUDGET = 12;
     private final String id;
     private final String model;
     private final LocalCortexTransport transport;
@@ -32,7 +33,9 @@ public final class LocalOpenAiCompatibleProvider implements ReasoningProvider {
 
     @Override
     public ReasoningResult reason(ReasoningRequest request) {
-        String system = buildSystemPrompt(request.tools());
+        List<ToolSpec> promptTools = ToolContractSelector.select(
+                request.utterance(), request.context(), request.tools(), DEFAULT_TOOL_CONTEXT_BUDGET);
+        String system = buildSystemPrompt(promptTools);
         String user = "Context:\n" + nullToEmpty(request.context()) + "\n\nUser:\n" + nullToEmpty(request.utterance());
         String body = "{\"model\":\"" + escape(model) + "\",\"messages\":[" +
                 "{\"role\":\"system\",\"content\":\"" + escape(system) + "\"}," +
@@ -69,7 +72,7 @@ public final class LocalOpenAiCompatibleProvider implements ReasoningProvider {
                 .append("Maintain context and infer the user's actual goal. Never answer with 'no framework', 'unsupported command', or equivalent when you can converse, clarify, research, or plan. ")
                 .append("Return exactly one JSON object. For ordinary conversation: {\"mode\":\"conversation\",\"text\":\"your reply\"}. ")
                 .append("For an action/tool plan: {\"mode\":\"plan\",\"text\":\"brief user-facing reply\",\"plan\":{\"goal\":\"goal\",\"steps\":[{\"tool\":\"registered_tool\",\"arguments\":{},\"consequential\":false}]}}. ")
-                .append("Never invent a tool. Do not omit required arguments just to avoid clarifying. Consequential status is enforced again by JARVIS, so do not try to weaken it.\n\nRegistered tools:\n");
+                .append("Never invent a tool. Do not omit required arguments just to avoid clarifying. Consequential status is enforced again by JARVIS, so do not try to weaken it.\n\nRelevant registered tools for this turn:\n");
         if (tools == null || tools.isEmpty()) out.append("(none; converse or clarify only)\n");
         else for (ToolSpec tool : tools) out.append("- ").append(tool.name())
                 .append(" | aliases=").append(tool.aliases())
