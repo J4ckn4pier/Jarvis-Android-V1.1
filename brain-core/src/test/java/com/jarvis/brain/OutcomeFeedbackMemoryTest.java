@@ -7,6 +7,7 @@ public final class OutcomeFeedbackMemoryTest {
         recommendationEpisodeIsDomainAgnostic();
         explicitFeedbackWritesTrustedPreferenceAndEpisode();
         inferredEpisodeAttributionCannotMintTrustedPreference();
+        followupTriggerRequiresPrivacyOptInForPresenceSignal();
         System.out.println("OutcomeFeedbackMemoryTest passed");
     }
 
@@ -46,6 +47,17 @@ public final class OutcomeFeedbackMemoryTest {
         assertEquals(MemoryType.INFERENCE, inference.type(), "spontaneous attributed feedback remains inference");
         assertEquals("inferred-attribution", inference.source(), "inferred attribution keeps a distinct untrusted source");
         assertTrue(inference.tags().contains("episode:rec-99"), "inference may still link to candidate episode for later confirmation");
+    }
+
+    private static void followupTriggerRequiresPrivacyOptInForPresenceSignal() {
+        RecommendationEpisode episode = new RecommendationEpisode("rec-home", "restaurant", "Castle Cafe", Instant.parse("2026-08-28T18:00:00Z"));
+        RecommendationFollowupPolicy policy = new RecommendationFollowupPolicy();
+        assertTrue(policy.candidateFor(episode, FollowupTrigger.USER_RETURNED_HOME, false).isEmpty(),
+                "location/presence follow-up must remain disabled without explicit privacy opt-in");
+        PredictionCandidate candidate = policy.candidateFor(episode, FollowupTrigger.USER_RETURNED_HOME, true).orElseThrow();
+        assertEquals(PredictionCategory.RECOMMENDATION_FOLLOWUP, candidate.category(), "opted-in presence trigger creates recommendation follow-up candidate");
+        assertEquals(PredictionEvidenceTier.TRUSTED, candidate.evidenceTier(), "episode-bound opted-in presence event is trusted trigger evidence");
+        assertTrue(candidate.message().contains("Castle Cafe"), "follow-up remains linked to originating episode subject");
     }
 
     private static void assertTrue(boolean value, String label) { if (!value) throw new AssertionError(label); }
