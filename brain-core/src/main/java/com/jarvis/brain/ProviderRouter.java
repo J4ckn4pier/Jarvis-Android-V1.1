@@ -2,13 +2,14 @@ package com.jarvis.brain;
 
 import java.util.List;
 
-public final class ProviderRouter {
+public final class ProviderRouter implements ReasoningRouter {
     private final List<ReasoningProvider> providers;
 
     public ProviderRouter(List<ReasoningProvider> providers) {
         this.providers = providers == null ? List.of() : List.copyOf(providers);
     }
 
+    @Override
     public ReasoningResult reason(ReasoningRequest request) {
         RuntimeException last = null;
         for (ReasoningProvider provider : providers) {
