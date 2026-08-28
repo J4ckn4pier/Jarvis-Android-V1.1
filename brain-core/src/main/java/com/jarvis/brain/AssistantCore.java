@@ -59,6 +59,7 @@ public final class AssistantCore {
         }
 
         ReasoningResult reasoned = providers.reason(new ReasoningRequest(utterance, combinedContext, tools.specs()));
+        workingMemory.apply(reasoned.stateDelta());
         BrainResponse result;
         if (reasoned.plan() != null) {
             result = validatedPlanResponse(reasoned.plan(), reasoned.text(), response.sessionActive(),
