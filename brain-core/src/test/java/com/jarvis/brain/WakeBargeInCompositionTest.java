@@ -11,6 +11,7 @@ public final class WakeBargeInCompositionTest {
         sleepingWakeOpensListeningExactlyOnce();
         wakeCandidateDuringSpeakingDoesNotDoubleActivate();
         aecBargeInOwnsSpeakingInterruption();
+        bargeInCoordinatorStopsSpeechBeforeClassifyingTaskControl();
         System.out.println("WakeBargeInCompositionTest: " + checks + " assertions passed");
     }
 
@@ -41,6 +42,19 @@ public final class WakeBargeInCompositionTest {
         noAec.onSpeechStarted();
         check(noAec.state() == AttentionController.State.SPEAKING,
                 "without AEC, barge-in must stay disabled to avoid self-triggering on JARVIS TTS");
+    }
+
+    private static void bargeInCoordinatorStopsSpeechBeforeClassifyingTaskControl() {
+        AttentionController attention = speakingAttention(true);
+        ExecutiveTaskController tasks = new ExecutiveTaskController("find dinner");
+        BargeInCoordinator coordinator = new BargeInCoordinator(attention, new GoalInterruptionPolicy(), tasks);
+        TaskControlResult result = coordinator.onUserBargeIn(new InterruptionContext(
+                "find dinner", "somewhere quiet with a patio", 0.90, false, true, false, 0.10));
+        check(attention.state() == AttentionController.State.LISTENING,
+                "barge-in coordinator must stop/leave SPEAKING before task-control classification is applied");
+        check(result.action() == InterruptionDecision.INCORPORATE_CONTEXT,
+                "contextual barge-in should flow through explicit interruption policy");
+        check(tasks.context().contains("quiet with a patio"), "contextual barge-in must update active task context");
     }
 
     private static AttentionController speakingAttention(boolean aec) {
