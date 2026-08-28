@@ -11,25 +11,25 @@ public final class AssistantExecutiveIntegrationTest {
     private static int checks;
 
     public static void main(String[] args) {
-        assistantCoreExecutesSafeProviderPlanAndSynthesizesResult();
+        assistantCoreExecutesSafeSemanticPlanAndSynthesizesResult();
         assistantCoreStillStopsBeforeConsequentialProviderPlan();
         System.out.println("AssistantExecutiveIntegrationTest: " + checks + " assertions passed");
     }
 
-    private static void assistantCoreExecutesSafeProviderPlanAndSynthesizesResult() {
+    private static void assistantCoreExecutesSafeSemanticPlanAndSynthesizesResult() {
         ToolRegistry registry = new ToolRegistry();
         int[] searches = {0};
-        registry.register(new ToolSpec("search_places", false, Set.of(), Set.of("query"), "Search places"), (args, ctx) -> {
+        registry.register(new ToolSpec("discover_places", false, Set.of(), Set.of("category"), "Discover places"), (args, ctx) -> {
             searches[0]++;
             return ToolResult.success("Castle Cafe|open_status=unknown|distance=0.4mi");
         });
+        registry.register(new ToolSpec("rank_options", false, Set.of(), Set.of(), "Rank options"),
+                (args, ctx) -> ToolResult.success("Castle Cafe ranked first"));
+        registry.register(new ToolSpec("present_options", false, Set.of(), Set.of(), "Present options"),
+                (args, ctx) -> ToolResult.success("Castle Cafe"));
         int[] reasons = {0};
         ReasoningRouter router = request -> {
             reasons[0]++;
-            if (reasons[0] == 1) {
-                return new ReasoningResult("local", "I'll check nearby options.",
-                        new Plan("find dinner", List.of(new PlanStep("search_places", Map.of("query", "dinner tonight"), false))));
-            }
             check(request.context().contains("TOOL_OBSERVATION") && request.context().contains("Castle Cafe"),
                     "tool evidence should be present when the cortex synthesizes the final answer");
             return new ReasoningResult("local", "Castle Cafe is the closest result I found; its current open status is still unverified.", null);
@@ -40,11 +40,11 @@ public final class AssistantExecutiveIntegrationTest {
         core.handle("Hey Jarvis");
         BrainResponse response = core.handle("find me somewhere to eat for dinner tonight");
         check(response.kind() == BrainResponse.Kind.CONVERSATION,
-                "safe provider plan should execute inside the executive loop instead of escaping as ACTION_PLAN");
+                "safe semantic plan should execute inside the executive loop instead of escaping as ACTION_PLAN");
         check(response.text().contains("Castle Cafe") && response.text().contains("unverified"),
                 "assistant should return the post-tool synthesized answer");
-        check(searches[0] == 1, "safe tool should execute exactly once through AssistantCore");
-        check(reasons[0] == 2, "AssistantCore should reuse the first reasoning result then re-enter cortex only for synthesis");
+        check(searches[0] == 1, "safe discovery tool should execute exactly once through AssistantCore");
+        check(reasons[0] == 1, "semantic plan should use the cortex only after tool observations for final synthesis");
     }
 
     private static void assistantCoreStillStopsBeforeConsequentialProviderPlan() {
