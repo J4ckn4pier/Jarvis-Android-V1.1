@@ -46,8 +46,8 @@ public final class ExecutiveTaskController {
     }
 
     /**
-     * Marks the current goal complete and returns the next active goal. A SWITCHed
-     * task resumes first; otherwise an outstanding concurrent goal becomes primary.
+     * Marks the primary goal complete and returns the next primary goal. A SWITCHed
+     * task resumes first; otherwise an unfinished parallel goal can become primary.
      */
     public synchronized String completeCurrentGoal() {
         if (!suspendedGoal.isBlank()) {
@@ -64,6 +64,12 @@ public final class ExecutiveTaskController {
         }
         currentGoal = "";
         context = "";
+        return currentGoal;
+    }
+
+    /** Marks independently running DO_BOTH work complete without disturbing the primary goal. */
+    public synchronized String completeParallelGoal() {
+        parallelGoal = "";
         return currentGoal;
     }
 
