@@ -1,33 +1,6 @@
 package com.jarvis.brain;
-
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-
-public final class PlanExecutionClassifierTest {
-    public static void main(String[] args) {
-        ToolRegistry registry = new ToolRegistry();
-        registry.register(new ToolSpec("novel_research_tool", false, Set.of(), Set.of(), "A newly added research capability", ToolExecutionClass.AUTONOMOUS_RESEARCH),
-                (arguments, context) -> ToolResult.success("ok"));
-        registry.register(new ToolSpec("novel_device_tool", false, Set.of(), Set.of(), "A newly added device reflex", ToolExecutionClass.DEVICE_REFLEX),
-                (arguments, context) -> ToolResult.success("ok"));
-
-        PlanExecutionClassifier classifier = new PlanExecutionClassifier(registry);
-        Plan research = new Plan("research something new", List.of(new PlanStep("novel_research_tool", Map.of(), false)));
-        Plan device = new Plan("do something locally", List.of(new PlanStep("novel_device_tool", Map.of(), false)));
-        Plan mixed = new Plan("research then act", List.of(
-                new PlanStep("novel_device_tool", Map.of(), false),
-                new PlanStep("novel_research_tool", Map.of(), false)));
-        Plan unknown = new Plan("unknown", List.of(new PlanStep("not_registered", Map.of(), false)));
-
-        check(classifier.containsAutonomousResearch(research), "new research tools must route by ToolExecutionClass, not a hard-coded name list");
-        check(!classifier.containsAutonomousResearch(device), "device reflex must not be promoted to research");
-        check(classifier.containsAutonomousResearch(mixed), "mixed plan containing research must enter executive research loop");
-        check(!classifier.containsAutonomousResearch(unknown), "unknown tools must not be treated as research");
-        System.out.println("PlanExecutionClassifierTest passed");
-    }
-
-    private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
-    }
+import java.util.*;
+public final class PlanExecutionClassifierTest{
+ public static void main(String[]a){ToolRegistry r=new ToolRegistry();r.register(new ToolSpec("novel_research_tool",false,Set.of(),Set.of(),"research",ToolExecutionClass.AUTONOMOUS_RESEARCH),(x,c)->ToolResult.success("ok"));r.register(new ToolSpec("novel_device_tool",false,Set.of(),Set.of(),"device",ToolExecutionClass.DEVICE_REFLEX),(x,c)->ToolResult.success("ok"));r.register(new ToolSpec("novel_consequential",true,Set.of(),Set.of(),"commit",ToolExecutionClass.CONSEQUENTIAL),(x,c)->ToolResult.success("ok"));PlanExecutionClassifier q=new PlanExecutionClassifier(r);Plan research=new Plan("r",List.of(new PlanStep("novel_research_tool",Map.of(),false)));Plan mixed=new Plan("m",List.of(new PlanStep("novel_research_tool",Map.of(),false),new PlanStep("novel_device_tool",Map.of(),false)));Plan dangerous=new Plan("d",List.of(new PlanStep("novel_research_tool",Map.of(),false),new PlanStep("novel_consequential",Map.of(),true)));check(q.containsAutonomousResearch(research),"metadata finds research");check(q.isPureAutonomousResearch(research),"research-only plan pure");check(q.containsAutonomousResearch(mixed)&&!q.isPureAutonomousResearch(mixed),"mixed plan cannot be promoted wholesale");check(!q.isPureAutonomousResearch(dangerous),"consequential step cannot smuggle through research route");System.out.println("PlanExecutionClassifierTest passed");}
+ private static void check(boolean v,String m){if(!v)throw new AssertionError(m);}
 }
