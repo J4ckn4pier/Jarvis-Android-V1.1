@@ -24,17 +24,31 @@ public final class ExecutiveObservationLoop {
     }
 
     public ExecutiveOutcome run(String goal, String initialContext) {
+        return runInternal(goal, initialContext, null);
+    }
+
+    /** Continue from a reasoning result the caller already obtained, avoiding a duplicate first model call. */
+    public ExecutiveOutcome runFrom(String goal, String initialContext, ReasoningResult initialResult) {
+        if (initialResult == null) return run(goal, initialContext);
+        return runInternal(goal, initialContext, initialResult);
+    }
+
+    private ExecutiveOutcome runInternal(String goal, String initialContext, ReasoningResult initialResult) {
         String context = initialContext == null ? "" : initialContext;
         ExecutionContext executionContext = new ExecutionContext();
         String lastText = "";
 
         for (int iteration = 1; iteration <= maxIterations; iteration++) {
             ReasoningResult result;
-            try {
-                result = reasoning.reason(new ReasoningRequest(goal, context, registry.specs()));
-            } catch (RuntimeException providerFailure) {
-                return new ExecutiveOutcome(ExecutiveOutcome.Status.FAILED,
-                        "I couldn't complete the reasoning step safely.", null, iteration, context);
+            if (iteration == 1 && initialResult != null) {
+                result = initialResult;
+            } else {
+                try {
+                    result = reasoning.reason(new ReasoningRequest(goal, context, registry.specs()));
+                } catch (RuntimeException providerFailure) {
+                    return new ExecutiveOutcome(ExecutiveOutcome.Status.FAILED,
+                            "I couldn't complete the reasoning step safely.", null, iteration, context);
+                }
             }
             lastText = result.text() == null ? "" : result.text();
 
@@ -60,9 +74,6 @@ public final class ExecutiveObservationLoop {
 
                 boolean consequential = step.consequential() || tool.spec().consequential();
                 if (consequential) {
-                    // Deliberately do not consume approval here. The loop is the autonomous-safe phase.
-                    // Safe prefix steps may already have executed, so hand off only the unexecuted suffix;
-                    // otherwise approval resume would replay research/resolution work that already succeeded.
                     Plan pending = remainingPlan(plan, stepIndex);
                     return new ExecutiveOutcome(ExecutiveOutcome.Status.APPROVAL_REQUIRED,
                             lastText.isBlank() ? "I need your approval before I do that." : lastText,
@@ -84,9 +95,6 @@ public final class ExecutiveObservationLoop {
                 producedObservation = true;
                 executionContext.put("last_tool", tool.name());
                 executionContext.put("last_output", toolResult.output());
-
-                // A failed autonomous tool is information, not automatic authority to improvise a new external action.
-                // Return to the cortex with the failure observation and let the next bounded iteration decide how to recover/explain.
                 if (toolResult.status() != ToolResult.Status.SUCCESS) break;
             }
 
