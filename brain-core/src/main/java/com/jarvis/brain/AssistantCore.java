@@ -1,7 +1,12 @@
 package com.jarvis.brain;
 
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Deque;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 public final class AssistantCore {
     private static final int MAX_DIALOGUE_MESSAGES = 12;
@@ -11,6 +16,7 @@ public final class AssistantCore {
     private final PlanValidator planValidator;
     private final AssistantContextSource contextSource;
     private final Deque<String> dialogue = new ArrayDeque<>();
+    private PendingClarification pendingClarification;
 
     public AssistantCore(BrainEngine reflex, ProviderRouter providers) {
         this(reflex, providers, ToolRegistry.standard(), AssistantContextSource.none());
@@ -32,6 +38,11 @@ public final class AssistantCore {
     }
 
     public BrainResponse handle(String utterance) {
+        if (pendingClarification != null) {
+            BrainResponse resumed = handlePendingClarification(utterance);
+            if (resumed != null) return resumed;
+        }
+
         BrainResponse response = reflex.handle(utterance);
         if (response.kind() == BrainResponse.Kind.IGNORED_AMBIENT) return response;
         remember("USER", utterance);
@@ -52,10 +63,18 @@ public final class AssistantCore {
         if (reasoned.plan() != null) {
             PlanValidation validation = planValidator.validate(reasoned.plan());
             if (!validation.valid()) {
-                String details = validation.errors().isEmpty() ? "the plan is incomplete" : String.join("; ", validation.errors());
-                result = BrainResponse.of(BrainResponse.Kind.CONVERSATION,
-                        "I need clarification before I can build a safe executable plan: " + details + ".",
-                        null, response.sessionActive(), response.acceptedWithoutWakeWord(), combinedContext);
+                List<PendingClarification.MissingArgument> missing = findMissingArguments(validation.effectivePlan());
+                if (!missing.isEmpty()) {
+                    pendingClarification = new PendingClarification(validation.effectivePlan(), missing);
+                    result = BrainResponse.of(BrainResponse.Kind.CONVERSATION,
+                            clarificationQuestion(missing.get(0).argument()), null,
+                            response.sessionActive(), response.acceptedWithoutWakeWord(), combinedContext);
+                } else {
+                    String details = validation.errors().isEmpty() ? "the plan is incomplete" : String.join("; ", validation.errors());
+                    result = BrainResponse.of(BrainResponse.Kind.CONVERSATION,
+                            "I need clarification before I can build a safe executable plan: " + details + ".",
+                            null, response.sessionActive(), response.acceptedWithoutWakeWord(), combinedContext);
+                }
             } else {
                 result = BrainResponse.of(BrainResponse.Kind.ACTION_PLAN, reasoned.text(), validation.effectivePlan(),
                         response.sessionActive(), response.acceptedWithoutWakeWord(), combinedContext);
@@ -66,6 +85,84 @@ public final class AssistantCore {
         }
         remember("JARVIS", result.text());
         return result;
+    }
+
+    private BrainResponse handlePendingClarification(String utterance) {
+        String answer = utterance == null ? "" : utterance.trim();
+        if (answer.isEmpty()) return null;
+        String lower = answer.toLowerCase(Locale.ROOT);
+        if (lower.matches("cancel|never mind|nevermind|forget it|stop")) {
+            pendingClarification = null;
+            remember("USER", answer);
+            remember("JARVIS", "Cancelled.");
+            return BrainResponse.of(BrainResponse.Kind.CONVERSATION, "Cancelled.", null,
+                    true, true, dialogueSnapshot());
+        }
+
+        PendingClarification state = pendingClarification;
+        PendingClarification.MissingArgument target = state.missing().get(0);
+        Plan filled = fillArgument(state.plan(), target, answer);
+        PlanValidation validation = planValidator.validate(filled);
+        List<PendingClarification.MissingArgument> remaining = findMissingArguments(validation.effectivePlan());
+        remember("USER", answer);
+
+        if (validation.valid()) {
+            pendingClarification = null;
+            BrainResponse result = BrainResponse.of(BrainResponse.Kind.ACTION_PLAN,
+                    "Understood. I have what I need.", validation.effectivePlan(), true, true, dialogueSnapshot());
+            remember("JARVIS", result.text());
+            return result;
+        }
+
+        if (!remaining.isEmpty()) {
+            pendingClarification = new PendingClarification(validation.effectivePlan(), remaining);
+            String question = clarificationQuestion(remaining.get(0).argument());
+            remember("JARVIS", question);
+            return BrainResponse.of(BrainResponse.Kind.CONVERSATION, question, null, true, true, dialogueSnapshot());
+        }
+
+        pendingClarification = null;
+        String details = validation.errors().isEmpty() ? "the plan is still incomplete" : String.join("; ", validation.errors());
+        String text = "I still can't make that plan safe to execute: " + details + ".";
+        remember("JARVIS", text);
+        return BrainResponse.of(BrainResponse.Kind.CONVERSATION, text, null, true, true, dialogueSnapshot());
+    }
+
+    private List<PendingClarification.MissingArgument> findMissingArguments(Plan plan) {
+        List<PendingClarification.MissingArgument> missing = new ArrayList<>();
+        if (plan == null) return missing;
+        for (int i = 0; i < plan.steps().size(); i++) {
+            PlanStep step = plan.steps().get(i);
+            ToolRegistry.RegisteredTool registered = tools.resolve(step.tool()).orElse(null);
+            if (registered == null) continue;
+            for (String required : registered.spec().requiredArguments()) {
+                String value = step.arguments().get(required);
+                if (value == null || value.isBlank()) missing.add(new PendingClarification.MissingArgument(i, required));
+            }
+        }
+        return List.copyOf(missing);
+    }
+
+    private static Plan fillArgument(Plan plan, PendingClarification.MissingArgument target, String value) {
+        List<PlanStep> steps = new ArrayList<>(plan.steps());
+        PlanStep old = steps.get(target.stepIndex());
+        Map<String, String> args = new HashMap<>(old.arguments());
+        args.put(target.argument(), value.trim());
+        steps.set(target.stepIndex(), new PlanStep(old.tool(), Map.copyOf(args), old.consequential()));
+        return new Plan(plan.goal(), List.copyOf(steps));
+    }
+
+    private static String clarificationQuestion(String argument) {
+        return switch (argument) {
+            case "destination" -> "Where would you like to go?";
+            case "recipient" -> "Who should I send it to?";
+            case "message" -> "What would you like me to say?";
+            case "business" -> "Which business do you mean?";
+            case "when" -> "When should I do that?";
+            case "amount" -> "How long?";
+            case "unit" -> "Seconds, minutes, or hours?";
+            default -> "What should I use for " + argument.replace('_', ' ') + "?";
+        };
     }
 
     private void remember(String role, String text) {
