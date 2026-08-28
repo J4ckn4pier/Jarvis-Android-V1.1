@@ -43,10 +43,12 @@ public final class ToolRegistry {
         ExternalResearchGateway gateway = research == null ? ExternalResearchGateway.unavailable() : research;
         ToolRegistry r = new ToolRegistry();
         r.register(spec("open_dialer", false, Set.of("phone", "phone app", "dialer", "calls", "call", "telephone"), Set.of(), "Open the phone dialer", ToolExecutionClass.DEVICE_REFLEX), ready("dialer-ready"));
-        r.register(spec("discover_places", false, Set.of("restaurants", "find food", "dinner"), Set.of("category"), "Discover nearby places", ToolExecutionClass.AUTONOMOUS_RESEARCH), gateway::discoverPlaces);
+        r.register(spec("discover_places", false, Set.of("restaurants", "find food", "dinner"), Set.of("category"), "Discover nearby places; cuisine/type is arbitrary user data, not a fixed enum", ToolExecutionClass.AUTONOMOUS_RESEARCH), gateway::discoverPlaces);
         r.register(spec("rank_options", false, Set.of(), Set.of(), "Rank candidate options using user context", ToolExecutionClass.AUTONOMOUS_RESEARCH), ready("ranking-ready"));
         r.register(spec("present_options", false, Set.of(), Set.of(), "Present ranked options", ToolExecutionClass.AUTONOMOUS_RESEARCH), ready("presentation-ready"));
         r.register(spec("resolve_business", false, Set.of(), Set.of("business"), "Resolve a named business/entity", ToolExecutionClass.AUTONOMOUS_RESEARCH), gateway::resolveBusiness);
+        r.register(spec("get_menu", false, Set.of("menu", "menu prices", "dish prices"), Set.of("business"), "Read fresh menu items and prices with source provenance", ToolExecutionClass.AUTONOMOUS_RESEARCH), gateway::getMenu);
+        r.register(spec("attempt_reservation", true, Set.of("book table", "reserve table", "online reservation"), Set.of("business", "party_size", "requested_time"), "Attempt an approved online reservation; return confirmed time, actual available alternatives, or failure reason", ToolExecutionClass.CONSEQUENTIAL), gateway::attemptReservation);
         r.register(spec("place_conversational_call", true, Set.of("call business", "phone agent"), Set.of("business", "goal"), "Conduct an approved outbound conversational call", ToolExecutionClass.CONSEQUENTIAL), (a,c) -> ToolResult.failure("telephony adapter not attached"));
         r.register(spec("report_outcome", false, Set.of(), Set.of(), "Report a completed multi-step action", ToolExecutionClass.AUTONOMOUS_RESEARCH), ready("report-ready"));
         r.register(spec("weather_lookup", false, Set.of("weather", "forecast"), Set.of("when"), "Look up weather/forecast", ToolExecutionClass.AUTONOMOUS_RESEARCH), gateway::weatherLookup);
