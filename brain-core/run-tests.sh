@@ -35,3 +35,4 @@ java -cp out com.jarvis.brain.ProviderRecoveryTest
 java -cp out com.jarvis.brain.ExecutionRecoveryContractTest
 java -cp out com.jarvis.brain.SessionTrustBoundaryTest
 java -cp out com.jarvis.brain.WakeBargeInCompositionTest
+java -cp out com.jarvis.brain.ToolCapableLocalProviderTest
