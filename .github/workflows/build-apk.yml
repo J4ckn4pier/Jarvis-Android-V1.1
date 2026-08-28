@@ -2,7 +2,7 @@ name: Build and Test JARVIS Prefrontal APK
 
 on:
   push:
-    branches: [main]
+    branches: [main, brain-first-v1]
   workflow_dispatch:
 
 jobs:
@@ -16,7 +16,10 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Test provider-neutral executive language contract
+      - name: Run standalone shared brain acceptance suite
+        run: bash brain-core/run-tests.sh
+
+      - name: Test legacy Android local-intent contract
         run: |
           mkdir -p build/core-test
           javac -d build/core-test \
@@ -39,9 +42,9 @@ jobs:
         with:
           gradle-version: '8.11.1'
 
-      - name: Compile and lint direct Android project
+      - name: Compile and lint direct Android project with shared brain
         working-directory: android
-        run: gradle :app:lintDebug :app:assembleDebug --stacktrace
+        run: gradle :brain-core:test :app:lintDebug :app:assembleDebug --stacktrace
 
       - name: Verify signed donor-transplant payload
         run: |
@@ -88,8 +91,7 @@ jobs:
       - name: Stage single verified APK
         run: |
           mkdir -p release
-          cp android/app/build/outputs/apk/debug/app-debug.apk \
-            release/JARVIS-Android-V1.1-Donor-Beta.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk release/JARVIS-Android-V1.1-Donor-Beta.apk
           sha256sum release/JARVIS-Android-V1.1-Donor-Beta.apk | tee release/SHA256.txt
 
       - uses: actions/upload-artifact@v4
