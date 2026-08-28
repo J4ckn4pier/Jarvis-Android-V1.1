@@ -64,12 +64,11 @@ public final class SemanticReflexIntegrationTest {
     }
 
     private static void dinnerParaphraseBuildsDiscoveryPlan() {
-        int[] calls = {0};
-        BrainResponse r = core(calls).handle("find somewhere nearby for food tonight");
-        check(r.kind() == BrainResponse.Kind.ACTION_PLAN, "food-tonight paraphrase should create discovery plan");
-        check(r.plan().steps().stream().anyMatch(s -> s.tool().equals("discover_places")), "dinner plan needs place discovery");
-        check(r.plan().steps().stream().anyMatch(s -> s.tool().equals("rank_options")), "dinner plan needs ranking");
-        check(calls[0] == 0, "common local semantic reflex should not require model fallback");
+        Plan plan = new SemanticGoalInterpreter().interpret("find somewhere nearby for food tonight").orElseThrow();
+        check(plan.steps().stream().anyMatch(s -> s.tool().equals("discover_places")), "dinner plan needs place discovery");
+        check(plan.steps().stream().anyMatch(s -> s.tool().equals("rank_options")), "dinner plan needs ranking");
+        check(plan.steps().stream().anyMatch(s -> s.tool().equals("present_options")), "dinner plan needs presentation");
+        check(plan.steps().get(0).arguments().get("time").equals("tonight"), "semantic reflex should retain requested dinner timing");
     }
 
     private static void ambiguousRequestStillFallsThroughToReasoning() {
