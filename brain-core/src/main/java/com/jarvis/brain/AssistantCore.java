@@ -56,9 +56,9 @@ public final class AssistantCore {
                 String combinedContext = combineContext(dialogueSnapshot(), workingMemory.snapshot(), durableContext);
                 ReasoningResult reflexResult = new ReasoningResult("deterministic-reflex", response.text(), reflexValidation.effectivePlan());
                 ExecutiveObservationLoop executive = new ExecutiveObservationLoop(providers, tools, new ApprovalGate(), EXECUTIVE_MAX_ITERATIONS);
-                BrainResponse result = executiveResponse(
-                        executive.runFrom(utterance, combinedContext, reflexResult),
-                        response.sessionActive(), response.acceptedWithoutWakeWord());
+                ExecutiveOutcome outcome = executive.runFrom(utterance, combinedContext, reflexResult);
+                applyExecutiveState(outcome, utterance);
+                BrainResponse result = executiveResponse(outcome, response.sessionActive(), response.acceptedWithoutWakeWord());
                 remember("JARVIS", result.text());
                 return result;
             }
@@ -74,9 +74,9 @@ public final class AssistantCore {
             if (semanticValidation.valid() && isAutonomousResearchPlan(semanticValidation.effectivePlan())) {
                 ReasoningResult semanticResult = new ReasoningResult("semantic-reflex", "I'll check that.", semanticValidation.effectivePlan());
                 ExecutiveObservationLoop executive = new ExecutiveObservationLoop(providers, tools, new ApprovalGate(), EXECUTIVE_MAX_ITERATIONS);
-                semanticResponse = executiveResponse(
-                        executive.runFrom(utterance, combinedContext, semanticResult),
-                        response.sessionActive(), response.acceptedWithoutWakeWord());
+                ExecutiveOutcome outcome = executive.runFrom(utterance, combinedContext, semanticResult);
+                applyExecutiveState(outcome, utterance);
+                semanticResponse = executiveResponse(outcome, response.sessionActive(), response.acceptedWithoutWakeWord());
             } else {
                 semanticResponse = validatedPlanResponse(semanticPlan, "Understood.", response.sessionActive(), response.acceptedWithoutWakeWord(), combinedContext);
             }
@@ -94,6 +94,7 @@ public final class AssistantCore {
             } else {
                 ExecutiveObservationLoop executive = new ExecutiveObservationLoop(providers, tools, new ApprovalGate(), EXECUTIVE_MAX_ITERATIONS);
                 ExecutiveOutcome outcome = executive.runFrom(utterance, combinedContext, reasoned);
+                applyExecutiveState(outcome, utterance);
                 result = executiveResponse(outcome, response.sessionActive(), response.acceptedWithoutWakeWord());
             }
         } else {
@@ -101,6 +102,10 @@ public final class AssistantCore {
         }
         remember("JARVIS", result.text());
         return result;
+    }
+
+    private void applyExecutiveState(ExecutiveOutcome outcome, String userTurn) {
+        if (outcome != null) workingMemory.applyValidated(outcome.stateDelta(), userTurn);
     }
 
     private static boolean isAutonomousResearchPlan(Plan plan) {
