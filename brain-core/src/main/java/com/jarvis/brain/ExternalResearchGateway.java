@@ -12,6 +12,19 @@ public interface ExternalResearchGateway {
     ToolResult resolveBusiness(Map<String, String> arguments, ExecutionContext context);
     ToolResult weatherLookup(Map<String, String> arguments, ExecutionContext context);
 
+    /** Fresh menu/dish/price evidence. Default keeps older adapters source-compatible and fail-closed. */
+    default ToolResult getMenu(Map<String, String> arguments, ExecutionContext context) {
+        return ToolResult.failure("menu adapter not attached");
+    }
+
+    /**
+     * Best-effort online reservation flow. Implementations must report the actual outcome:
+     * confirmed time, real available alternatives, or a failure reason. Never infer success.
+     */
+    default ToolResult attemptReservation(Map<String, String> arguments, ExecutionContext context) {
+        return ToolResult.failure("reservation adapter not attached");
+    }
+
     static ExternalResearchGateway unavailable() {
         return new ExternalResearchGateway() {
             @Override public ToolResult discoverPlaces(Map<String, String> arguments, ExecutionContext context) {
