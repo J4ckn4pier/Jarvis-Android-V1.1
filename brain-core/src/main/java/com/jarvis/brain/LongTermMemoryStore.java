@@ -52,7 +52,7 @@ public final class LongTermMemoryStore {
     }
 
     public synchronized Optional<RichMemory> currentTrusted(String key, Instant when, double minConfidence) {
-        return current(key, when).filter(m -> m.confidence() >= minConfidence);
+        return current(key, when).filter(m -> m.confidence() >= minConfidence && !m.source().equals("inferred-unconfirmed"));
     }
 
     public synchronized List<RichMemory> history(String key) {
@@ -64,6 +64,21 @@ public final class LongTermMemoryStore {
         for (List<RichMemory> list : byKey.values()) out.addAll(list);
         out.sort(Comparator.comparing(RichMemory::key).thenComparing(RichMemory::validFrom));
         return List.copyOf(out);
+    }
+
+    /** Removes only memories explicitly deemed disposable by the retention policy. */
+    public synchronized int prune(MemoryRetentionPolicy policy, Instant now) {
+        if (policy == null || now == null) return 0;
+        int removed = 0;
+        List<String> emptyKeys = new ArrayList<>();
+        for (Map.Entry<String, List<RichMemory>> entry : byKey.entrySet()) {
+            int before = entry.getValue().size();
+            entry.getValue().removeIf(memory -> policy.shouldPrune(memory, now));
+            removed += before - entry.getValue().size();
+            if (entry.getValue().isEmpty()) emptyKeys.add(entry.getKey());
+        }
+        for (String key : emptyKeys) byKey.remove(key);
+        return removed;
     }
 
     public synchronized List<RichMemory> searchHistory(String query, int limit) {
