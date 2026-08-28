@@ -24,3 +24,5 @@ java -cp out com.jarvis.brain.AssistantContextIntegrationTest
 java -cp out com.jarvis.brain.ConversationContinuityTest
 java -cp out com.jarvis.brain.PendingClarificationTest
 java -cp out com.jarvis.brain.PlanStateAndRetentionTest
+java -cp out com.jarvis.brain.ProductionSafetyContractTest
+java -cp out com.jarvis.brain.PassiveWakeConversationTest
