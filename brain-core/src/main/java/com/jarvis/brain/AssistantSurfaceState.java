@@ -5,5 +5,8 @@ public enum AssistantSurfaceState {
     LISTENING,
     THINKING,
     RESPONDING,
-    ACTION_DONE
+    AWAITING_APPROVAL,
+    NEEDS_INPUT,
+    ACTION_DONE,
+    ERROR
 }
