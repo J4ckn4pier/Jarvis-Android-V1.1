@@ -41,6 +41,7 @@ java -cp out com.jarvis.brain.ProviderAttemptBudgetTest
 java -cp out com.jarvis.brain.ToolContractSelectorTest
 java -cp out com.jarvis.brain.ExternalResearchGatewayContractTest
 java -cp out com.jarvis.brain.AssistantExecutiveIntegrationTest
+java -cp out com.jarvis.brain.ToolExecutionClassTest
 # Final composed pre-Android exit gate. This intentionally re-runs the critical
 # cross-cutting contracts together and must stay distinct from device smoke.
 java -cp out com.jarvis.brain.BrainExitGateAcceptanceTest
