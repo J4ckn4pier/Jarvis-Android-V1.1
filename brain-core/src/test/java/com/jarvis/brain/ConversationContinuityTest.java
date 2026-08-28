@@ -1,0 +1,57 @@
+package com.jarvis.brain;
+
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
+
+public final class ConversationContinuityTest {
+    private static int checks;
+
+    public static void main(String[] args) {
+        providerSeesItsOwnPriorAnswerOnFollowup();
+        conversationHistoryKeepsRolesAndRemainsBounded();
+        System.out.println("ConversationContinuityTest: " + checks + " assertions passed");
+    }
+
+    private static void providerSeesItsOwnPriorAnswerOnFollowup() {
+        Clock clock = Clock.fixed(Instant.parse("2026-08-27T23:30:00Z"), ZoneOffset.UTC);
+        List<ReasoningRequest> requests = new ArrayList<>();
+        ReasoningRouter router = request -> {
+            requests.add(request);
+            if (requests.size() == 1) return new ReasoningResult("local", "The red option is the stronger choice because it is simpler.", null);
+            return new ReasoningResult("local", "Yes, the red one.", null);
+        };
+        AssistantCore core = new AssistantCore(BrainEngine.createDefault(clock), router, ToolRegistry.standard());
+        core.handle("Hey Jarvis");
+        core.handle("compare the two options and choose one");
+        core.handle("why did you pick that one?");
+        check(requests.size() == 2, "both open-ended turns should reach reasoning cortex");
+        check(requests.get(1).context().contains("The red option is the stronger choice"),
+                "follow-up reasoning must include JARVIS's own prior answer");
+        check(requests.get(1).context().contains("compare the two options"),
+                "follow-up reasoning must retain prior user turn too");
+    }
+
+    private static void conversationHistoryKeepsRolesAndRemainsBounded() {
+        Clock clock = Clock.fixed(Instant.parse("2026-08-27T23:30:00Z"), ZoneOffset.UTC);
+        final ReasoningRequest[] last = {null};
+        ReasoningRouter router = request -> {
+            last[0] = request;
+            return new ReasoningResult("local", "ack-" + request.utterance(), null);
+        };
+        AssistantCore core = new AssistantCore(BrainEngine.createDefault(clock), router, ToolRegistry.standard());
+        core.handle("Hey Jarvis");
+        for (int i = 0; i < 12; i++) core.handle("reason about topic " + i);
+        check(last[0].context().contains("USER:"), "conversation context should mark user role");
+        check(last[0].context().contains("JARVIS:"), "conversation context should mark assistant role");
+        check(!last[0].context().contains("topic 0"), "bounded working context should evict oldest turns");
+        check(last[0].context().contains("topic 11"), "bounded working context should retain newest turn");
+    }
+
+    private static void check(boolean condition, String message) {
+        checks++;
+        if (!condition) throw new AssertionError(message);
+    }
+}
