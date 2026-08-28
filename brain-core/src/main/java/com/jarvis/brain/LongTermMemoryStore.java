@@ -96,12 +96,17 @@ public final class LongTermMemoryStore {
         Set<String> q = terms(query);
         List<Scored> scored = new ArrayList<>();
         for (Map.Entry<String,List<RichMemory>> entry : byKey.entrySet()) {
-            Optional<RichMemory> current = entry.getValue().stream().filter(m -> m.validAt(when))
-                    .max(Comparator.comparing(RichMemory::validFrom).thenComparingDouble(RichMemory::confidence));
-            if (current.isEmpty()) continue;
-            RichMemory m = current.get();
+            List<RichMemory> list = entry.getValue();
+            int currentIndex = currentIndex(list, when);
+            if (currentIndex < 0) continue;
+            RichMemory m = list.get(currentIndex);
             double semantic = overlap(q, memoryTerms(m));
             if (semantic <= 0) continue;
+            RichMemory touched = m.touch(when);
+            if (touched != m) {
+                list.set(currentIndex, touched);
+                m = touched;
+            }
             double sourceTrust = m.source().equals("user-stated") ? 1.0 : m.type() == MemoryType.INFERENCE ? m.confidence() : 0.82;
             double stability = switch (m.type()) {
                 case PREFERENCE, FACT, RELATIONSHIP, PROCEDURE, GOAL -> 1.0;
@@ -127,6 +132,22 @@ public final class LongTermMemoryStore {
                     .append(String.format(Locale.ROOT, "%.2f", m.confidence())).append("] ").append(m.content());
         }
         return out.toString();
+    }
+
+    private static int currentIndex(List<RichMemory> list, Instant when) {
+        int best = -1;
+        for (int i = 0; i < list.size(); i++) {
+            RichMemory candidate = list.get(i);
+            if (!candidate.validAt(when)) continue;
+            if (best < 0) {
+                best = i;
+                continue;
+            }
+            RichMemory existing = list.get(best);
+            int timeCompare = candidate.validFrom().compareTo(existing.validFrom());
+            if (timeCompare > 0 || (timeCompare == 0 && candidate.confidence() > existing.confidence())) best = i;
+        }
+        return best;
     }
 
     private record Scored(RichMemory memory, double score) {}
