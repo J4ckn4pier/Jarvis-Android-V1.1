@@ -49,16 +49,28 @@ public final class ToolRegistry {
         return Set.copyOf(out);
     }
 
+    /**
+     * Default standalone registry. Fresh external-information tools fail closed until
+     * a platform/network gateway is explicitly attached; they never return fake "ready" success.
+     */
     public static ToolRegistry standard() {
+        return standard(ExternalResearchGateway.unavailable());
+    }
+
+    /**
+     * Standard typed registry with a provider-neutral gateway for fresh place/business/weather data.
+     */
+    public static ToolRegistry standard(ExternalResearchGateway research) {
+        ExternalResearchGateway gateway = research == null ? ExternalResearchGateway.unavailable() : research;
         ToolRegistry r = new ToolRegistry();
         r.register(spec("open_dialer", false, Set.of("phone", "phone app", "dialer", "calls", "call", "telephone"), Set.of(), "Open the phone dialer"), ready("dialer-ready"));
-        r.register(spec("discover_places", false, Set.of("restaurants", "find food", "dinner"), Set.of("category"), "Discover nearby places"), ready("place-discovery-ready"));
+        r.register(spec("discover_places", false, Set.of("restaurants", "find food", "dinner"), Set.of("category"), "Discover nearby places"), gateway::discoverPlaces);
         r.register(spec("rank_options", false, Set.of(), Set.of(), "Rank candidate options using user context"), ready("ranking-ready"));
         r.register(spec("present_options", false, Set.of(), Set.of(), "Present ranked options"), ready("presentation-ready"));
-        r.register(spec("resolve_business", false, Set.of(), Set.of("business"), "Resolve a named business/entity"), ready("business-resolution-ready"));
+        r.register(spec("resolve_business", false, Set.of(), Set.of("business"), "Resolve a named business/entity"), gateway::resolveBusiness);
         r.register(spec("place_conversational_call", true, Set.of("call business", "phone agent"), Set.of("business", "goal"), "Conduct an approved outbound conversational call"), (a,c) -> ToolResult.failure("telephony adapter not attached"));
         r.register(spec("report_outcome", false, Set.of(), Set.of(), "Report a completed multi-step action"), ready("report-ready"));
-        r.register(spec("weather_lookup", false, Set.of("weather", "forecast"), Set.of("when"), "Look up weather/forecast"), ready("weather-ready"));
+        r.register(spec("weather_lookup", false, Set.of("weather", "forecast"), Set.of("when"), "Look up weather/forecast"), gateway::weatherLookup);
         r.register(spec("set_timer", false, Set.of("timer"), Set.of("amount", "unit"), "Set a device timer"), ready("timer-ready"));
         r.register(spec("create_reminder", false, Set.of("reminder", "remind me"), Set.of("request"), "Create a personal reminder"), ready("reminder-ready"));
         r.register(spec("navigate", false, Set.of("directions", "navigation"), Set.of("destination"), "Navigate to a destination"), ready("navigation-ready"));
