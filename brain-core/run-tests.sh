@@ -28,3 +28,4 @@ java -cp out com.jarvis.brain.ProductionSafetyContractTest
 java -cp out com.jarvis.brain.PassiveWakeConversationTest
 java -cp out com.jarvis.brain.ProactiveExecutiveTest
 java -cp out com.jarvis.brain.SessionWorkingMemoryTest
+java -cp out com.jarvis.brain.SemanticReflexIntegrationTest
