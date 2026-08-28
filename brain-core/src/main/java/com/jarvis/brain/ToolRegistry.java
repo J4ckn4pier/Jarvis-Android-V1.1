@@ -1,7 +1,10 @@
 package com.jarvis.brain;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
@@ -19,6 +22,14 @@ public final class ToolRegistry {
 
     public Optional<RegisteredTool> resolve(String nameOrAlias) {
         return Optional.ofNullable(byKey.get(normalize(nameOrAlias)));
+    }
+
+    public List<ToolSpec> specs() {
+        Set<RegisteredTool> unique = new HashSet<>(byKey.values());
+        ArrayList<ToolSpec> specs = new ArrayList<>();
+        for (RegisteredTool registered : unique) specs.add(registered.spec());
+        specs.sort(Comparator.comparing(ToolSpec::name));
+        return List.copyOf(specs);
     }
 
     /**
