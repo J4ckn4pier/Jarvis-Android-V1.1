@@ -7,17 +7,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 public final class AssistantCore {
     private static final int MAX_DIALOGUE_MESSAGES = 12;
     private static final int EXECUTIVE_MAX_ITERATIONS = 4;
-    private static final Set<String> AUTONOMOUS_RESEARCH_TOOLS = Set.of(
-            "discover_places", "resolve_business", "weather_lookup", "rank_options", "present_options", "report_outcome");
     private final BrainEngine reflex;
     private final ReasoningRouter providers;
     private final ToolRegistry tools;
     private final PlanValidator planValidator;
+    private final PlanExecutionClassifier executionClassifier;
     private final AssistantContextSource contextSource;
     private final SemanticGoalInterpreter semanticReflex = new SemanticGoalInterpreter();
     private final Deque<String> dialogue = new ArrayDeque<>();
@@ -32,6 +30,7 @@ public final class AssistantCore {
         this.reflex = reflex; this.providers = providers;
         this.tools = tools == null ? ToolRegistry.standard() : tools;
         this.planValidator = new PlanValidator(this.tools);
+        this.executionClassifier = new PlanExecutionClassifier(this.tools);
         this.contextSource = contextSource == null ? AssistantContextSource.none() : contextSource;
     }
 
@@ -51,7 +50,7 @@ public final class AssistantCore {
 
         if (response.kind() == BrainResponse.Kind.ACTION_PLAN && response.plan() != null) {
             PlanValidation reflexValidation = planValidator.validate(response.plan());
-            if (reflexValidation.valid() && isAutonomousResearchPlan(reflexValidation.effectivePlan())) {
+            if (reflexValidation.valid() && executionClassifier.containsAutonomousResearch(reflexValidation.effectivePlan())) {
                 String durableContext = contextSource.contextFor(utterance);
                 String combinedContext = combineContext(dialogueSnapshot(), workingMemory.snapshot(), durableContext);
                 ReasoningResult reflexResult = new ReasoningResult("deterministic-reflex", response.text(), reflexValidation.effectivePlan());
@@ -71,7 +70,7 @@ public final class AssistantCore {
         if (semanticPlan != null) {
             BrainResponse semanticResponse;
             PlanValidation semanticValidation = planValidator.validate(semanticPlan);
-            if (semanticValidation.valid() && isAutonomousResearchPlan(semanticValidation.effectivePlan())) {
+            if (semanticValidation.valid() && executionClassifier.containsAutonomousResearch(semanticValidation.effectivePlan())) {
                 ReasoningResult semanticResult = new ReasoningResult("semantic-reflex", "I'll check that.", semanticValidation.effectivePlan());
                 ExecutiveObservationLoop executive = new ExecutiveObservationLoop(providers, tools, new ApprovalGate(), EXECUTIVE_MAX_ITERATIONS);
                 ExecutiveOutcome outcome = executive.runFrom(utterance, combinedContext, semanticResult);
@@ -106,11 +105,6 @@ public final class AssistantCore {
 
     private void applyExecutiveState(ExecutiveOutcome outcome, String userTurn) {
         if (outcome != null) workingMemory.applyValidated(outcome.stateDelta(), userTurn);
-    }
-
-    private static boolean isAutonomousResearchPlan(Plan plan) {
-        if (plan == null || plan.steps().isEmpty()) return false;
-        return plan.steps().stream().anyMatch(step -> AUTONOMOUS_RESEARCH_TOOLS.contains(step.tool()));
     }
 
     private BrainResponse executiveResponse(ExecutiveOutcome outcome, boolean sessionActive, boolean acceptedWithoutWake) {
