@@ -16,6 +16,7 @@ public final class AssistantCore {
     private final PlanValidator planValidator;
     private final AssistantContextSource contextSource;
     private final Deque<String> dialogue = new ArrayDeque<>();
+    private final ConversationWorkingMemory workingMemory = new ConversationWorkingMemory();
     /** Structured executive state. Deliberately independent from the lossy dialogue buffer. */
     private PendingClarification pendingClarification;
 
@@ -41,11 +42,12 @@ public final class AssistantCore {
         }
         BrainResponse response = reflex.handle(utterance);
         if (response.kind() == BrainResponse.Kind.IGNORED_AMBIENT) return response;
+        workingMemory.observeUserTurn(utterance);
         remember("USER", utterance);
         if (response.kind() != BrainResponse.Kind.REASONING_REQUIRED) { remember("JARVIS", response.text()); return response; }
 
         String durableContext = contextSource.contextFor(utterance);
-        String combinedContext = combineContext(dialogueSnapshot(), durableContext);
+        String combinedContext = combineContext(dialogueSnapshot(), workingMemory.snapshot(), durableContext);
         ReasoningResult reasoned = providers.reason(new ReasoningRequest(utterance, combinedContext, tools.specs()));
         BrainResponse result;
         if (reasoned.plan() != null) {
@@ -84,22 +86,23 @@ public final class AssistantCore {
         // Clarification never bypasses safety: it re-enters the exact same registry-backed validator path.
         PlanValidation validation = planValidator.validate(filled);
         List<PendingClarification.MissingArgument> remaining = findMissingArguments(validation.effectivePlan());
+        workingMemory.observeUserTurn(answer);
         remember("USER", answer);
         if (validation.valid()) {
             pendingClarification = null;
             BrainResponse result = BrainResponse.of(BrainResponse.Kind.ACTION_PLAN, "Understood. I have what I need.",
-                    validation.effectivePlan(), true, true, dialogueSnapshot());
+                    validation.effectivePlan(), true, true, combinedSessionContext());
             remember("JARVIS", result.text()); return result;
         }
         if (!remaining.isEmpty()) {
             pendingClarification = new PendingClarification(validation.effectivePlan(), remaining);
             String question = clarificationQuestion(remaining.get(0).argument()); remember("JARVIS", question);
-            return BrainResponse.of(BrainResponse.Kind.CONVERSATION, question, null, true, true, dialogueSnapshot());
+            return BrainResponse.of(BrainResponse.Kind.CONVERSATION, question, null, true, true, combinedSessionContext());
         }
         pendingClarification = null;
         String details = validation.errors().isEmpty() ? "the plan is still incomplete" : String.join("; ", validation.errors());
         String text = "I still can't make that plan safe to execute: " + details + "."; remember("JARVIS", text);
-        return BrainResponse.of(BrainResponse.Kind.CONVERSATION, text, null, true, true, dialogueSnapshot());
+        return BrainResponse.of(BrainResponse.Kind.CONVERSATION, text, null, true, true, combinedSessionContext());
     }
 
     private List<PendingClarification.MissingArgument> findMissingArguments(Plan plan) {
@@ -133,9 +136,21 @@ public final class AssistantCore {
         while (dialogue.size() > MAX_DIALOGUE_MESSAGES) dialogue.removeFirst();
     }
     private String dialogueSnapshot() { return String.join("\n", dialogue); }
-    private static String combineContext(String sessionContext, String durableContext) {
-        String session = sessionContext == null ? "" : sessionContext.trim(); String durable = durableContext == null ? "" : durableContext.trim();
-        if (session.isEmpty()) return durable; if (durable.isEmpty()) return session;
-        return "Recent conversation:\n" + session + "\nRelevant durable memory:\n" + durable;
+    private String combinedSessionContext() { return combineContext(dialogueSnapshot(), workingMemory.snapshot(), ""); }
+    private static String combineContext(String dialogueContext, String workingContext, String durableContext) {
+        String dialogue = dialogueContext == null ? "" : dialogueContext.trim();
+        String working = workingContext == null ? "" : workingContext.trim();
+        String durable = durableContext == null ? "" : durableContext.trim();
+        StringBuilder out = new StringBuilder();
+        if (!dialogue.isEmpty()) out.append("Recent conversation:\n").append(dialogue);
+        if (!working.isEmpty()) {
+            if (out.length() > 0) out.append('\n');
+            out.append("Structured session memory:\n").append(working);
+        }
+        if (!durable.isEmpty()) {
+            if (out.length() > 0) out.append('\n');
+            out.append("Relevant durable memory:\n").append(durable);
+        }
+        return out.toString();
     }
 }
