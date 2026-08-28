@@ -66,6 +66,14 @@ public final class ExecutiveObservationLoopTest {
         ExecutiveOutcome outcome = loop.run("keep checking", "");
         check(outcome.status() == ExecutiveOutcome.Status.ITERATION_LIMIT, "agent loop needs a hard reasoning/action ceiling");
         check(outcome.iterations() == 2, "outcome should expose exact bounded iteration count");
+        check(!outcome.text().isBlank() && !outcome.text().equals("again"),
+                "iteration ceiling must never expose a useless looping fragment or silence");
+        check(outcome.text().contains("same"),
+                "iteration ceiling should preserve the best concrete tool evidence gathered so far");
+        String lower = outcome.text().toLowerCase();
+        check((lower.contains("couldn't") || lower.contains("could not") || lower.contains("unable") || lower.contains("not fully"))
+                        && outcome.text().contains("?"),
+                "iteration ceiling should state incomplete certainty and invite the user to choose the next check/context");
     }
 
     private static void failedSafeToolBecomesObservationForRecoveryReasoning() {
