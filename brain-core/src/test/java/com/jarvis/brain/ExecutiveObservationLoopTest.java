@@ -10,6 +10,7 @@ public final class ExecutiveObservationLoopTest {
     public static void main(String[] args) {
         safeResearchCanExecuteAndReenterReasoningForSynthesis();
         consequentialStepStopsBeforeExecutionAndReturnsApprovalBoundary();
+        approvalBoundaryDoesNotReturnAlreadyCompletedSafeSteps();
         loopStopsAtBoundedIterationCeiling();
         failedSafeToolBecomesObservationForRecoveryReasoning();
         System.out.println("ExecutiveObservationLoopTest: " + checks + " assertions passed");
@@ -55,6 +56,42 @@ public final class ExecutiveObservationLoopTest {
         check(outcome.status() == ExecutiveOutcome.Status.APPROVAL_REQUIRED, "consequential work must stop at approval boundary");
         check(outcome.pendingPlan() != null && outcome.pendingPlan().requiresApproval(), "pending validated plan should be returned for explicit approval");
         check(sends[0] == 0, "loop must never execute consequential tool before approval");
+    }
+
+    private static void approvalBoundaryDoesNotReturnAlreadyCompletedSafeSteps() {
+        ToolRegistry registry = new ToolRegistry();
+        int[] searches = {0};
+        int[] calls = {0};
+        registry.register(new ToolSpec("search_places", false, Set.of(), Set.of("query"), "Search places"), (args, ctx) -> {
+            searches[0]++;
+            return ToolResult.success("Castle Cafe phone=555-0100");
+        });
+        registry.register(new ToolSpec("call_business", true, Set.of(), Set.of("business"), "Call business"), (args, ctx) -> {
+            calls[0]++;
+            return ToolResult.success("called");
+        });
+        ReasoningRouter router = request -> new ReasoningResult("local", "I found Castle Cafe and can call them.",
+                new Plan("find then call", List.of(
+                        new PlanStep("search_places", Map.of("query", "Castle Cafe"), false),
+                        new PlanStep("call_business", Map.of("business", "Castle Cafe"), true))));
+        ExecutiveObservationLoop loop = new ExecutiveObservationLoop(router, registry, new ApprovalGate(), 3);
+        ExecutiveOutcome outcome = loop.run("find Castle Cafe and call them", "");
+        check(outcome.status() == ExecutiveOutcome.Status.APPROVAL_REQUIRED, "mixed safe/consequential plan should stop at the action boundary");
+        check(searches[0] == 1 && calls[0] == 0, "safe prefix should execute once while consequential step stays blocked");
+        check(outcome.pendingPlan() != null && outcome.pendingPlan().steps().size() == 1,
+                "approval handoff should contain only work that has not already completed");
+        check(outcome.pendingPlan().steps().get(0).tool().equals("call_business"),
+                "approval handoff must begin at the first unexecuted consequential step");
+        ApprovalGate gate = new ApprovalGate();
+        ResumablePlanExecutor executor = new ResumablePlanExecutor(registry, gate);
+        ExecutionCursor cursor = executor.start(outcome.pendingPlan());
+        check(executor.run(cursor, new ExecutionContext()).status() == ExecutionReport.Status.APPROVAL_REQUIRED,
+                "trimmed handoff must still enforce fresh approval");
+        gate.approve("call_business");
+        check(executor.run(cursor, new ExecutionContext()).status() == ExecutionReport.Status.COMPLETED,
+                "approved trimmed handoff should complete");
+        check(searches[0] == 1 && calls[0] == 1,
+                "approval resume must not replay the already-completed safe research step");
     }
 
     private static void loopStopsAtBoundedIterationCeiling() {
