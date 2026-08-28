@@ -34,6 +34,11 @@ public final class BrainExitGateAcceptanceTest {
             WakeBargeInCompositionTest.class,
             ToolCapableLocalProviderTest.class,
             ToolContractSelectorTest.class,
+            ToolExecutionClassTest.class,
+            PlanExecutionClassifierTest.class,
+            GoalInterruptionPolicyTest.class,
+            ExecutiveTaskControlTest.class,
+            OutcomeFeedbackMemoryTest.class,
             LongTermMemoryTest.class,
             MemoryConsolidationTest.class,
             MemoryLifecycleTest.class
