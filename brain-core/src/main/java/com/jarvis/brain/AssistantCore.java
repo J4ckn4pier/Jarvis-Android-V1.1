@@ -10,6 +10,7 @@ import java.util.Map;
 
 public final class AssistantCore {
     private static final int MAX_DIALOGUE_MESSAGES = 12;
+    private static final int EXECUTIVE_MAX_ITERATIONS = 4;
     private final BrainEngine reflex;
     private final ReasoningRouter providers;
     private final ToolRegistry tools;
@@ -58,10 +59,35 @@ public final class AssistantCore {
         ReasoningResult reasoned = providers.reason(new ReasoningRequest(utterance, combinedContext, tools.specs()));
         workingMemory.applyValidated(reasoned.stateDelta(), utterance);
         BrainResponse result;
-        if (reasoned.plan() != null) result = validatedPlanResponse(reasoned.plan(), reasoned.text(), response.sessionActive(), response.acceptedWithoutWakeWord(), combinedContext);
-        else result = BrainResponse.of(BrainResponse.Kind.CONVERSATION, reasoned.text(), null, response.sessionActive(), response.acceptedWithoutWakeWord(), combinedContext);
+        if (reasoned.plan() != null) {
+            PlanValidation initialValidation = planValidator.validate(reasoned.plan());
+            if (!initialValidation.valid()) {
+                result = validatedPlanResponse(reasoned.plan(), reasoned.text(), response.sessionActive(), response.acceptedWithoutWakeWord(), combinedContext);
+            } else {
+                ExecutiveObservationLoop executive = new ExecutiveObservationLoop(providers, tools, new ApprovalGate(), EXECUTIVE_MAX_ITERATIONS);
+                ExecutiveOutcome outcome = executive.runFrom(utterance, combinedContext, reasoned);
+                result = executiveResponse(outcome, response.sessionActive(), response.acceptedWithoutWakeWord());
+            }
+        } else {
+            result = BrainResponse.of(BrainResponse.Kind.CONVERSATION, reasoned.text(), null, response.sessionActive(), response.acceptedWithoutWakeWord(), combinedContext);
+        }
         remember("JARVIS", result.text());
         return result;
+    }
+
+    private BrainResponse executiveResponse(ExecutiveOutcome outcome, boolean sessionActive, boolean acceptedWithoutWake) {
+        if (outcome == null) {
+            return BrainResponse.of(BrainResponse.Kind.CONVERSATION, "I couldn't complete that safely.", null,
+                    sessionActive, acceptedWithoutWake, combinedSessionContext());
+        }
+        if (outcome.status() == ExecutiveOutcome.Status.APPROVAL_REQUIRED) {
+            return BrainResponse.of(BrainResponse.Kind.ACTION_PLAN,
+                    outcome.text() == null || outcome.text().isBlank() ? "I need your approval before I do that." : outcome.text(),
+                    outcome.pendingPlan(), sessionActive, acceptedWithoutWake, outcome.context());
+        }
+        return BrainResponse.of(BrainResponse.Kind.CONVERSATION,
+                outcome.text() == null || outcome.text().isBlank() ? "I couldn't complete that safely." : outcome.text(),
+                null, sessionActive, acceptedWithoutWake, outcome.context());
     }
 
     private BrainResponse validatedPlanResponse(Plan plan, String successText, boolean sessionActive, boolean acceptedWithoutWake, String context) {
