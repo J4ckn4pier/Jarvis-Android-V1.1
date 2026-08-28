@@ -37,6 +37,7 @@ public final class ExecutiveObservationLoop {
         String context = initialContext == null ? "" : initialContext;
         ExecutionContext executionContext = new ExecutionContext();
         String lastText = "";
+        SessionStateDelta latestStateDelta = SessionStateDelta.empty();
 
         for (int iteration = 1; iteration <= maxIterations; iteration++) {
             ReasoningResult result;
@@ -46,20 +47,21 @@ public final class ExecutiveObservationLoop {
                 try {
                     result = reasoning.reason(new ReasoningRequest(goal, context, registry.specs()));
                 } catch (RuntimeException providerFailure) {
-                    return new ExecutiveOutcome(ExecutiveOutcome.Status.FAILED,
-                            "I couldn't complete the reasoning step safely.", null, iteration, context);
+                    return outcome(ExecutiveOutcome.Status.FAILED,
+                            "I couldn't complete the reasoning step safely.", null, iteration, context, latestStateDelta);
                 }
             }
             lastText = result.text() == null ? "" : result.text();
+            if (result.stateDelta() != null && !result.stateDelta().isEmpty()) latestStateDelta = result.stateDelta();
 
             if (result.plan() == null) {
-                return new ExecutiveOutcome(ExecutiveOutcome.Status.ANSWERED, lastText, null, iteration, context);
+                return outcome(ExecutiveOutcome.Status.ANSWERED, lastText, null, iteration, context, latestStateDelta);
             }
 
             PlanValidation validation = validator.validate(result.plan());
             if (!validation.valid()) {
-                return new ExecutiveOutcome(ExecutiveOutcome.Status.CLARIFICATION_REQUIRED,
-                        clarification(validation.errors()), null, iteration, context);
+                return outcome(ExecutiveOutcome.Status.CLARIFICATION_REQUIRED,
+                        clarification(validation.errors()), null, iteration, context, latestStateDelta);
             }
             Plan plan = validation.effectivePlan();
 
@@ -68,16 +70,16 @@ public final class ExecutiveObservationLoop {
                 PlanStep step = plan.steps().get(stepIndex);
                 ToolRegistry.RegisteredTool tool = registry.resolve(step.tool()).orElse(null);
                 if (tool == null) {
-                    return new ExecutiveOutcome(ExecutiveOutcome.Status.CLARIFICATION_REQUIRED,
-                            "I need to revise that plan before I can continue safely.", null, iteration, context);
+                    return outcome(ExecutiveOutcome.Status.CLARIFICATION_REQUIRED,
+                            "I need to revise that plan before I can continue safely.", null, iteration, context, latestStateDelta);
                 }
 
                 boolean consequential = step.consequential() || tool.spec().consequential();
                 if (consequential) {
                     Plan pending = remainingPlan(plan, stepIndex);
-                    return new ExecutiveOutcome(ExecutiveOutcome.Status.APPROVAL_REQUIRED,
+                    return outcome(ExecutiveOutcome.Status.APPROVAL_REQUIRED,
                             lastText.isBlank() ? "I need your approval before I do that." : lastText,
-                            pending, iteration, context);
+                            pending, iteration, context, latestStateDelta);
                 }
 
                 ToolResult toolResult;
@@ -99,13 +101,18 @@ public final class ExecutiveObservationLoop {
             }
 
             if (!producedObservation) {
-                return new ExecutiveOutcome(ExecutiveOutcome.Status.FAILED,
-                        "I couldn't make progress on that plan safely.", null, iteration, context);
+                return outcome(ExecutiveOutcome.Status.FAILED,
+                        "I couldn't make progress on that plan safely.", null, iteration, context, latestStateDelta);
             }
         }
 
-        return new ExecutiveOutcome(ExecutiveOutcome.Status.ITERATION_LIMIT,
-                iterationLimitText(lastText, context), null, maxIterations, context);
+        return outcome(ExecutiveOutcome.Status.ITERATION_LIMIT,
+                iterationLimitText(lastText, context), null, maxIterations, context, latestStateDelta);
+    }
+
+    private static ExecutiveOutcome outcome(ExecutiveOutcome.Status status, String text, Plan pendingPlan,
+                                            int iterations, String context, SessionStateDelta stateDelta) {
+        return new ExecutiveOutcome(status, text, pendingPlan, iterations, context, stateDelta);
     }
 
     private static Plan remainingPlan(Plan plan, int firstUnexecutedIndex) {
