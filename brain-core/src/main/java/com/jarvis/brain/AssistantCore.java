@@ -48,6 +48,21 @@ public final class AssistantCore {
         if (response.kind() == BrainResponse.Kind.IGNORED_AMBIENT) return response;
         workingMemory.observeUserTurn(utterance);
         remember("USER", utterance);
+
+        if (response.kind() == BrainResponse.Kind.ACTION_PLAN && response.plan() != null) {
+            PlanValidation reflexValidation = planValidator.validate(response.plan());
+            if (reflexValidation.valid() && isAutonomousResearchPlan(reflexValidation.effectivePlan())) {
+                String durableContext = contextSource.contextFor(utterance);
+                String combinedContext = combineContext(dialogueSnapshot(), workingMemory.snapshot(), durableContext);
+                ReasoningResult reflexResult = new ReasoningResult("deterministic-reflex", response.text(), reflexValidation.effectivePlan());
+                ExecutiveObservationLoop executive = new ExecutiveObservationLoop(providers, tools, new ApprovalGate(), EXECUTIVE_MAX_ITERATIONS);
+                BrainResponse result = executiveResponse(
+                        executive.runFrom(utterance, combinedContext, reflexResult),
+                        response.sessionActive(), response.acceptedWithoutWakeWord());
+                remember("JARVIS", result.text());
+                return result;
+            }
+        }
         if (response.kind() != BrainResponse.Kind.REASONING_REQUIRED) { remember("JARVIS", response.text()); return response; }
 
         String durableContext = contextSource.contextFor(utterance);
