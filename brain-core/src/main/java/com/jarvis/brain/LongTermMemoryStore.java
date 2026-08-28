@@ -55,7 +55,16 @@ public final class LongTermMemoryStore {
         return current(key, when).filter(m -> m.confidence() >= minConfidence);
     }
 
-    public synchronized List<RichMemory> history(String key) { return List.copyOf(byKey.getOrDefault(key, List.of())); }
+    public synchronized List<RichMemory> history(String key) {
+        return List.copyOf(byKey.getOrDefault(key, List.of()));
+    }
+
+    public synchronized List<RichMemory> snapshotAll() {
+        List<RichMemory> out = new ArrayList<>();
+        for (List<RichMemory> list : byKey.values()) out.addAll(list);
+        out.sort(Comparator.comparing(RichMemory::key).thenComparing(RichMemory::validFrom));
+        return List.copyOf(out);
+    }
 
     public synchronized List<RichMemory> searchHistory(String query, int limit) {
         Set<String> terms = terms(query);
