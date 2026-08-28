@@ -16,3 +16,4 @@ java -cp out com.jarvis.brain.LongTermMemoryTest
 java -cp out com.jarvis.brain.MemoryConsolidationTest
 java -cp out com.jarvis.brain.ResumableExecutionTest
 java -cp out com.jarvis.brain.PolicyProviderRouterTest
+java -cp out com.jarvis.brain.PlanRepairCoordinatorTest
