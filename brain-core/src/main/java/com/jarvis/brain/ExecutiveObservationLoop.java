@@ -50,7 +50,8 @@ public final class ExecutiveObservationLoop {
             Plan plan = validation.effectivePlan();
 
             boolean producedObservation = false;
-            for (PlanStep step : plan.steps()) {
+            for (int stepIndex = 0; stepIndex < plan.steps().size(); stepIndex++) {
+                PlanStep step = plan.steps().get(stepIndex);
                 ToolRegistry.RegisteredTool tool = registry.resolve(step.tool()).orElse(null);
                 if (tool == null) {
                     return new ExecutiveOutcome(ExecutiveOutcome.Status.CLARIFICATION_REQUIRED,
@@ -59,11 +60,13 @@ public final class ExecutiveObservationLoop {
 
                 boolean consequential = step.consequential() || tool.spec().consequential();
                 if (consequential) {
-                    // Deliberately do not consume approval here. The loop is the autonomous-safe phase;
-                    // execution resumes only after the user explicitly approves the validated pending plan.
+                    // Deliberately do not consume approval here. The loop is the autonomous-safe phase.
+                    // Safe prefix steps may already have executed, so hand off only the unexecuted suffix;
+                    // otherwise approval resume would replay research/resolution work that already succeeded.
+                    Plan pending = remainingPlan(plan, stepIndex);
                     return new ExecutiveOutcome(ExecutiveOutcome.Status.APPROVAL_REQUIRED,
                             lastText.isBlank() ? "I need your approval before I do that." : lastText,
-                            plan, iteration, context);
+                            pending, iteration, context);
                 }
 
                 ToolResult toolResult;
@@ -95,6 +98,11 @@ public final class ExecutiveObservationLoop {
 
         return new ExecutiveOutcome(ExecutiveOutcome.Status.ITERATION_LIMIT,
                 iterationLimitText(lastText, context), null, maxIterations, context);
+    }
+
+    private static Plan remainingPlan(Plan plan, int firstUnexecutedIndex) {
+        List<PlanStep> remaining = List.copyOf(plan.steps().subList(firstUnexecutedIndex, plan.steps().size()));
+        return new Plan(plan.goal(), remaining);
     }
 
     private static String appendObservation(String context, String tool, String status, String output) {
