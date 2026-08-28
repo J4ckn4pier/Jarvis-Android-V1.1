@@ -7,10 +7,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 public final class AssistantCore {
     private static final int MAX_DIALOGUE_MESSAGES = 12;
     private static final int EXECUTIVE_MAX_ITERATIONS = 4;
+    private static final Set<String> AUTONOMOUS_RESEARCH_TOOLS = Set.of(
+            "discover_places", "resolve_business", "weather_lookup", "rank_options", "present_options", "report_outcome");
     private final BrainEngine reflex;
     private final ReasoningRouter providers;
     private final ToolRegistry tools;
@@ -51,7 +54,17 @@ public final class AssistantCore {
         String combinedContext = combineContext(dialogueSnapshot(), workingMemory.snapshot(), durableContext);
         Plan semanticPlan = semanticReflex.interpret(utterance).orElse(null);
         if (semanticPlan != null) {
-            BrainResponse semanticResponse = validatedPlanResponse(semanticPlan, "Understood.", response.sessionActive(), response.acceptedWithoutWakeWord(), combinedContext);
+            BrainResponse semanticResponse;
+            PlanValidation semanticValidation = planValidator.validate(semanticPlan);
+            if (semanticValidation.valid() && isAutonomousResearchPlan(semanticValidation.effectivePlan())) {
+                ReasoningResult semanticResult = new ReasoningResult("semantic-reflex", "I'll check that.", semanticValidation.effectivePlan());
+                ExecutiveObservationLoop executive = new ExecutiveObservationLoop(providers, tools, new ApprovalGate(), EXECUTIVE_MAX_ITERATIONS);
+                semanticResponse = executiveResponse(
+                        executive.runFrom(utterance, combinedContext, semanticResult),
+                        response.sessionActive(), response.acceptedWithoutWakeWord());
+            } else {
+                semanticResponse = validatedPlanResponse(semanticPlan, "Understood.", response.sessionActive(), response.acceptedWithoutWakeWord(), combinedContext);
+            }
             remember("JARVIS", semanticResponse.text());
             return semanticResponse;
         }
@@ -73,6 +86,11 @@ public final class AssistantCore {
         }
         remember("JARVIS", result.text());
         return result;
+    }
+
+    private static boolean isAutonomousResearchPlan(Plan plan) {
+        if (plan == null || plan.steps().isEmpty()) return false;
+        return plan.steps().stream().anyMatch(step -> AUTONOMOUS_RESEARCH_TOOLS.contains(step.tool()));
     }
 
     private BrainResponse executiveResponse(ExecutiveOutcome outcome, boolean sessionActive, boolean acceptedWithoutWake) {
