@@ -47,6 +47,7 @@ java -cp out com.jarvis.brain.ExecutiveTaskControlTest
 java -cp out com.jarvis.brain.OutcomeFeedbackMemoryTest
 java -cp out com.jarvis.brain.PlanExecutionClassifierTest
 java -cp out com.jarvis.brain.DiningResearchCapabilityTest
+java -cp out com.jarvis.brain.StructuredDiningFeedbackTest
 # Final composed pre-Android exit gate. This intentionally re-runs the critical
 # cross-cutting contracts together and must stay distinct from device smoke.
 java -cp out com.jarvis.brain.BrainExitGateAcceptanceTest
