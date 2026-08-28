@@ -21,3 +21,4 @@ java -cp out com.jarvis.brain.ClaudeHardeningTest
 java -cp out com.jarvis.brain.MemoryLifecycleTest
 java -cp out com.jarvis.brain.AssistantProviderIntegrationTest
 java -cp out com.jarvis.brain.AssistantContextIntegrationTest
+java -cp out com.jarvis.brain.ConversationContinuityTest
