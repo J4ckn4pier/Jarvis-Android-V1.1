@@ -21,7 +21,7 @@ public final class LocalOpenAiCompatibleProvider implements ReasoningProvider {
 
     public LocalOpenAiCompatibleProvider(String id, String endpoint, String model, LocalCortexTransport transport) {
         this.id = id == null || id.isBlank() ? "local" : id;
-        URI.create(endpoint); // validate configuration even for injected test transport
+        URI.create(endpoint);
         this.model = model == null ? "" : model;
         if (transport == null) throw new IllegalArgumentException("local cortex transport required");
         this.transport = transport;
@@ -56,13 +56,11 @@ public final class LocalOpenAiCompatibleProvider implements ReasoningProvider {
         if (mode.equals("conversation")) return new ReasoningResult(id, text, null);
         if (!mode.equals("plan")) throw new RuntimeException("Local cortex structured response has unsupported mode: " + mode);
         String planJson = objectField(json, "plan");
-        Plan plan;
         try {
-            plan = PlanJsonCodec.decode(planJson);
+            return new ReasoningResult(id, text, PlanJsonCodec.decode(planJson));
         } catch (RuntimeException malformed) {
             throw new RuntimeException("Local cortex returned malformed plan", malformed);
         }
-        return new ReasoningResult(id, text, plan);
     }
 
     private static String buildSystemPrompt(List<ToolSpec> tools) {
@@ -72,17 +70,12 @@ public final class LocalOpenAiCompatibleProvider implements ReasoningProvider {
                 .append("Return exactly one JSON object. For ordinary conversation: {\"mode\":\"conversation\",\"text\":\"your reply\"}. ")
                 .append("For an action/tool plan: {\"mode\":\"plan\",\"text\":\"brief user-facing reply\",\"plan\":{\"goal\":\"goal\",\"steps\":[{\"tool\":\"registered_tool\",\"arguments\":{},\"consequential\":false}]}}. ")
                 .append("Never invent a tool. Do not omit required arguments just to avoid clarifying. Consequential status is enforced again by JARVIS, so do not try to weaken it.\n\nRegistered tools:\n");
-        if (tools == null || tools.isEmpty()) {
-            out.append("(none; converse or clarify only)\n");
-        } else {
-            for (ToolSpec tool : tools) {
-                out.append("- ").append(tool.name())
-                        .append(" | aliases=").append(tool.aliases())
-                        .append(" | required=").append(tool.requiredArguments())
-                        .append(" | consequential=").append(tool.consequential())
-                        .append(" | description=").append(tool.description()).append('\n');
-            }
-        }
+        if (tools == null || tools.isEmpty()) out.append("(none; converse or clarify only)\n");
+        else for (ToolSpec tool : tools) out.append("- ").append(tool.name())
+                .append(" | aliases=").append(tool.aliases())
+                .append(" | required=").append(tool.requiredArguments())
+                .append(" | consequential=").append(tool.consequential())
+                .append(" | description=").append(tool.description()).append('\n');
         return out.toString();
     }
 
@@ -90,11 +83,9 @@ public final class LocalOpenAiCompatibleProvider implements ReasoningProvider {
         URI uri = URI.create(endpoint);
         HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(3)).build();
         return body -> {
-            HttpRequest http = HttpRequest.newBuilder(uri)
-                    .timeout(Duration.ofSeconds(30))
+            HttpRequest http = HttpRequest.newBuilder(uri).timeout(Duration.ofSeconds(30))
                     .header("Content-Type", "application/json")
-                    .POST(HttpRequest.BodyPublishers.ofString(body))
-                    .build();
+                    .POST(HttpRequest.BodyPublishers.ofString(body)).build();
             try {
                 HttpResponse<String> response = client.send(http, HttpResponse.BodyHandlers.ofString());
                 if (response.statusCode() / 100 != 2) throw new RuntimeException("Local cortex HTTP " + response.statusCode());
@@ -115,16 +106,14 @@ public final class LocalOpenAiCompatibleProvider implements ReasoningProvider {
     }
 
     private static String stringField(String json, String key) {
-        int keyPos = findKey(json, key);
-        int colon = json.indexOf(':', keyPos);
+        int colon = findFieldColon(json, key);
         int quote = skipWhitespaceTo(json, colon + 1);
         if (quote < 0 || json.charAt(quote) != '"') throw new RuntimeException("Missing string field: " + key);
         return parseJsonString(json, quote).value();
     }
 
     private static String objectField(String json, String key) {
-        int keyPos = findKey(json, key);
-        int colon = json.indexOf(':', keyPos);
+        int colon = findFieldColon(json, key);
         int start = skipWhitespaceTo(json, colon + 1);
         if (start < 0 || json.charAt(start) != '{') throw new RuntimeException("Missing object field: " + key);
         int depth = 0;
@@ -140,19 +129,16 @@ public final class LocalOpenAiCompatibleProvider implements ReasoningProvider {
             }
             if (c == '"') inString = true;
             else if (c == '{') depth++;
-            else if (c == '}') {
-                depth--;
-                if (depth == 0) return json.substring(start, i + 1);
-            }
+            else if (c == '}' && --depth == 0) return json.substring(start, i + 1);
         }
         throw new RuntimeException("Unterminated object field: " + key);
     }
 
-    private static int findKey(String json, String key) {
-        String needle = "\"" + key + "\"";
-        int pos = json.indexOf(needle);
-        if (pos < 0) throw new RuntimeException("Missing field: " + key);
-        return pos + needle.length();
+    private static int findFieldColon(String json, String key) {
+        Pattern field = Pattern.compile("\\\"" + Pattern.quote(key) + "\\\"\\s*:");
+        Matcher matcher = field.matcher(json == null ? "" : json);
+        if (!matcher.find()) throw new RuntimeException("Missing field: " + key);
+        return matcher.end() - 1;
     }
 
     private static int skipWhitespaceTo(String json, int start) {
