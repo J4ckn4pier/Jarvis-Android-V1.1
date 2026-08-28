@@ -6,6 +6,7 @@ public final class ToolExecutionClassTest {
     public static void main(String[] args) {
         standardRegistryClassifiesResearchByMetadata();
         classificationIsNotDerivedFromToolName();
+        consequentialFlagAndExecutionClassCannotDisagree();
         System.out.println("ToolExecutionClassTest passed");
     }
 
@@ -20,6 +21,22 @@ public final class ToolExecutionClassTest {
     private static void classificationIsNotDerivedFromToolName() {
         ToolSpec oddlyNamedResearch = new ToolSpec("future_capability", false, Set.of(), Set.of(), "Safe research", ToolExecutionClass.AUTONOMOUS_RESEARCH);
         assertEquals(ToolExecutionClass.AUTONOMOUS_RESEARCH, oddlyNamedResearch.executionClass(), "metadata must classify new research tools without AssistantCore name lists");
+    }
+
+    private static void consequentialFlagAndExecutionClassCannotDisagree() {
+        assertThrows(() -> new ToolSpec("bad_reflex", true, Set.of(), Set.of(), "bad", ToolExecutionClass.DEVICE_REFLEX),
+                "consequential=true cannot be a reflex");
+        assertThrows(() -> new ToolSpec("bad_consequential", false, Set.of(), Set.of(), "bad", ToolExecutionClass.CONSEQUENTIAL),
+                "CONSEQUENTIAL execution class cannot claim consequential=false");
+    }
+
+    private static void assertThrows(Runnable action, String label) {
+        try {
+            action.run();
+        } catch (IllegalArgumentException expected) {
+            return;
+        }
+        throw new AssertionError(label + ": expected IllegalArgumentException");
     }
 
     private static void assertEquals(Object expected, Object actual, String label) {
