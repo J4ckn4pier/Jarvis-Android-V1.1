@@ -9,6 +9,7 @@ public final class ExternalResearchGatewayContractTest {
         injectedGatewayBacksPlaceBusinessAndWeatherTools();
         standardRegistryFailsClosedWhenExternalResearchIsNotAttached();
         revisedPlaceGoalCancelsPriorRequestBeforeRestart();
+        researchEvidenceCarriesFreshnessAndSourceProvenance();
         System.out.println("ExternalResearchGatewayContractTest: " + checks + " assertions passed");
     }
 
@@ -84,6 +85,14 @@ public final class ExternalResearchGatewayContractTest {
         check(cancels[0] == 1, "same-goal research correction must cancel the prior request before restart");
         check(calls[0] == 2, "revised place goal must execute through the same research gateway");
         check("Italian".equals(revised.output()), "restarted request must use revised parameters rather than stale query");
+    }
+
+    private static void researchEvidenceCarriesFreshnessAndSourceProvenance() {
+        ResearchEvidence evidence = new ResearchEvidence("Castle Cafe", "maps-provider", "2026-08-28T16:00:00Z", 0.93);
+        String encoded = evidence.toToolOutput();
+        check(encoded.contains("source=maps-provider"), "research evidence must identify its source");
+        check(encoded.contains("observed_at=2026-08-28T16:00:00Z"), "research evidence must identify observation time for freshness reasoning");
+        check(encoded.contains("confidence=0.93"), "research evidence must preserve confidence rather than flattening into unqualified text");
     }
 
     private static void check(boolean condition, String message) {
