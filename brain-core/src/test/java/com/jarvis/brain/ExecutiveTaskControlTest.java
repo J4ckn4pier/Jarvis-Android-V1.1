@@ -7,6 +7,7 @@ public final class ExecutiveTaskControlTest {
         sameGoalCorrectionReplacesCurrentGoal();
         contextualRefinementKeepsCurrentGoal();
         doBothPreservesTwoActiveGoals();
+        parallelCompletionDoesNotReplaceCurrentGoal();
         switchSuspendsResumableCurrentGoal();
         switchedGoalCompletionResumesSuspendedWork();
         repeatedSwitchKeepsSuspensionBounded();
@@ -35,6 +36,14 @@ public final class ExecutiveTaskControlTest {
         check("find dinner".equals(controller.currentGoal()), "do-both preserves current goal");
         check("check tomorrow's calendar".equals(controller.parallelGoal()), "do-both marks incoming goal as concurrent, not queue-behind");
         check("check tomorrow's calendar".equals(controller.queuedGoal()), "legacy queued accessor remains compatible while semantics are concurrent");
+    }
+
+    private static void parallelCompletionDoesNotReplaceCurrentGoal() {
+        ExecutiveTaskController controller = new ExecutiveTaskController("find dinner");
+        controller.apply(InterruptionDecision.DO_BOTH, "check tomorrow's calendar");
+        String active = controller.completeParallelGoal();
+        check("find dinner".equals(active), "parallel completion must leave the primary goal active");
+        check(controller.parallelGoal().isBlank(), "parallel completion consumes only the parallel slot");
     }
 
     private static void switchSuspendsResumableCurrentGoal() {
