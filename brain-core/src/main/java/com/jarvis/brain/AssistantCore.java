@@ -15,6 +15,7 @@ public final class AssistantCore {
     private final ToolRegistry tools;
     private final PlanValidator planValidator;
     private final AssistantContextSource contextSource;
+    private final SemanticGoalInterpreter semanticReflex = new SemanticGoalInterpreter();
     private final Deque<String> dialogue = new ArrayDeque<>();
     private final ConversationWorkingMemory workingMemory = new ConversationWorkingMemory();
     /** Structured executive state. Deliberately independent from the lossy dialogue buffer. */
@@ -48,28 +49,45 @@ public final class AssistantCore {
 
         String durableContext = contextSource.contextFor(utterance);
         String combinedContext = combineContext(dialogueSnapshot(), workingMemory.snapshot(), durableContext);
+
+        Plan semanticPlan = semanticReflex.interpret(utterance).orElse(null);
+        if (semanticPlan != null) {
+            BrainResponse semanticResponse = validatedPlanResponse(semanticPlan,
+                    "Understood.", response.sessionActive(), response.acceptedWithoutWakeWord(), combinedContext);
+            remember("JARVIS", semanticResponse.text());
+            return semanticResponse;
+        }
+
         ReasoningResult reasoned = providers.reason(new ReasoningRequest(utterance, combinedContext, tools.specs()));
         BrainResponse result;
         if (reasoned.plan() != null) {
-            PlanValidation validation = planValidator.validate(reasoned.plan());
-            if (!validation.valid()) {
-                List<PendingClarification.MissingArgument> missing = findMissingArguments(validation.effectivePlan());
-                if (!missing.isEmpty()) {
-                    pendingClarification = new PendingClarification(validation.effectivePlan(), missing);
-                    result = BrainResponse.of(BrainResponse.Kind.CONVERSATION, clarificationQuestion(missing.get(0).argument()), null,
-                            response.sessionActive(), response.acceptedWithoutWakeWord(), combinedContext);
-                } else {
-                    String details = validation.errors().isEmpty() ? "the plan is incomplete" : String.join("; ", validation.errors());
-                    result = BrainResponse.of(BrainResponse.Kind.CONVERSATION,
-                            "I need clarification before I can build a safe executable plan: " + details + ".", null,
-                            response.sessionActive(), response.acceptedWithoutWakeWord(), combinedContext);
-                }
-            } else result = BrainResponse.of(BrainResponse.Kind.ACTION_PLAN, reasoned.text(), validation.effectivePlan(),
-                    response.sessionActive(), response.acceptedWithoutWakeWord(), combinedContext);
+            result = validatedPlanResponse(reasoned.plan(), reasoned.text(), response.sessionActive(),
+                    response.acceptedWithoutWakeWord(), combinedContext);
         } else result = BrainResponse.of(BrainResponse.Kind.CONVERSATION, reasoned.text(), null,
                 response.sessionActive(), response.acceptedWithoutWakeWord(), combinedContext);
         remember("JARVIS", result.text());
         return result;
+    }
+
+    private BrainResponse validatedPlanResponse(Plan plan, String successText, boolean sessionActive,
+                                                boolean acceptedWithoutWake, String context) {
+        PlanValidation validation = planValidator.validate(plan);
+        if (!validation.valid()) {
+            List<PendingClarification.MissingArgument> missing = findMissingArguments(validation.effectivePlan());
+            if (!missing.isEmpty()) {
+                pendingClarification = new PendingClarification(validation.effectivePlan(), missing);
+                return BrainResponse.of(BrainResponse.Kind.CONVERSATION,
+                        clarificationQuestion(missing.get(0).argument()), null,
+                        sessionActive, acceptedWithoutWake, context);
+            }
+            String details = validation.errors().isEmpty() ? "the plan is incomplete" : String.join("; ", validation.errors());
+            return BrainResponse.of(BrainResponse.Kind.CONVERSATION,
+                    "I need clarification before I can build a safe executable plan: " + details + ".",
+                    null, sessionActive, acceptedWithoutWake, context);
+        }
+        return BrainResponse.of(BrainResponse.Kind.ACTION_PLAN,
+                successText == null || successText.isBlank() ? "Understood." : successText,
+                validation.effectivePlan(), sessionActive, acceptedWithoutWake, context);
     }
 
     private BrainResponse handlePendingClarification(String utterance) {
