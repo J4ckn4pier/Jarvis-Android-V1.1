@@ -8,6 +8,7 @@ public final class ExternalResearchGatewayContractTest {
     public static void main(String[] args) {
         injectedGatewayBacksPlaceBusinessAndWeatherTools();
         standardRegistryFailsClosedWhenExternalResearchIsNotAttached();
+        revisedPlaceGoalCancelsPriorRequestBeforeRestart();
         System.out.println("ExternalResearchGatewayContractTest: " + checks + " assertions passed");
     }
 
@@ -64,6 +65,25 @@ public final class ExternalResearchGatewayContractTest {
                 "business resolution must not pretend to succeed when no real adapter is attached");
         check(weather.status() != ToolResult.Status.SUCCESS && !weather.output().contains("ready"),
                 "weather lookup must not pretend to succeed when no real adapter is attached");
+    }
+
+    private static void revisedPlaceGoalCancelsPriorRequestBeforeRestart() {
+        int[] cancels = {0};
+        int[] calls = {0};
+        ExternalResearchGateway gateway = new ExternalResearchGateway() {
+            public ToolResult discoverPlaces(Map<String, String> arguments, ExecutionContext context) {
+                calls[0]++;
+                return ToolResult.success(arguments.get("category"));
+            }
+            public ToolResult resolveBusiness(Map<String, String> arguments, ExecutionContext context) { return ToolResult.failure("unused"); }
+            public ToolResult weatherLookup(Map<String, String> arguments, ExecutionContext context) { return ToolResult.failure("unused"); }
+        };
+        CancellableResearchCoordinator coordinator = new CancellableResearchCoordinator(gateway, () -> cancels[0]++);
+        coordinator.beginPlaces(Map.of("category", "Chinese"), new ExecutionContext());
+        ToolResult revised = coordinator.restartPlaces(Map.of("category", "Italian"), new ExecutionContext());
+        check(cancels[0] == 1, "same-goal research correction must cancel the prior request before restart");
+        check(calls[0] == 2, "revised place goal must execute through the same research gateway");
+        check("Italian".equals(revised.output()), "restarted request must use revised parameters rather than stale query");
     }
 
     private static void check(boolean condition, String message) {
