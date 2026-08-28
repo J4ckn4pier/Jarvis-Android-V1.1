@@ -14,6 +14,9 @@ public record ToolSpec(String name, boolean consequential, Set<String> aliases,
         if (consequential && executionClass != ToolExecutionClass.CONSEQUENTIAL) {
             throw new IllegalArgumentException("consequential tools must use CONSEQUENTIAL execution class");
         }
+        if (!consequential && executionClass == ToolExecutionClass.CONSEQUENTIAL) {
+            throw new IllegalArgumentException("CONSEQUENTIAL execution class requires consequential=true");
+        }
     }
     public ToolSpec(String name, boolean consequential, Set<String> aliases, Set<String> requiredArguments, String description) {
         this(name, consequential, aliases, requiredArguments, description,
