@@ -32,3 +32,4 @@ java -cp out com.jarvis.brain.SemanticReflexIntegrationTest
 java -cp out com.jarvis.brain.SessionStateDeltaTest
 java -cp out com.jarvis.brain.ProactiveSafetyPolicyTest
 java -cp out com.jarvis.brain.ProviderRecoveryTest
+java -cp out com.jarvis.brain.ExecutionRecoveryContractTest
