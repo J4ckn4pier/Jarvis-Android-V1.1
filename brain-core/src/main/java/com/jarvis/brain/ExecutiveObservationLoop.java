@@ -94,14 +94,37 @@ public final class ExecutiveObservationLoop {
         }
 
         return new ExecutiveOutcome(ExecutiveOutcome.Status.ITERATION_LIMIT,
-                lastText.isBlank() ? "I reached my safe reasoning limit before finishing that." : lastText,
-                null, maxIterations, context);
+                iterationLimitText(lastText, context), null, maxIterations, context);
     }
 
     private static String appendObservation(String context, String tool, String status, String output) {
         String observation = "[TOOL_OBSERVATION status=" + status + " tool=" + safe(tool) + "] " + safe(output);
         if (context == null || context.isBlank()) return observation;
         return context + "\n" + observation;
+    }
+
+    private static String iterationLimitText(String lastText, String context) {
+        String evidence = lastObservationOutput(context);
+        StringBuilder response = new StringBuilder("I couldn't fully complete this within my safe reasoning limit.");
+        if (!evidence.isBlank()) {
+            response.append(" Here's the best result I found so far: ").append(evidence).append('.');
+        } else if (lastText != null && !lastText.isBlank()) {
+            response.append(" The last useful reasoning result was: ").append(safe(lastText)).append('.');
+        }
+        response.append(" What would you like me to check next or clarify?");
+        return response.toString();
+    }
+
+    private static String lastObservationOutput(String context) {
+        if (context == null || context.isBlank()) return "";
+        int marker = context.lastIndexOf("[TOOL_OBSERVATION ");
+        if (marker < 0) return "";
+        int close = context.indexOf("] ", marker);
+        if (close < 0) return "";
+        int start = close + 2;
+        int end = context.indexOf('\n', start);
+        if (end < 0) end = context.length();
+        return safe(context.substring(start, end));
     }
 
     private static String clarification(List<String> errors) {
