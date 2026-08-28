@@ -7,6 +7,8 @@ import com.jarvis.brain.BrainRuntime;
 import com.jarvis.brain.ExternalResearchGateway;
 import com.jarvis.brain.ReasoningResult;
 import com.jarvis.brain.ReasoningRouter;
+import com.jarvis.brain.RuntimeApprovalConversation;
+import com.jarvis.brain.RuntimeSurfacePresentation;
 import com.jarvis.brain.ToolRegistry;
 import com.jarvis.mobile.brain.providers.CortexProvider;
 import com.jarvis.mobile.brain.providers.CortexProviderFactory;
@@ -15,6 +17,7 @@ import java.time.Clock;
 /** Android composition root for the shared brain. UI/voice surfaces must use this instead of owning intent logic. */
 public final class AndroidBrainRuntime {
     private final BrainRuntime runtime;
+    private final RuntimeApprovalConversation conversation;
 
     public AndroidBrainRuntime(Context context) {
         Context app = context.getApplicationContext();
@@ -23,12 +26,17 @@ public final class AndroidBrainRuntime {
         ReasoningRouter reasoning = request -> reasonWithConfiguredCortex(app, request.utterance());
         AssistantCore assistant = new AssistantCore(BrainEngine.createDefault(Clock.systemDefaultZone()), reasoning, tools);
         runtime = new BrainRuntime(assistant, tools);
+        conversation = new RuntimeApprovalConversation(runtime);
     }
 
     public BrainRuntime.Result handle(String utterance) { return runtime.handle(utterance); }
     public BrainRuntime.Result approvePending() { return runtime.approvePending(); }
     public void cancelPending() { runtime.cancelPending(); }
     public boolean hasPendingApproval() { return runtime.hasPendingApproval(); }
+
+    public RuntimeSurfacePresentation handlePresentation(String utterance) { return conversation.handle(utterance); }
+    public RuntimeSurfacePresentation approvePresentation() { return conversation.approvePending(); }
+    public RuntimeSurfacePresentation cancelPresentation() { return conversation.cancelPending(); }
 
     private static ReasoningResult reasonWithConfiguredCortex(Context context, String utterance) {
         CortexProvider provider = CortexProviderFactory.create(context);
@@ -40,7 +48,6 @@ public final class AndroidBrainRuntime {
             if (proposed == null || !proposed.isResolved()) {
                 return new ReasoningResult(provider.id(), "I couldn't resolve that request safely.", null);
             }
-            // Provider prose is allowed here; Android actions remain exclusively behind shared ToolRegistry plans.
             return new ReasoningResult(provider.id(), proposed.answer(), null);
         } catch (Exception failure) {
             return new ReasoningResult(provider.id(), "The optional reasoning cortex is unavailable right now.", null);
