@@ -18,7 +18,6 @@ public final class AssistantCore {
     private final SemanticGoalInterpreter semanticReflex = new SemanticGoalInterpreter();
     private final Deque<String> dialogue = new ArrayDeque<>();
     private final ConversationWorkingMemory workingMemory = new ConversationWorkingMemory();
-    /** Structured executive state. Deliberately independent from the lossy dialogue buffer. */
     private PendingClarification pendingClarification;
 
     public AssistantCore(BrainEngine reflex, ProviderRouter providers) { this(reflex, providers, ToolRegistry.standard(), AssistantContextSource.none()); }
@@ -49,45 +48,34 @@ public final class AssistantCore {
 
         String durableContext = contextSource.contextFor(utterance);
         String combinedContext = combineContext(dialogueSnapshot(), workingMemory.snapshot(), durableContext);
-
         Plan semanticPlan = semanticReflex.interpret(utterance).orElse(null);
         if (semanticPlan != null) {
-            BrainResponse semanticResponse = validatedPlanResponse(semanticPlan,
-                    "Understood.", response.sessionActive(), response.acceptedWithoutWakeWord(), combinedContext);
+            BrainResponse semanticResponse = validatedPlanResponse(semanticPlan, "Understood.", response.sessionActive(), response.acceptedWithoutWakeWord(), combinedContext);
             remember("JARVIS", semanticResponse.text());
             return semanticResponse;
         }
 
         ReasoningResult reasoned = providers.reason(new ReasoningRequest(utterance, combinedContext, tools.specs()));
-        workingMemory.apply(reasoned.stateDelta());
+        workingMemory.applyValidated(reasoned.stateDelta(), utterance);
         BrainResponse result;
-        if (reasoned.plan() != null) {
-            result = validatedPlanResponse(reasoned.plan(), reasoned.text(), response.sessionActive(),
-                    response.acceptedWithoutWakeWord(), combinedContext);
-        } else result = BrainResponse.of(BrainResponse.Kind.CONVERSATION, reasoned.text(), null,
-                response.sessionActive(), response.acceptedWithoutWakeWord(), combinedContext);
+        if (reasoned.plan() != null) result = validatedPlanResponse(reasoned.plan(), reasoned.text(), response.sessionActive(), response.acceptedWithoutWakeWord(), combinedContext);
+        else result = BrainResponse.of(BrainResponse.Kind.CONVERSATION, reasoned.text(), null, response.sessionActive(), response.acceptedWithoutWakeWord(), combinedContext);
         remember("JARVIS", result.text());
         return result;
     }
 
-    private BrainResponse validatedPlanResponse(Plan plan, String successText, boolean sessionActive,
-                                                boolean acceptedWithoutWake, String context) {
+    private BrainResponse validatedPlanResponse(Plan plan, String successText, boolean sessionActive, boolean acceptedWithoutWake, String context) {
         PlanValidation validation = planValidator.validate(plan);
         if (!validation.valid()) {
             List<PendingClarification.MissingArgument> missing = findMissingArguments(validation.effectivePlan());
             if (!missing.isEmpty()) {
                 pendingClarification = new PendingClarification(validation.effectivePlan(), missing);
-                return BrainResponse.of(BrainResponse.Kind.CONVERSATION,
-                        clarificationQuestion(missing.get(0).argument()), null,
-                        sessionActive, acceptedWithoutWake, context);
+                return BrainResponse.of(BrainResponse.Kind.CONVERSATION, clarificationQuestion(missing.get(0).argument()), null, sessionActive, acceptedWithoutWake, context);
             }
             String details = validation.errors().isEmpty() ? "the plan is incomplete" : String.join("; ", validation.errors());
-            return BrainResponse.of(BrainResponse.Kind.CONVERSATION,
-                    "I need clarification before I can build a safe executable plan: " + details + ".",
-                    null, sessionActive, acceptedWithoutWake, context);
+            return BrainResponse.of(BrainResponse.Kind.CONVERSATION, "I need clarification before I can build a safe executable plan: " + details + ".", null, sessionActive, acceptedWithoutWake, context);
         }
-        return BrainResponse.of(BrainResponse.Kind.ACTION_PLAN,
-                successText == null || successText.isBlank() ? "Understood." : successText,
+        return BrainResponse.of(BrainResponse.Kind.ACTION_PLAN, successText == null || successText.isBlank() ? "Understood." : successText,
                 validation.effectivePlan(), sessionActive, acceptedWithoutWake, context);
     }
 
@@ -102,15 +90,13 @@ public final class AssistantCore {
         PendingClarification state = pendingClarification;
         PendingClarification.MissingArgument target = state.missing().get(0);
         Plan filled = fillArgument(state.plan(), target, answer);
-        // Clarification never bypasses safety: it re-enters the exact same registry-backed validator path.
         PlanValidation validation = planValidator.validate(filled);
         List<PendingClarification.MissingArgument> remaining = findMissingArguments(validation.effectivePlan());
         workingMemory.observeUserTurn(answer);
         remember("USER", answer);
         if (validation.valid()) {
             pendingClarification = null;
-            BrainResponse result = BrainResponse.of(BrainResponse.Kind.ACTION_PLAN, "Understood. I have what I need.",
-                    validation.effectivePlan(), true, true, combinedSessionContext());
+            BrainResponse result = BrainResponse.of(BrainResponse.Kind.ACTION_PLAN, "Understood. I have what I need.", validation.effectivePlan(), true, true, combinedSessionContext());
             remember("JARVIS", result.text()); return result;
         }
         if (!remaining.isEmpty()) {
@@ -162,14 +148,8 @@ public final class AssistantCore {
         String durable = durableContext == null ? "" : durableContext.trim();
         StringBuilder out = new StringBuilder();
         if (!dialogue.isEmpty()) out.append("Recent conversation:\n").append(dialogue);
-        if (!working.isEmpty()) {
-            if (out.length() > 0) out.append('\n');
-            out.append("Structured session memory:\n").append(working);
-        }
-        if (!durable.isEmpty()) {
-            if (out.length() > 0) out.append('\n');
-            out.append("Relevant durable memory:\n").append(durable);
-        }
+        if (!working.isEmpty()) { if (out.length() > 0) out.append('\n'); out.append("Structured session memory:\n").append(working); }
+        if (!durable.isEmpty()) { if (out.length() > 0) out.append('\n'); out.append("Relevant durable memory:\n").append(durable); }
         return out.toString();
     }
 }
