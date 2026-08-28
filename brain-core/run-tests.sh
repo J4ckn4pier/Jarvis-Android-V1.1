@@ -40,3 +40,4 @@ java -cp out com.jarvis.brain.ExecutiveObservationLoopTest
 java -cp out com.jarvis.brain.ProviderAttemptBudgetTest
 java -cp out com.jarvis.brain.ToolContractSelectorTest
 java -cp out com.jarvis.brain.ExternalResearchGatewayContractTest
+java -cp out com.jarvis.brain.AssistantExecutiveIntegrationTest
