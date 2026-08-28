@@ -1,213 +1,30 @@
 package com.jarvis.brain;
 
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
 public final class AssistantCore {
-    private static final int MAX_DIALOGUE_MESSAGES = 12;
-    private static final int EXECUTIVE_MAX_ITERATIONS = 4;
-    private final BrainEngine reflex;
-    private final ReasoningRouter providers;
-    private final ToolRegistry tools;
-    private final PlanValidator planValidator;
-    private final PlanExecutionClassifier executionClassifier;
-    private final AssistantContextSource contextSource;
-    private final SemanticGoalInterpreter semanticReflex = new SemanticGoalInterpreter();
-    private final Deque<String> dialogue = new ArrayDeque<>();
-    private final ConversationWorkingMemory workingMemory = new ConversationWorkingMemory();
-    private PendingClarification pendingClarification;
-
-    public AssistantCore(BrainEngine reflex, ProviderRouter providers) { this(reflex, providers, ToolRegistry.standard(), AssistantContextSource.none()); }
-    public AssistantCore(BrainEngine reflex, ReasoningRouter providers, ToolRegistry tools) { this(reflex, providers, tools, AssistantContextSource.none()); }
-    public AssistantCore(BrainEngine reflex, ReasoningRouter providers, ToolRegistry tools, AssistantContextSource contextSource) {
-        if (reflex == null) throw new IllegalArgumentException("brain engine required");
-        if (providers == null) throw new IllegalArgumentException("reasoning router required");
-        this.reflex = reflex; this.providers = providers;
-        this.tools = tools == null ? ToolRegistry.standard() : tools;
-        this.planValidator = new PlanValidator(this.tools);
-        this.executionClassifier = new PlanExecutionClassifier(this.tools);
-        this.contextSource = contextSource == null ? AssistantContextSource.none() : contextSource;
-    }
-
-    public boolean hasPendingPlan() { return pendingClarification != null; }
-    public String pendingPlanGoal() { return pendingClarification == null ? "" : pendingClarification.plan().goal(); }
-    void noteDialogueForTest(String role, String text) { remember(role, text); }
-
-    public BrainResponse handle(String utterance) {
-        if (pendingClarification != null) {
-            BrainResponse resumed = handlePendingClarification(utterance);
-            if (resumed != null) return resumed;
-        }
-        BrainResponse response = reflex.handle(utterance);
-        if (response.kind() == BrainResponse.Kind.IGNORED_AMBIENT) return response;
-        workingMemory.observeUserTurn(utterance);
-        remember("USER", utterance);
-
-        if (response.kind() == BrainResponse.Kind.ACTION_PLAN && response.plan() != null) {
-            PlanValidation reflexValidation = planValidator.validate(response.plan());
-            if (reflexValidation.valid() && executionClassifier.containsAutonomousResearch(reflexValidation.effectivePlan())) {
-                String durableContext = contextSource.contextFor(utterance);
-                String combinedContext = combineContext(dialogueSnapshot(), workingMemory.snapshot(), durableContext);
-                ReasoningResult reflexResult = new ReasoningResult("deterministic-reflex", response.text(), reflexValidation.effectivePlan());
-                ExecutiveObservationLoop executive = new ExecutiveObservationLoop(providers, tools, new ApprovalGate(), EXECUTIVE_MAX_ITERATIONS);
-                ExecutiveOutcome outcome = executive.runFrom(utterance, combinedContext, reflexResult);
-                applyExecutiveState(outcome, utterance);
-                BrainResponse result = executiveResponse(outcome, response.sessionActive(), response.acceptedWithoutWakeWord());
-                remember("JARVIS", result.text());
-                return result;
-            }
-        }
-        if (response.kind() != BrainResponse.Kind.REASONING_REQUIRED) { remember("JARVIS", response.text()); return response; }
-
-        String durableContext = contextSource.contextFor(utterance);
-        String combinedContext = combineContext(dialogueSnapshot(), workingMemory.snapshot(), durableContext);
-        Plan semanticPlan = semanticReflex.interpret(utterance).orElse(null);
-        if (semanticPlan != null) {
-            BrainResponse semanticResponse;
-            PlanValidation semanticValidation = planValidator.validate(semanticPlan);
-            if (semanticValidation.valid() && executionClassifier.containsAutonomousResearch(semanticValidation.effectivePlan())) {
-                ReasoningResult semanticResult = new ReasoningResult("semantic-reflex", "I'll check that.", semanticValidation.effectivePlan());
-                ExecutiveObservationLoop executive = new ExecutiveObservationLoop(providers, tools, new ApprovalGate(), EXECUTIVE_MAX_ITERATIONS);
-                ExecutiveOutcome outcome = executive.runFrom(utterance, combinedContext, semanticResult);
-                applyExecutiveState(outcome, utterance);
-                semanticResponse = executiveResponse(outcome, response.sessionActive(), response.acceptedWithoutWakeWord());
-            } else {
-                semanticResponse = validatedPlanResponse(semanticPlan, "Understood.", response.sessionActive(), response.acceptedWithoutWakeWord(), combinedContext);
-            }
-            remember("JARVIS", semanticResponse.text());
-            return semanticResponse;
-        }
-
-        ReasoningResult reasoned = providers.reason(new ReasoningRequest(utterance, combinedContext, tools.specs()));
-        workingMemory.applyValidated(reasoned.stateDelta(), utterance);
-        BrainResponse result;
-        if (reasoned.plan() != null) {
-            PlanValidation initialValidation = planValidator.validate(reasoned.plan());
-            if (!initialValidation.valid()) {
-                result = validatedPlanResponse(reasoned.plan(), reasoned.text(), response.sessionActive(), response.acceptedWithoutWakeWord(), combinedContext);
-            } else {
-                ExecutiveObservationLoop executive = new ExecutiveObservationLoop(providers, tools, new ApprovalGate(), EXECUTIVE_MAX_ITERATIONS);
-                ExecutiveOutcome outcome = executive.runFrom(utterance, combinedContext, reasoned);
-                applyExecutiveState(outcome, utterance);
-                result = executiveResponse(outcome, response.sessionActive(), response.acceptedWithoutWakeWord());
-            }
-        } else {
-            result = BrainResponse.of(BrainResponse.Kind.CONVERSATION, reasoned.text(), null, response.sessionActive(), response.acceptedWithoutWakeWord(), combinedContext);
-        }
-        remember("JARVIS", result.text());
-        return result;
-    }
-
-    private void applyExecutiveState(ExecutiveOutcome outcome, String userTurn) {
-        if (outcome != null) workingMemory.applyValidated(outcome.stateDelta(), userTurn);
-    }
-
-    private BrainResponse executiveResponse(ExecutiveOutcome outcome, boolean sessionActive, boolean acceptedWithoutWake) {
-        if (outcome == null) {
-            return BrainResponse.of(BrainResponse.Kind.CONVERSATION, "I couldn't complete that safely.", null,
-                    sessionActive, acceptedWithoutWake, combinedSessionContext());
-        }
-        if (outcome.status() == ExecutiveOutcome.Status.APPROVAL_REQUIRED) {
-            return BrainResponse.of(BrainResponse.Kind.ACTION_PLAN,
-                    outcome.text() == null || outcome.text().isBlank() ? "I need your approval before I do that." : outcome.text(),
-                    outcome.pendingPlan(), sessionActive, acceptedWithoutWake, outcome.context());
-        }
-        return BrainResponse.of(BrainResponse.Kind.CONVERSATION,
-                outcome.text() == null || outcome.text().isBlank() ? "I couldn't complete that safely." : outcome.text(),
-                null, sessionActive, acceptedWithoutWake, outcome.context());
-    }
-
-    private BrainResponse validatedPlanResponse(Plan plan, String successText, boolean sessionActive, boolean acceptedWithoutWake, String context) {
-        PlanValidation validation = planValidator.validate(plan);
-        if (!validation.valid()) {
-            List<PendingClarification.MissingArgument> missing = findMissingArguments(validation.effectivePlan());
-            if (!missing.isEmpty()) {
-                pendingClarification = new PendingClarification(validation.effectivePlan(), missing);
-                return BrainResponse.of(BrainResponse.Kind.CONVERSATION, clarificationQuestion(missing.get(0).argument()), null, sessionActive, acceptedWithoutWake, context);
-            }
-            String details = validation.errors().isEmpty() ? "the plan is incomplete" : String.join("; ", validation.errors());
-            return BrainResponse.of(BrainResponse.Kind.CONVERSATION, "I need clarification before I can build a safe executable plan: " + details + ".", null, sessionActive, acceptedWithoutWake, context);
-        }
-        return BrainResponse.of(BrainResponse.Kind.ACTION_PLAN, successText == null || successText.isBlank() ? "Understood." : successText,
-                validation.effectivePlan(), sessionActive, acceptedWithoutWake, context);
-    }
-
-    private BrainResponse handlePendingClarification(String utterance) {
-        String answer = utterance == null ? "" : utterance.trim();
-        if (answer.isEmpty()) return null;
-        String lower = answer.toLowerCase(Locale.ROOT);
-        if (lower.matches("cancel|never mind|nevermind|forget it|stop")) {
-            pendingClarification = null; remember("USER", answer); remember("JARVIS", "Cancelled.");
-            return BrainResponse.of(BrainResponse.Kind.CONVERSATION, "Cancelled.", null, true, true, dialogueSnapshot());
-        }
-        PendingClarification state = pendingClarification;
-        PendingClarification.MissingArgument target = state.missing().get(0);
-        Plan filled = fillArgument(state.plan(), target, answer);
-        PlanValidation validation = planValidator.validate(filled);
-        List<PendingClarification.MissingArgument> remaining = findMissingArguments(validation.effectivePlan());
-        workingMemory.observeUserTurn(answer);
-        remember("USER", answer);
-        if (validation.valid()) {
-            pendingClarification = null;
-            BrainResponse result = BrainResponse.of(BrainResponse.Kind.ACTION_PLAN, "Understood. I have what I need.", validation.effectivePlan(), true, true, combinedSessionContext());
-            remember("JARVIS", result.text()); return result;
-        }
-        if (!remaining.isEmpty()) {
-            pendingClarification = new PendingClarification(validation.effectivePlan(), remaining);
-            String question = clarificationQuestion(remaining.get(0).argument()); remember("JARVIS", question);
-            return BrainResponse.of(BrainResponse.Kind.CONVERSATION, question, null, true, true, combinedSessionContext());
-        }
-        pendingClarification = null;
-        String details = validation.errors().isEmpty() ? "the plan is still incomplete" : String.join("; ", validation.errors());
-        String text = "I still can't make that plan safe to execute: " + details + "."; remember("JARVIS", text);
-        return BrainResponse.of(BrainResponse.Kind.CONVERSATION, text, null, true, true, combinedSessionContext());
-    }
-
-    private List<PendingClarification.MissingArgument> findMissingArguments(Plan plan) {
-        List<PendingClarification.MissingArgument> missing = new ArrayList<>(); if (plan == null) return missing;
-        for (int i = 0; i < plan.steps().size(); i++) {
-            PlanStep step = plan.steps().get(i); ToolRegistry.RegisteredTool registered = tools.resolve(step.tool()).orElse(null);
-            if (registered == null) continue;
-            for (String required : registered.spec().requiredArguments()) {
-                String value = step.arguments().get(required);
-                if (value == null || value.isBlank()) missing.add(new PendingClarification.MissingArgument(i, required));
-            }
-        }
-        return List.copyOf(missing);
-    }
-    private static Plan fillArgument(Plan plan, PendingClarification.MissingArgument target, String value) {
-        List<PlanStep> steps = new ArrayList<>(plan.steps()); PlanStep old = steps.get(target.stepIndex());
-        Map<String,String> args = new HashMap<>(old.arguments()); args.put(target.argument(), value.trim());
-        steps.set(target.stepIndex(), new PlanStep(old.tool(), Map.copyOf(args), old.consequential()));
-        return new Plan(plan.goal(), List.copyOf(steps));
-    }
-    private static String clarificationQuestion(String argument) {
-        return switch (argument) {
-            case "destination" -> "Where would you like to go?"; case "recipient" -> "Who should I send it to?";
-            case "message" -> "What would you like me to say?"; case "business" -> "Which business do you mean?";
-            case "when" -> "When should I do that?"; case "amount" -> "How long?";
-            case "unit" -> "Seconds, minutes, or hours?"; default -> "What should I use for " + argument.replace('_',' ') + "?";
-        };
-    }
-    private void remember(String role, String text) {
-        if (text == null || text.isBlank()) return; dialogue.addLast(role + ": " + text.trim());
-        while (dialogue.size() > MAX_DIALOGUE_MESSAGES) dialogue.removeFirst();
-    }
-    private String dialogueSnapshot() { return String.join("\n", dialogue); }
-    private String combinedSessionContext() { return combineContext(dialogueSnapshot(), workingMemory.snapshot(), ""); }
-    private static String combineContext(String dialogueContext, String workingContext, String durableContext) {
-        String dialogue = dialogueContext == null ? "" : dialogueContext.trim();
-        String working = workingContext == null ? "" : workingContext.trim();
-        String durable = durableContext == null ? "" : durableContext.trim();
-        StringBuilder out = new StringBuilder();
-        if (!dialogue.isEmpty()) out.append("Recent conversation:\n").append(dialogue);
-        if (!working.isEmpty()) { if (out.length() > 0) out.append('\n'); out.append("Structured session memory:\n").append(working); }
-        if (!durable.isEmpty()) { if (out.length() > 0) out.append('\n'); out.append("Relevant durable memory:\n").append(durable); }
-        return out.toString();
-    }
+ private static final int MAX_DIALOGUE_MESSAGES=12,EXECUTIVE_MAX_ITERATIONS=4;
+ private final BrainEngine reflex; private final ReasoningRouter providers; private final ToolRegistry tools; private final PlanValidator planValidator; private final PlanExecutionClassifier executionClassifier; private final AssistantContextSource contextSource; private final SemanticGoalInterpreter semanticReflex=new SemanticGoalInterpreter(); private final Deque<String> dialogue=new ArrayDeque<>(); private final ConversationWorkingMemory workingMemory=new ConversationWorkingMemory(); private PendingClarification pendingClarification;
+ public AssistantCore(BrainEngine reflex,ProviderRouter providers){this(reflex,providers,ToolRegistry.standard(),AssistantContextSource.none());} public AssistantCore(BrainEngine reflex,ReasoningRouter providers,ToolRegistry tools){this(reflex,providers,tools,AssistantContextSource.none());}
+ public AssistantCore(BrainEngine reflex,ReasoningRouter providers,ToolRegistry tools,AssistantContextSource contextSource){if(reflex==null)throw new IllegalArgumentException("brain engine required");if(providers==null)throw new IllegalArgumentException("reasoning router required");this.reflex=reflex;this.providers=providers;this.tools=tools==null?ToolRegistry.standard():tools;this.planValidator=new PlanValidator(this.tools);this.executionClassifier=new PlanExecutionClassifier(this.tools);this.contextSource=contextSource==null?AssistantContextSource.none():contextSource;}
+ public boolean hasPendingPlan(){return pendingClarification!=null;} public String pendingPlanGoal(){return pendingClarification==null?"":pendingClarification.plan().goal();} void noteDialogueForTest(String role,String text){remember(role,text);}
+ public BrainResponse handle(String utterance){
+  if(pendingClarification!=null){BrainResponse resumed=handlePendingClarification(utterance);if(resumed!=null)return resumed;}
+  BrainResponse response=reflex.handle(utterance);if(response.kind()==BrainResponse.Kind.IGNORED_AMBIENT)return response;workingMemory.observeUserTurn(utterance);remember("USER",utterance);
+  if(response.kind()==BrainResponse.Kind.ACTION_PLAN&&response.plan()!=null){PlanValidation v=planValidator.validate(response.plan());if(v.valid()&&executionClassifier.isPureAutonomousResearch(v.effectivePlan()))return runExecutive(utterance,response.text(),v.effectivePlan(),response.sessionActive(),response.acceptedWithoutWakeWord(),"deterministic-reflex");}
+  if(response.kind()!=BrainResponse.Kind.REASONING_REQUIRED){remember("JARVIS",response.text());return response;}
+  String durable=contextSource.contextFor(utterance),context=combineContext(dialogueSnapshot(),workingMemory.snapshot(),durable);Plan semantic=semanticReflex.interpret(utterance).orElse(null);
+  if(semantic!=null){PlanValidation v=planValidator.validate(semantic);BrainResponse out;if(v.valid()&&executionClassifier.isPureAutonomousResearch(v.effectivePlan()))out=runExecutive(utterance,"I'll check that.",v.effectivePlan(),response.sessionActive(),response.acceptedWithoutWakeWord(),"semantic-reflex");else out=validatedPlanResponse(semantic,"Understood.",response.sessionActive(),response.acceptedWithoutWakeWord(),context);remember("JARVIS",out.text());return out;}
+  ReasoningResult reasoned=providers.reason(new ReasoningRequest(utterance,context,tools.specs()));workingMemory.applyValidated(reasoned.stateDelta(),utterance);BrainResponse out;
+  if(reasoned.plan()!=null){PlanValidation v=planValidator.validate(reasoned.plan());if(!v.valid())out=validatedPlanResponse(reasoned.plan(),reasoned.text(),response.sessionActive(),response.acceptedWithoutWakeWord(),context);else if(executionClassifier.isPureAutonomousResearch(v.effectivePlan()))out=runExecutive(utterance,reasoned.text(),v.effectivePlan(),response.sessionActive(),response.acceptedWithoutWakeWord(),reasoned.provider());else out=validatedPlanResponse(v.effectivePlan(),reasoned.text(),response.sessionActive(),response.acceptedWithoutWakeWord(),context);}else out=BrainResponse.of(BrainResponse.Kind.CONVERSATION,reasoned.text(),null,response.sessionActive(),response.acceptedWithoutWakeWord(),context);remember("JARVIS",out.text());return out;
+ }
+ private BrainResponse runExecutive(String utterance,String text,Plan plan,boolean active,boolean noWake,String provider){String context=combineContext(dialogueSnapshot(),workingMemory.snapshot(),contextSource.contextFor(utterance));ReasoningResult rr=new ReasoningResult(provider,text,plan);ExecutiveOutcome o=new ExecutiveObservationLoop(providers,tools,new ApprovalGate(),EXECUTIVE_MAX_ITERATIONS).runFrom(utterance,context,rr);if(o!=null)workingMemory.applyValidated(o.stateDelta(),utterance);BrainResponse r=executiveResponse(o,active,noWake);remember("JARVIS",r.text());return r;}
+ private BrainResponse executiveResponse(ExecutiveOutcome o,boolean active,boolean noWake){if(o==null)return BrainResponse.of(BrainResponse.Kind.CONVERSATION,"I couldn't complete that safely.",null,active,noWake,combinedSessionContext());if(o.status()==ExecutiveOutcome.Status.APPROVAL_REQUIRED)return BrainResponse.of(BrainResponse.Kind.ACTION_PLAN,o.text()==null||o.text().isBlank()?"I need your approval before I do that.":o.text(),o.pendingPlan(),active,noWake,o.context());return BrainResponse.of(BrainResponse.Kind.CONVERSATION,o.text()==null||o.text().isBlank()?"I couldn't complete that safely.":o.text(),null,active,noWake,o.context());}
+ private BrainResponse validatedPlanResponse(Plan plan,String text,boolean active,boolean noWake,String context){PlanValidation v=planValidator.validate(plan);if(!v.valid()){List<PendingClarification.MissingArgument> missing=findMissingArguments(v.effectivePlan());if(!missing.isEmpty()){pendingClarification=new PendingClarification(v.effectivePlan(),missing);return BrainResponse.of(BrainResponse.Kind.CONVERSATION,clarificationQuestion(missing.get(0).argument()),null,active,noWake,context);}return BrainResponse.of(BrainResponse.Kind.CONVERSATION,"I need clarification before I can build a safe executable plan: "+String.join("; ",v.errors())+".",null,active,noWake,context);}return BrainResponse.of(BrainResponse.Kind.ACTION_PLAN,text==null||text.isBlank()?"Understood.":text,v.effectivePlan(),active,noWake,context);}
+ private BrainResponse handlePendingClarification(String utterance){String a=utterance==null?"":utterance.trim();if(a.isEmpty())return null;if(a.toLowerCase(Locale.ROOT).matches("cancel|never mind|nevermind|forget it|stop")){pendingClarification=null;return BrainResponse.of(BrainResponse.Kind.CONVERSATION,"Cancelled.",null,true,true,dialogueSnapshot());}PendingClarification s=pendingClarification;Plan filled=fillArgument(s.plan(),s.missing().get(0),a);PlanValidation v=planValidator.validate(filled);List<PendingClarification.MissingArgument> remaining=findMissingArguments(v.effectivePlan());workingMemory.observeUserTurn(a);remember("USER",a);if(v.valid()){pendingClarification=null;return BrainResponse.of(BrainResponse.Kind.ACTION_PLAN,"Understood. I have what I need.",v.effectivePlan(),true,true,combinedSessionContext());}if(!remaining.isEmpty()){pendingClarification=new PendingClarification(v.effectivePlan(),remaining);return BrainResponse.of(BrainResponse.Kind.CONVERSATION,clarificationQuestion(remaining.get(0).argument()),null,true,true,combinedSessionContext());}pendingClarification=null;return BrainResponse.of(BrainResponse.Kind.CONVERSATION,"I still can't make that plan safe to execute.",null,true,true,combinedSessionContext());}
+ private List<PendingClarification.MissingArgument> findMissingArguments(Plan plan){List<PendingClarification.MissingArgument> m=new ArrayList<>();if(plan==null)return m;for(int i=0;i<plan.steps().size();i++){PlanStep s=plan.steps().get(i);ToolRegistry.RegisteredTool r=tools.resolve(s.tool()).orElse(null);if(r!=null)for(String req:r.spec().requiredArguments())if(s.arguments().get(req)==null||s.arguments().get(req).isBlank())m.add(new PendingClarification.MissingArgument(i,req));}return List.copyOf(m);}
+ private static Plan fillArgument(Plan p,PendingClarification.MissingArgument t,String value){List<PlanStep>s=new ArrayList<>(p.steps());PlanStep old=s.get(t.stepIndex());Map<String,String>a=new HashMap<>(old.arguments());a.put(t.argument(),value.trim());s.set(t.stepIndex(),new PlanStep(old.tool(),Map.copyOf(a),old.consequential()));return new Plan(p.goal(),List.copyOf(s));}
+ private static String clarificationQuestion(String a){return switch(a){case"destination"->"Where would you like to go?";case"recipient"->"Who should I send it to?";case"message"->"What would you like me to say?";case"business"->"Which business do you mean?";case"when"->"When should I do that?";case"amount"->"How long?";case"unit"->"Seconds, minutes, or hours?";default->"What should I use for "+a.replace('_',' ')+"?";};}
+ private void remember(String role,String text){if(text==null||text.isBlank())return;dialogue.addLast(role+": "+text.trim());while(dialogue.size()>MAX_DIALOGUE_MESSAGES)dialogue.removeFirst();} private String dialogueSnapshot(){return String.join("\n",dialogue);} private String combinedSessionContext(){return combineContext(dialogueSnapshot(),workingMemory.snapshot(),"");}
+ private static String combineContext(String d,String w,String l){StringBuilder o=new StringBuilder();if(d!=null&&!d.isBlank())o.append("Recent conversation:\n").append(d.trim());if(w!=null&&!w.isBlank()){if(o.length()>0)o.append('\n');o.append("Structured session memory:\n").append(w.trim());}if(l!=null&&!l.isBlank()){if(o.length()>0)o.append('\n');o.append("Relevant durable memory:\n").append(l.trim());}return o.toString();}
 }
