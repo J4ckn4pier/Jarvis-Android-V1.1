@@ -49,7 +49,8 @@ public final class RichMemoryPersistence {
                     b64(m.key()), m.type().name(), b64(m.content()), b64(m.source()),
                     Double.toString(m.confidence()), Double.toString(m.importance()),
                     m.validFrom().toString(), m.validUntil() == null ? "" : m.validUntil().toString(),
-                    b64(String.join("\u001f", m.tags())), Integer.toString(m.evidenceCount())));
+                    b64(String.join("\u001f", m.tags())), Integer.toString(m.evidenceCount()),
+                    m.lastAccessedAt().toString()));
         }
         return String.join("\n", lines).getBytes(StandardCharsets.UTF_8);
     }
@@ -60,11 +61,13 @@ public final class RichMemoryPersistence {
         for (String line : text.split("\\R")) {
             if (line.isBlank()) continue;
             String[] p = line.split("\\t", -1);
-            if (p.length != 10) continue;
+            if (p.length != 10 && p.length != 11) continue;
             Set<String> tags = p[8].isEmpty() ? Set.of() : Set.of(unb64(p[8]).split("\u001f"));
+            Instant validFrom = Instant.parse(p[6]);
+            Instant lastAccessed = p.length == 11 && !p[10].isEmpty() ? Instant.parse(p[10]) : validFrom;
             store.put(new RichMemory(unb64(p[0]), MemoryType.valueOf(p[1]), unb64(p[2]), unb64(p[3]),
-                    Double.parseDouble(p[4]), Double.parseDouble(p[5]), Instant.parse(p[6]),
-                    p[7].isEmpty() ? null : Instant.parse(p[7]), tags, Integer.parseInt(p[9])));
+                    Double.parseDouble(p[4]), Double.parseDouble(p[5]), validFrom,
+                    p[7].isEmpty() ? null : Instant.parse(p[7]), tags, Integer.parseInt(p[9]), lastAccessed));
         }
         return store;
     }
