@@ -12,6 +12,7 @@ public final class PendingClarificationTest {
     public static void main(String[] args) {
         missingDestinationBecomesNaturalFollowupAndResumesPlan();
         consequentialFlagSurvivesClarificationResume();
+        approvalAndClarificationRemainDistinctResumeCapabilities();
         System.out.println("PendingClarificationTest: " + checks + " assertions passed");
     }
 
@@ -51,6 +52,35 @@ public final class PendingClarificationTest {
         check(resumed.plan().steps().get(0).consequential(),
                 "registry-enforced consequential flag must survive clarification fill");
         check(resumed.plan().requiresApproval(), "resumed outbound message must still require approval");
+    }
+
+    private static void approvalAndClarificationRemainDistinctResumeCapabilities() {
+        Clock clock = Clock.fixed(Instant.parse("2026-08-27T23:30:00Z"), ZoneOffset.UTC);
+        ToolRegistry tools = ToolRegistry.standard();
+        ReasoningRouter router = request -> new ReasoningResult("planner", "I'll prepare the message.",
+                new Plan("Message", List.of(new PlanStep("send_message", Map.of("message", "I'm running late"), false))));
+
+        // An approval capability exists, but it is deliberately separate from AssistantCore's
+        // pending clarification state. Possessing it must not answer a missing recipient.
+        ApprovalGate unrelatedApproval = new ApprovalGate();
+        unrelatedApproval.approve("send_message");
+        AssistantCore core = new AssistantCore(BrainEngine.createDefault(clock), router, tools);
+        core.handle("Hey Jarvis");
+        BrainResponse needsClarification = core.handle("tell someone I'm running late");
+        check(needsClarification.kind() == BrainResponse.Kind.CONVERSATION,
+                "approval capability must not satisfy a pending clarification");
+
+        // Supplying the clarification resolves only the missing argument. It must not mint or
+        // imply execution approval for the consequential action.
+        BrainResponse clarified = core.handle("Mom");
+        check(clarified.kind() == BrainResponse.Kind.ACTION_PLAN && clarified.plan().requiresApproval(),
+                "clarification answer must preserve the separate approval boundary");
+        ApprovalGate executionApproval = new ApprovalGate();
+        ResumablePlanExecutor executor = new ResumablePlanExecutor(tools, executionApproval);
+        ExecutionCursor cursor = executor.start(clarified.plan());
+        ExecutionReport blocked = executor.run(cursor, new ExecutionContext());
+        check(blocked.status() == ExecutionReport.Status.APPROVAL_REQUIRED,
+                "clarification answer must not be usable as approval for consequential execution");
     }
 
     private static void check(boolean condition, String message) {
