@@ -7,7 +7,6 @@ android {
     compileSdk 36
 
     defaultConfig {
-        // Preserve the original My Jarvis application identity for the donor transplant.
         applicationId 'com.itsmylab.jarvis'
         minSdk 29
         targetSdk 36
@@ -21,12 +20,11 @@ android {
     }
 
     buildTypes {
-        debug {
-            debuggable true
-        }
-        release {
-            minifyEnabled false
-            shrinkResources false
-        }
+        debug { debuggable true }
+        release { minifyEnabled false; shrinkResources false }
     }
+}
+
+dependencies {
+    implementation project(':brain-core')
 }
