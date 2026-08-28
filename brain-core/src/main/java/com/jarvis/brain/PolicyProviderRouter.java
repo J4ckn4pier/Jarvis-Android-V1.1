@@ -10,7 +10,7 @@ import java.util.Map;
  * Provider router that preserves JARVIS's zero-surprise-cost policy and temporarily
  * suppresses repeatedly failing providers instead of hammering a broken cortex.
  */
-public final class PolicyProviderRouter {
+public final class PolicyProviderRouter implements ReasoningRouter {
     private final List<ProviderRoute> routes;
     private final boolean allowPaid;
     private final int failureThreshold;
@@ -25,6 +25,7 @@ public final class PolicyProviderRouter {
         this.failureThreshold = Math.max(1, failureThreshold);
     }
 
+    @Override
     public ReasoningResult reason(ReasoningRequest request) {
         for (ProviderRoute route : routes) {
             if (route.tier() == ProviderTier.PAID_EXTERNAL && !allowPaid) continue;
