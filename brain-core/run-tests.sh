@@ -4,50 +4,9 @@ cd "$(dirname "$0")"
 rm -rf out
 mkdir -p out
 javac -d out $(find src/main/java src/test/java -name '*.java' | sort)
-java -cp out com.jarvis.brain.BrainAcceptanceTest
-java -cp out com.jarvis.brain.BrainAdvancedAcceptanceTest
-java -cp out com.jarvis.brain.BrainProviderAcceptanceTest
-java -cp out com.jarvis.brain.AssistantBenchmarkTest
-java -cp out com.jarvis.brain.PlanValidationTest
-java -cp out com.jarvis.brain.AttentionConversationTest
-java -cp out com.jarvis.brain.HabitPredictionTest
-java -cp out com.jarvis.brain.StructuredPlanningTest
-java -cp out com.jarvis.brain.LongTermMemoryTest
-java -cp out com.jarvis.brain.MemoryConsolidationTest
-java -cp out com.jarvis.brain.ResumableExecutionTest
-java -cp out com.jarvis.brain.PolicyProviderRouterTest
-java -cp out com.jarvis.brain.PlanRepairCoordinatorTest
-java -cp out com.jarvis.brain.ClaudeHardeningTest
-java -cp out com.jarvis.brain.MemoryLifecycleTest
-java -cp out com.jarvis.brain.AssistantProviderIntegrationTest
-java -cp out com.jarvis.brain.AssistantContextIntegrationTest
-java -cp out com.jarvis.brain.ConversationContinuityTest
-java -cp out com.jarvis.brain.PendingClarificationTest
-java -cp out com.jarvis.brain.PlanStateAndRetentionTest
-java -cp out com.jarvis.brain.ProductionSafetyContractTest
-java -cp out com.jarvis.brain.PassiveWakeConversationTest
-java -cp out com.jarvis.brain.ProactiveExecutiveTest
-java -cp out com.jarvis.brain.SessionWorkingMemoryTest
-java -cp out com.jarvis.brain.SemanticReflexIntegrationTest
-java -cp out com.jarvis.brain.SessionStateDeltaTest
-java -cp out com.jarvis.brain.ProactiveSafetyPolicyTest
-java -cp out com.jarvis.brain.ProviderRecoveryTest
-java -cp out com.jarvis.brain.ExecutionRecoveryContractTest
-java -cp out com.jarvis.brain.SessionTrustBoundaryTest
-java -cp out com.jarvis.brain.WakeBargeInCompositionTest
-java -cp out com.jarvis.brain.ToolCapableLocalProviderTest
-java -cp out com.jarvis.brain.ExecutiveObservationLoopTest
-java -cp out com.jarvis.brain.ProviderAttemptBudgetTest
-java -cp out com.jarvis.brain.ToolContractSelectorTest
-java -cp out com.jarvis.brain.ExternalResearchGatewayContractTest
-java -cp out com.jarvis.brain.AssistantExecutiveIntegrationTest
-java -cp out com.jarvis.brain.ToolExecutionClassTest
-java -cp out com.jarvis.brain.GoalInterruptionPolicyTest
-java -cp out com.jarvis.brain.ExecutiveTaskControlTest
-java -cp out com.jarvis.brain.OutcomeFeedbackMemoryTest
-java -cp out com.jarvis.brain.PlanExecutionClassifierTest
-java -cp out com.jarvis.brain.DiningResearchCapabilityTest
-java -cp out com.jarvis.brain.StructuredDiningFeedbackTest
+for test in BrainAcceptanceTest BrainAdvancedAcceptanceTest BrainProviderAcceptanceTest AssistantBenchmarkTest PlanValidationTest AttentionConversationTest HabitPredictionTest StructuredPlanningTest LongTermMemoryTest MemoryConsolidationTest ResumableExecutionTest PolicyProviderRouterTest PlanRepairCoordinatorTest ClaudeHardeningTest MemoryLifecycleTest AssistantProviderIntegrationTest AssistantContextIntegrationTest ConversationContinuityTest PendingClarificationTest PlanStateAndRetentionTest ProductionSafetyContractTest PassiveWakeConversationTest ProactiveExecutiveTest SessionWorkingMemoryTest SemanticReflexIntegrationTest SessionStateDeltaTest ProactiveSafetyPolicyTest ProviderRecoveryTest ExecutionRecoveryContractTest SessionTrustBoundaryTest WakeBargeInCompositionTest ToolCapableLocalProviderTest ExecutiveObservationLoopTest ProviderAttemptBudgetTest ToolContractSelectorTest ExternalResearchGatewayContractTest AssistantExecutiveIntegrationTest ToolExecutionClassTest GoalInterruptionPolicyTest ExecutiveTaskControlTest OutcomeFeedbackMemoryTest PlanExecutionClassifierTest DiningResearchCapabilityTest StructuredDiningFeedbackTest MenuPriceQuoteTest; do
+  java -cp out com.jarvis.brain.$test
+done
 # Final composed pre-Android exit gate. This intentionally re-runs the critical
 # cross-cutting contracts together and must stay distinct from device smoke.
 java -cp out com.jarvis.brain.BrainExitGateAcceptanceTest
