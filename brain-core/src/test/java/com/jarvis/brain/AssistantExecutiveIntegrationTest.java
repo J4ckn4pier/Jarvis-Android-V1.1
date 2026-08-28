@@ -19,13 +19,13 @@ public final class AssistantExecutiveIntegrationTest {
 
     private static ToolRegistry dinnerRegistry(int[] searches) {
         ToolRegistry registry = new ToolRegistry();
-        registry.register(new ToolSpec("discover_places", false, Set.of(), Set.of("category"), "Discover places"), (args, ctx) -> {
+        registry.register(new ToolSpec("discover_places", false, Set.of(), Set.of("category"), "Discover places", ToolExecutionClass.AUTONOMOUS_RESEARCH), (args, ctx) -> {
             searches[0]++;
             return ToolResult.success("Castle Cafe|open_status=unknown|distance=0.4mi");
         });
-        registry.register(new ToolSpec("rank_options", false, Set.of(), Set.of(), "Rank options"),
+        registry.register(new ToolSpec("rank_options", false, Set.of(), Set.of(), "Rank options", ToolExecutionClass.AUTONOMOUS_RESEARCH),
                 (args, ctx) -> ToolResult.success("Castle Cafe ranked first"));
-        registry.register(new ToolSpec("present_options", false, Set.of(), Set.of(), "Present options"),
+        registry.register(new ToolSpec("present_options", false, Set.of(), Set.of(), "Present options", ToolExecutionClass.AUTONOMOUS_RESEARCH),
                 (args, ctx) -> ToolResult.success("Castle Cafe"));
         return registry;
     }
