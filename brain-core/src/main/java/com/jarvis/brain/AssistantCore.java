@@ -1,11 +1,16 @@
 package com.jarvis.brain;
 
+import java.util.ArrayDeque;
+import java.util.Deque;
+
 public final class AssistantCore {
+    private static final int MAX_DIALOGUE_MESSAGES = 12;
     private final BrainEngine reflex;
     private final ReasoningRouter providers;
     private final ToolRegistry tools;
     private final PlanValidator planValidator;
     private final AssistantContextSource contextSource;
+    private final Deque<String> dialogue = new ArrayDeque<>();
 
     public AssistantCore(BrainEngine reflex, ProviderRouter providers) {
         this(reflex, providers, ToolRegistry.standard(), AssistantContextSource.none());
@@ -28,27 +33,49 @@ public final class AssistantCore {
 
     public BrainResponse handle(String utterance) {
         BrainResponse response = reflex.handle(utterance);
-        if (response.kind() != BrainResponse.Kind.REASONING_REQUIRED) return response;
+        if (response.kind() == BrainResponse.Kind.IGNORED_AMBIENT) return response;
+        remember("USER", utterance);
+
+        if (response.kind() != BrainResponse.Kind.REASONING_REQUIRED) {
+            remember("JARVIS", response.text());
+            return response;
+        }
+
         String durableContext = contextSource.contextFor(utterance);
-        String combinedContext = combineContext(response.contextSnapshot(), durableContext);
+        String combinedContext = combineContext(dialogueSnapshot(), durableContext);
         ReasoningResult reasoned = providers.reason(new ReasoningRequest(
                 utterance,
                 combinedContext,
                 tools.specs()
         ));
+        BrainResponse result;
         if (reasoned.plan() != null) {
             PlanValidation validation = planValidator.validate(reasoned.plan());
             if (!validation.valid()) {
                 String details = validation.errors().isEmpty() ? "the plan is incomplete" : String.join("; ", validation.errors());
-                return BrainResponse.of(BrainResponse.Kind.CONVERSATION,
+                result = BrainResponse.of(BrainResponse.Kind.CONVERSATION,
                         "I need clarification before I can build a safe executable plan: " + details + ".",
                         null, response.sessionActive(), response.acceptedWithoutWakeWord(), combinedContext);
+            } else {
+                result = BrainResponse.of(BrainResponse.Kind.ACTION_PLAN, reasoned.text(), validation.effectivePlan(),
+                        response.sessionActive(), response.acceptedWithoutWakeWord(), combinedContext);
             }
-            return BrainResponse.of(BrainResponse.Kind.ACTION_PLAN, reasoned.text(), validation.effectivePlan(),
+        } else {
+            result = BrainResponse.of(BrainResponse.Kind.CONVERSATION, reasoned.text(), null,
                     response.sessionActive(), response.acceptedWithoutWakeWord(), combinedContext);
         }
-        return BrainResponse.of(BrainResponse.Kind.CONVERSATION, reasoned.text(), null,
-                response.sessionActive(), response.acceptedWithoutWakeWord(), combinedContext);
+        remember("JARVIS", result.text());
+        return result;
+    }
+
+    private void remember(String role, String text) {
+        if (text == null || text.isBlank()) return;
+        dialogue.addLast(role + ": " + text.trim());
+        while (dialogue.size() > MAX_DIALOGUE_MESSAGES) dialogue.removeFirst();
+    }
+
+    private String dialogueSnapshot() {
+        return String.join("\n", dialogue);
     }
 
     private static String combineContext(String sessionContext, String durableContext) {
