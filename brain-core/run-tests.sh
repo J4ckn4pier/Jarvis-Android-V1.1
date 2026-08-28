@@ -38,3 +38,4 @@ java -cp out com.jarvis.brain.WakeBargeInCompositionTest
 java -cp out com.jarvis.brain.ToolCapableLocalProviderTest
 java -cp out com.jarvis.brain.ExecutiveObservationLoopTest
 java -cp out com.jarvis.brain.ProviderAttemptBudgetTest
+java -cp out com.jarvis.brain.ToolContractSelectorTest
