@@ -6,6 +6,7 @@ public final class OutcomeFeedbackMemoryTest {
     public static void main(String[] args) {
         recommendationEpisodeIsDomainAgnostic();
         explicitFeedbackWritesTrustedPreferenceAndEpisode();
+        inferredEpisodeAttributionCannotMintTrustedPreference();
         System.out.println("OutcomeFeedbackMemoryTest passed");
     }
 
@@ -31,6 +32,20 @@ public final class OutcomeFeedbackMemoryTest {
         assertEquals(MemoryType.EPISODE, outcome.type(), "outcome is retained as episode memory");
         assertTrue(outcome.content().contains("Castle Cafe"), "episode records recommendation subject");
         assertTrue(outcome.content().contains("loved the quiet atmosphere"), "episode records explicit outcome feedback");
+    }
+
+    private static void inferredEpisodeAttributionCannotMintTrustedPreference() {
+        LongTermMemoryStore store = new LongTermMemoryStore();
+        OutcomeFeedbackMemory recorder = new OutcomeFeedbackMemory(store);
+        RecommendationEpisode episode = new RecommendationEpisode("rec-99", "movie", "Arrival", Instant.parse("2026-08-28T18:00:00Z"));
+        recorder.recordInferredFeedback(episode, "that was excellent", 0.74, Instant.parse("2026-08-28T21:00:00Z"));
+
+        assertTrue(store.current("feedback-preference:rec-99", Instant.parse("2026-08-28T21:01:00Z")).isEmpty(),
+                "inferred episode attribution must never mint trusted user-stated preference memory");
+        RichMemory inference = store.current("feedback-inference:rec-99", Instant.parse("2026-08-28T21:01:00Z")).orElseThrow();
+        assertEquals(MemoryType.INFERENCE, inference.type(), "spontaneous attributed feedback remains inference");
+        assertEquals("inferred-attribution", inference.source(), "inferred attribution keeps a distinct untrusted source");
+        assertTrue(inference.tags().contains("episode:rec-99"), "inference may still link to candidate episode for later confirmation");
     }
 
     private static void assertTrue(boolean value, String label) { if (!value) throw new AssertionError(label); }
