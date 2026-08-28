@@ -12,13 +12,13 @@ public final class AssistantExecutiveIntegrationTest {
 
     public static void main(String[] args) {
         assistantCoreExecutesSafeSemanticPlanAndSynthesizesResult();
+        synthesisStateDeltaSurvivesIntoNextTurn();
         assistantCoreStillStopsBeforeConsequentialProviderPlan();
         System.out.println("AssistantExecutiveIntegrationTest: " + checks + " assertions passed");
     }
 
-    private static void assistantCoreExecutesSafeSemanticPlanAndSynthesizesResult() {
+    private static ToolRegistry dinnerRegistry(int[] searches) {
         ToolRegistry registry = new ToolRegistry();
-        int[] searches = {0};
         registry.register(new ToolSpec("discover_places", false, Set.of(), Set.of("category"), "Discover places"), (args, ctx) -> {
             searches[0]++;
             return ToolResult.success("Castle Cafe|open_status=unknown|distance=0.4mi");
@@ -27,6 +27,12 @@ public final class AssistantExecutiveIntegrationTest {
                 (args, ctx) -> ToolResult.success("Castle Cafe ranked first"));
         registry.register(new ToolSpec("present_options", false, Set.of(), Set.of(), "Present options"),
                 (args, ctx) -> ToolResult.success("Castle Cafe"));
+        return registry;
+    }
+
+    private static void assistantCoreExecutesSafeSemanticPlanAndSynthesizesResult() {
+        int[] searches = {0};
+        ToolRegistry registry = dinnerRegistry(searches);
         int[] reasons = {0};
         ReasoningRouter router = request -> {
             reasons[0]++;
@@ -45,6 +51,31 @@ public final class AssistantExecutiveIntegrationTest {
                 "assistant should return the post-tool synthesized answer");
         check(searches[0] == 1, "safe discovery tool should execute exactly once through AssistantCore");
         check(reasons[0] == 1, "semantic plan should use the cortex only after tool observations for final synthesis");
+    }
+
+    private static void synthesisStateDeltaSurvivesIntoNextTurn() {
+        int[] searches = {0};
+        ToolRegistry registry = dinnerRegistry(searches);
+        int[] reasons = {0};
+        ReasoningRouter router = request -> {
+            reasons[0]++;
+            if (reasons[0] == 1) {
+                return new ReasoningResult("local", "Castle Cafe is my current recommendation.", null,
+                        new SessionStateDelta("find dinner", "dinner options", Map.of("candidate", "Castle Cafe"),
+                                "", "", "Castle Cafe is the current best option", false));
+            }
+            check(request.context().contains("[SESSION_DECISION] Castle Cafe is the current best option"),
+                    "post-tool synthesis state must survive into the next reasoning turn");
+            return new ReasoningResult("local", "I still have Castle Cafe as the current best option.", null);
+        };
+        AssistantCore core = new AssistantCore(
+                BrainEngine.createDefault(Clock.fixed(Instant.parse("2026-08-28T04:00:00Z"), ZoneOffset.UTC)),
+                router, registry);
+        core.handle("Hey Jarvis");
+        core.handle("find me somewhere to eat for dinner tonight");
+        BrainResponse followup = core.handle("compare that choice against another option");
+        check(followup.kind() == BrainResponse.Kind.CONVERSATION, "follow-up should still reason conversationally");
+        check(reasons[0] == 2, "follow-up should make one additional reasoning call");
     }
 
     private static void assistantCoreStillStopsBeforeConsequentialProviderPlan() {
