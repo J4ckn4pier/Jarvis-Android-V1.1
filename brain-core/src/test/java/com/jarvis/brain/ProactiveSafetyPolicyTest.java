@@ -11,6 +11,7 @@ public final class ProactiveSafetyPolicyTest {
         inferredEvidenceNeverSpeaks();
         generalPredictionNeverSpeaksEvenWhenTrusted();
         trustedTimeCriticalSignalMaySpeakWhenEnabledAndIdle();
+        recommendationFollowupMaySpeakOnlyWhenEnabledTrustedAndIdle();
         busyUserStillNeverGetsSpokenOver();
         System.out.println("ProactiveSafetyPolicyTest: " + checks + " assertions passed");
     }
@@ -37,7 +38,7 @@ public final class ProactiveSafetyPolicyTest {
         ProactiveExecutive executive = new ProactiveExecutive(new AttentionGate(0.68), Duration.ofMinutes(30), true);
         ProactiveIntervention result = executive.decide(candidate(PredictionEvidenceTier.TRUSTED, PredictionCategory.GENERAL),
                 AttentionController.State.OPEN_IDLE, Instant.parse("2026-08-28T02:30:00Z"));
-        check(result.mode() == InterventionMode.NOTIFY, "v1 proactive speech must be restricted to time-critical allow-list categories");
+        check(result.mode() == InterventionMode.NOTIFY, "general predictions must remain notification-only");
     }
 
     private static void trustedTimeCriticalSignalMaySpeakWhenEnabledAndIdle() {
@@ -45,6 +46,16 @@ public final class ProactiveSafetyPolicyTest {
         ProactiveIntervention result = executive.decide(candidate(PredictionEvidenceTier.TRUSTED, PredictionCategory.IMMINENT_COMMITMENT),
                 AttentionController.State.OPEN_IDLE, Instant.parse("2026-08-28T02:30:00Z"));
         check(result.mode() == InterventionMode.SPEAK, "trusted imminent commitment may speak when user opted in and is idle");
+    }
+
+    private static void recommendationFollowupMaySpeakOnlyWhenEnabledTrustedAndIdle() {
+        ProactiveExecutive executive = new ProactiveExecutive(new AttentionGate(0.68), Duration.ofMinutes(30), true);
+        PredictionCandidate followup = new PredictionCandidate("How did that recommendation work out?", 0.99, 0.95, 0.99,
+                PredictionEvidenceTier.TRUSTED, PredictionCategory.RECOMMENDATION_FOLLOWUP);
+        ProactiveIntervention result = executive.decide(followup, AttentionController.State.OPEN_IDLE,
+                Instant.parse("2026-08-28T03:30:00Z"));
+        check(result.mode() == InterventionMode.SPEAK,
+                "episode-bound recommendation follow-up may speak only through the existing opt-in/trust/idle gate");
     }
 
     private static void busyUserStillNeverGetsSpokenOver() {
