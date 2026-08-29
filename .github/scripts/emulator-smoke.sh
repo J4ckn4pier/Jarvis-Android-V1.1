@@ -40,7 +40,6 @@ adb shell uiautomator dump /sdcard/jarvis-command-ui.xml
 adb pull /sdcard/jarvis-command-ui.xml "$OUTPUT/jarvis-command-ui.xml"
 adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-command.png"
 
-# Shared-brain migration gate: production MainActivity must enter brain-core through AndroidBrainRuntime.
 adb shell am force-stop "$PACKAGE"
 adb logcat -c
 adb shell am start -W -n "$ACTIVITY" --es jarvis_test_command "'how are you'" | tee "$OUTPUT/emulator-shared-brain-launch.txt"
@@ -68,7 +67,7 @@ grep -q 'Status: ok' "$OUTPUT/emulator-normal-launch.txt"
 HOME_PASSED=0
 for attempt in $(seq 1 30); do
   adb logcat -d > "$OUTPUT/emulator-home-logcat.txt"
-  if grep -q 'JARVIS_HOME_READY Mark III Welcome Sir' "$OUTPUT/emulator-home-logcat.txt"; then HOME_PASSED=1; break; fi
+  if grep -q 'JARVIS_HOME_READY Original HUD Welcome Sir' "$OUTPUT/emulator-home-logcat.txt"; then HOME_PASSED=1; break; fi
   sleep 1
 done
 test "$HOME_PASSED" -eq 1
