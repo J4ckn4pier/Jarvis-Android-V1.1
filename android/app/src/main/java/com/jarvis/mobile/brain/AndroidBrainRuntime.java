@@ -63,12 +63,9 @@ public final class AndroidBrainRuntime {
         followups.recordActedOn(episode, actedAt);
     }
 
-    /** Context/presence adapters report signals here; privacy consent remains backend-owned. */
-    public Optional<ProactiveIntervention> onOutcomeFollowupSignal(String episodeId,
-                                                                   FollowupTrigger trigger,
-                                                                   AttentionController.State attentionState,
-                                                                   Instant now) {
-        return followups.onSignal(episodeId, trigger, attentionState, now);
+    /** Platform adapters report semantic signals only; privacy consent remains backend-owned. */
+    public Optional<ProactiveIntervention> onOutcomeFollowupSignal(OutcomeFollowupSignal signal) {
+        return followups.onSignal(signal);
     }
 
     public SettingsStore settings() { return settings; }
