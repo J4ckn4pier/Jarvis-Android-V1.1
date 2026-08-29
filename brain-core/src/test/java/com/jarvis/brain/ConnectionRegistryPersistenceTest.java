@@ -17,7 +17,7 @@ public final class ConnectionRegistryPersistenceTest {
         ConnectionRegistry afterRestart = new ConnectionRegistry(persistence);
         ConnectionState spotify = afterRestart.get("spotify").orElseThrow();
         check(spotify.connected(), "connected state must survive restart");
-        check(connectedAt.equals(spotify.connectedAt()), "connection timestamp must survive restart");
+        check(connectedAt.equals(spotify.authenticatedAt()), "connection timestamp must survive restart");
         check(spotify.type() == ConnectionType.WEB_OAUTH, "connection type must survive restart");
         check(!afterRestart.get("local-cortex").orElseThrow().connected(),
                 "registered-but-disconnected state must survive restart");
@@ -26,7 +26,7 @@ public final class ConnectionRegistryPersistenceTest {
         ConnectionRegistry afterDisconnectRestart = new ConnectionRegistry(persistence);
         check(!afterDisconnectRestart.get("spotify").orElseThrow().connected(),
                 "disconnect must persist and clear connected timestamp");
-        check(afterDisconnectRestart.get("spotify").orElseThrow().connectedAt() == null,
+        check(afterDisconnectRestart.get("spotify").orElseThrow().authenticatedAt() == null,
                 "disconnect must not retain stale connected timestamp");
 
         ConnectionRegistryPersistence broken = new ConnectionRegistryPersistence() {
