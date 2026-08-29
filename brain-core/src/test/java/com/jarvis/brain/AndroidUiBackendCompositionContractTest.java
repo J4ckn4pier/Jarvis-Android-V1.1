@@ -17,8 +17,12 @@ public final class AndroidUiBackendCompositionContractTest {
                 "Android runtime must own one editable-list store for backend/UI composition");
         check(runtime.contains("RoutineStore routines ="),
                 "Android runtime must own one routine store for backend/UI composition");
-        check(runtime.contains("new JarvisUiBackend(null, tools, connections, settings, defaultApps, lists, routines)"),
-                "UI backend must share runtime tools, connections, persistent settings, durable default apps, durable lists, and durable routines");
+        check(runtime.contains("ActivityLog activity ="),
+                "Android runtime must own one activity/audit store for backend/UI composition");
+        check(runtime.contains("DeviceStateStore devices ="),
+                "Android runtime must own one device-state store for backend/UI composition");
+        check(runtime.contains("new JarvisUiBackend(null, tools, connections, settings, defaultApps, lists, routines, activity, devices)"),
+                "UI backend must share runtime tools, connections, settings, default apps, lists, routines, activity, and device state");
         check(runtime.contains("public JarvisUiBackend uiBackend()"),
                 "Android frontend adapter must be able to reach the shared UI backend facade");
 
