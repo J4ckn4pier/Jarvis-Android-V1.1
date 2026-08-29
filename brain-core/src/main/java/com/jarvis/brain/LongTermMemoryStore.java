@@ -93,7 +93,7 @@ public final class LongTermMemoryStore {
             if(semantic<=0)continue;
             RichMemory touched=m.touch(when);
             if(touched!=m){list.set(currentIndex,touched);m=touched;touchedAny=true;}
-            double sourceTrust=(m.source().equals("user-stated")||m.source().equals("manual-user-entry"))?1.0:m.type()==MemoryType.INFERENCE?m.confidence():0.82;
+            double sourceTrust=(m.source().equals("user-stated")||m.source().equals("manual-user-edit"))?1.0:m.type()==MemoryType.INFERENCE?m.confidence():0.82;
             double stability=switch(m.type()){case PREFERENCE,FACT,RELATIONSHIP,PROCEDURE,GOAL->1.0;case ROUTINE->Math.min(1.0,0.55+0.08*m.evidenceCount());case EPISODE->0.55;case INFERENCE->0.50;};
             long ageDays=Math.max(0,Duration.between(m.validFrom(),when).toDays());
             double recency=1.0/(1.0+ageDays/120.0);
