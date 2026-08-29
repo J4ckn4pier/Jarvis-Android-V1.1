@@ -61,6 +61,63 @@ for attempt in $(seq 1 30); do
 done
 test "$SHARED_BRAIN_PASSED" -eq 1
 
+# Prove the full app exposes real consequential-decision controls on Android 16 and that
+# cancelling through the UI clears the shared runtime decision without executing the message.
+adb shell am force-stop "$PACKAGE"
+adb logcat -c
+adb shell am start -W -n "$ACTIVITY" --es jarvis_test_command '"Jarvis, text Mom I am on my way"' | tee "$OUTPUT/emulator-decision-launch.txt"
+grep -q 'Status: ok' "$OUTPUT/emulator-decision-launch.txt"
+DECISION_PENDING=0
+for attempt in $(seq 1 30); do
+  adb logcat -d > "$OUTPUT/emulator-decision-logcat.txt"
+  if grep -q 'JARVIS_RUNTIME_OUTPUT state=AWAITING_APPROVAL' "$OUTPUT/emulator-decision-logcat.txt"; then DECISION_PENDING=1; break; fi
+  sleep 1
+done
+if [ "$DECISION_PENDING" -ne 1 ]; then
+  echo '--- JARVIS pending-decision trace ---'
+  grep -E 'JARVIS_RUNTIME_INPUT|JARVIS_RUNTIME_OUTPUT|JARVIS_SHARED_BRAIN_ACTIVE|JARVIS_COMMAND_RESULT' "$OUTPUT/emulator-decision-logcat.txt" || true
+fi
+test "$DECISION_PENDING" -eq 1
+adb shell uiautomator dump /sdcard/jarvis-decision-ui.xml
+adb pull /sdcard/jarvis-decision-ui.xml "$OUTPUT/jarvis-decision-ui.xml"
+grep -q 'content-desc="JARVIS APPROVE action"' "$OUTPUT/jarvis-decision-ui.xml"
+grep -q 'content-desc="JARVIS CANCEL action"' "$OUTPUT/jarvis-decision-ui.xml"
+adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-decision-pending.png"
+python3 - "$OUTPUT/jarvis-decision-ui.xml" > "$OUTPUT/jarvis-cancel-tap.txt" <<'PY'
+import re
+import sys
+import xml.etree.ElementTree as ET
+root = ET.parse(sys.argv[1]).getroot()
+for node in root.iter('node'):
+    if node.attrib.get('content-desc') == 'JARVIS CANCEL action':
+        match = re.fullmatch(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', node.attrib['bounds'])
+        if not match:
+            raise SystemExit('CANCEL control has invalid bounds')
+        x1, y1, x2, y2 = map(int, match.groups())
+        print((x1 + x2) // 2, (y1 + y2) // 2)
+        break
+else:
+    raise SystemExit('CANCEL control missing from UI tree')
+PY
+set -- $(cat "$OUTPUT/jarvis-cancel-tap.txt")
+adb shell input tap "$1" "$2"
+DECISION_CANCELLED=0
+for attempt in $(seq 1 30); do
+  adb logcat -d > "$OUTPUT/emulator-decision-cancel-logcat.txt"
+  if grep -q 'JARVIS_SHARED_BRAIN_ACTIVE.*state=IDLE' "$OUTPUT/emulator-decision-cancel-logcat.txt"; then DECISION_CANCELLED=1; break; fi
+  sleep 1
+done
+if [ "$DECISION_CANCELLED" -ne 1 ]; then
+  echo '--- JARVIS cancellation trace ---'
+  grep -E 'JARVIS_RUNTIME_INPUT|JARVIS_RUNTIME_OUTPUT|JARVIS_SHARED_BRAIN_ACTIVE|JARVIS_COMMAND_RESULT' "$OUTPUT/emulator-decision-cancel-logcat.txt" || true
+fi
+test "$DECISION_CANCELLED" -eq 1
+adb shell uiautomator dump /sdcard/jarvis-decision-cancelled-ui.xml
+adb pull /sdcard/jarvis-decision-cancelled-ui.xml "$OUTPUT/jarvis-decision-cancelled-ui.xml"
+! grep -q 'content-desc="JARVIS APPROVE action"' "$OUTPUT/jarvis-decision-cancelled-ui.xml"
+! grep -q 'content-desc="JARVIS CANCEL action"' "$OUTPUT/jarvis-decision-cancelled-ui.xml"
+adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-decision-cancelled.png"
+
 adb shell am force-stop "$PACKAGE"
 adb shell pm grant "$PACKAGE" android.permission.RECORD_AUDIO
 adb shell pm grant "$PACKAGE" android.permission.READ_CONTACTS
