@@ -14,6 +14,10 @@ public final class BrainExitGateCompositionContractTest {
                 "ranking/presentation/outcome truthfulness must be part of the composed brain gate");
         require(gate, "ResponseStyleContractTest.class",
                 "central beta response style must be part of the composed brain gate");
+        require(gate, "UiListStorePersistenceTest.class",
+                "durable editable UI lists must be part of the composed brain gate");
+        require(gate, "JarvisUiListCompositionTest.class",
+                "frontend/runtime UI list source-of-truth must be part of the composed brain gate");
 
         System.out.println("BrainExitGateCompositionContractTest passed");
     }
