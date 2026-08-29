@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <application>
+        <receiver
+            android:name="com.jarvis.mobile.assistant.JarvisAssistantTestReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.jarvis.mobile.DEBUG_SHOW_ASSISTANT" />
+            </intent-filter>
+        </receiver>
+    </application>
+</manifest>
