@@ -19,6 +19,7 @@ public final class JarvisUiBackend {
     private final DefaultAppPreferenceStore defaultApps;
     private final ConnectionRegistry connections;
     private final ToolRegistry tools;
+    private final PopupOverlayController popup;
 
     public JarvisUiBackend(LongTermMemoryStore memory, ToolRegistry tools, ConnectionRegistry connections) {
         this.memory = memory == null ? new LongTermMemoryStore() : memory;
@@ -32,6 +33,7 @@ public final class JarvisUiBackend {
         this.music = new MusicQueueStore();
         this.settings = new SettingsStore();
         this.defaultApps = new DefaultAppPreferenceStore();
+        this.popup = new PopupOverlayController();
     }
 
     public LongTermMemoryStore memory(){ return memory; }
@@ -45,6 +47,7 @@ public final class JarvisUiBackend {
     public DefaultAppPreferenceStore defaultApps(){ return defaultApps; }
     public ConnectionRegistry connections(){ return connections; }
     public ToolRegistry tools(){ return tools; }
+    public PopupOverlayController popup(){ return popup; }
 
     public List<ToolSpec> skills(){ return tools.specs(); }
     public List<RichMemory> memories(){ return memory.snapshotAll(); }
