@@ -62,9 +62,15 @@ public final class ToolRegistry {
         return Set.copyOf(out);
     }
 
-    public static ToolRegistry standard() { return standard(ExternalResearchGateway.unavailable()); }
+    public static ToolRegistry standard() {
+        return standard(ExternalResearchGateway.unavailable(), null);
+    }
 
     public static ToolRegistry standard(ExternalResearchGateway research) {
+        return standard(research, null);
+    }
+
+    public static ToolRegistry standard(ExternalResearchGateway research, ConversationalCallTransport callTransport) {
         ExternalResearchGateway gateway = research == null ? ExternalResearchGateway.unavailable() : research;
         ToolRegistry r = new ToolRegistry();
         r.register(spec("open_dialer", false, Set.of("phone", "phone app", "dialer", "calls", "call", "telephone"), Set.of(), "Open the phone dialer", ToolExecutionClass.DEVICE_REFLEX), ready("dialer-ready"));
@@ -74,7 +80,10 @@ public final class ToolRegistry {
         r.register(spec("resolve_business", false, Set.of(), Set.of("business"), "Resolve a named business/entity", ToolExecutionClass.AUTONOMOUS_RESEARCH), gateway::resolveBusiness);
         r.register(spec("get_menu", false, Set.of("menu", "menu prices", "dish prices"), Set.of("business"), "Read fresh menu items and prices with source provenance", ToolExecutionClass.AUTONOMOUS_RESEARCH), gateway::getMenu);
         r.register(spec("attempt_reservation", true, Set.of("book table", "reserve table", "online reservation"), Set.of("business", "party_size", "requested_time"), "Attempt an approved online reservation; return confirmed time, actual available alternatives, or failure reason", ToolExecutionClass.CONSEQUENTIAL), gateway::attemptReservation);
-        r.register(spec("place_conversational_call", true, Set.of("call business", "phone agent"), Set.of("business", "destination", "represented_user", "preferred_time"), "Conduct an approved outbound conversational call using a resolved destination and explicit represented-user/time context", ToolExecutionClass.CONSEQUENTIAL), (a,c) -> ToolResult.failure("telephony adapter not attached"));
+        Tool conversationalCall = callTransport == null
+                ? (a,c) -> ToolResult.failure("telephony adapter not attached")
+                : (a,c) -> executeConversationalCall(callTransport, a);
+        r.register(spec("place_conversational_call", true, Set.of("call business", "phone agent"), Set.of("business", "destination", "represented_user", "preferred_time"), "Conduct an approved outbound conversational call using a resolved destination and explicit represented-user/time context", ToolExecutionClass.CONSEQUENTIAL), conversationalCall);
         r.register(spec("report_outcome", false, Set.of(), Set.of(), "Report an evidence-backed completed multi-step action", ToolExecutionClass.AUTONOMOUS_RESEARCH), gateway::reportOutcome);
         r.register(spec("weather_lookup", false, Set.of("weather", "forecast"), Set.of("when"), "Look up weather/forecast", ToolExecutionClass.AUTONOMOUS_RESEARCH), gateway::weatherLookup);
         r.register(spec("set_timer", false, Set.of("timer"), Set.of("amount", "unit"), "Set a device timer", ToolExecutionClass.DEVICE_REFLEX), ready("timer-ready"));
@@ -87,6 +96,23 @@ public final class ToolRegistry {
         r.register(spec("translate", false, Set.of("translation"), Set.of("request"), "Translate text through the provider-neutral language gateway", ToolExecutionClass.AUTONOMOUS_RESEARCH), gateway::translate);
         r.register(spec("send_message", true, Set.of("text", "message"), Set.of("recipient", "message"), "Send an external message on the user's behalf", ToolExecutionClass.CONSEQUENTIAL), ready("message-ready"));
         return r;
+    }
+
+    private static ToolResult executeConversationalCall(ConversationalCallTransport transport, Map<String,String> args) {
+        ConversationalCallRequest request = new ConversationalCallRequest(
+                args.get("destination"),
+                args.get("business"),
+                args.get("represented_user"),
+                args.get("preferred_time"));
+        CallOutcome outcome = new ConversationalCallOrchestrator(8).execute(transport, request);
+        return switch (outcome.status()) {
+            case CONFIRMED -> ToolResult.success(
+                    "status=CONFIRMED|confirmed_time=" + outcome.confirmedTime() + "|summary=" + outcome.summary());
+            case ALTERNATIVES_AVAILABLE -> ToolResult.success(
+                    "status=ALTERNATIVES_AVAILABLE|alternatives=" + String.join(",", outcome.alternatives()) + "|summary=" + outcome.summary());
+            case FAILED -> ToolResult.failure("status=FAILED|summary=" + outcome.summary());
+            case IN_PROGRESS -> ToolResult.failure("status=FAILED|summary=Conversational call ended without a terminal outcome.");
+        };
     }
 
     private static ToolSpec spec(String name, boolean consequential, Set<String> aliases, Set<String> required, String description, ToolExecutionClass executionClass) {
