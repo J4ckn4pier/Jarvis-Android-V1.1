@@ -33,7 +33,7 @@ public final class CortexPlanAdapter {
         }
 
         PlanValidation validation = new PlanValidator(tools).validate(draft);
-        Plan plan = validation.valid() ? validation.plan() : null;
+        Plan plan = validation.valid() ? validation.effectivePlan() : null;
         return new ReasoningResult(provider.id(), proposed.answer(), plan);
     }
 
