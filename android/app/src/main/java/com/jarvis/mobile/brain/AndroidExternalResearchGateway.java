@@ -1,11 +1,11 @@
 package com.jarvis.mobile.brain;
 
 import android.content.Context;
-import android.content.SharedPreferences;
 
 import com.jarvis.brain.ExecutionContext;
 import com.jarvis.brain.ExternalResearchGateway;
 import com.jarvis.brain.ResearchEvidence;
+import com.jarvis.brain.SettingsStore;
 import com.jarvis.brain.ToolResult;
 
 import org.json.JSONObject;
@@ -16,7 +16,6 @@ import java.io.OutputStream;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
-import java.time.Clock;
 import java.util.Map;
 
 /**
@@ -28,23 +27,19 @@ import java.util.Map;
  * brain never treats an unqualified network string as fresh evidence.
  */
 public final class AndroidExternalResearchGateway implements ExternalResearchGateway {
-    private static final String PREFS = "jarvis_research";
-    private static final String ENDPOINT_KEY = "endpoint";
     private static final int MAX_RESPONSE_BYTES = 1_048_576;
 
-    private final String endpoint;
-    private final Clock clock;
+    private final SettingsStore settings;
 
-    private AndroidExternalResearchGateway(String endpoint, Clock clock) {
-        this.endpoint = endpoint == null ? "" : endpoint.trim();
-        this.clock = clock == null ? Clock.systemUTC() : clock;
+    private AndroidExternalResearchGateway(SettingsStore settings) {
+        if (settings == null) throw new IllegalArgumentException("settings required");
+        this.settings = settings;
     }
 
-    public static ExternalResearchGateway create(Context context) {
+    public static ExternalResearchGateway create(Context context, SettingsStore settings) {
         if (context == null) throw new IllegalArgumentException("context required");
-        SharedPreferences preferences = context.getApplicationContext()
-                .getSharedPreferences(PREFS, Context.MODE_PRIVATE);
-        return new AndroidExternalResearchGateway(preferences.getString(ENDPOINT_KEY, ""), Clock.systemUTC());
+        context.getApplicationContext(); // Validate an Android application context without owning a duplicate settings silo.
+        return new AndroidExternalResearchGateway(settings);
     }
 
     @Override
@@ -83,7 +78,9 @@ public final class AndroidExternalResearchGateway implements ExternalResearchGat
     }
 
     private ToolResult research(String operation, Map<String, String> arguments) {
-        if (endpoint.isBlank()) return ToolResult.failure("research endpoint not configured");
+        String endpoint = settings.get(SettingsStore.RESEARCH_ENDPOINT).trim();
+        if (endpoint.isEmpty()) return ToolResult.failure("research endpoint not configured");
+        HttpURLConnection connection = null;
         try {
             URI uri = URI.create(endpoint);
             String host = uri.getHost() == null ? "" : uri.getHost();
@@ -94,7 +91,7 @@ public final class AndroidExternalResearchGateway implements ExternalResearchGat
                 return ToolResult.failure("research endpoint must use HTTPS or loopback transport");
             }
 
-            HttpURLConnection connection = (HttpURLConnection) uri.toURL().openConnection();
+            connection = (HttpURLConnection) uri.toURL().openConnection();
             connection.setRequestMethod("POST");
             connection.setConnectTimeout(12_000);
             connection.setReadTimeout(45_000);
@@ -103,9 +100,15 @@ public final class AndroidExternalResearchGateway implements ExternalResearchGat
             connection.setRequestProperty("Accept", "application/json");
             connection.setRequestProperty("User-Agent", "JARVIS-Android/1.1 research-gateway");
 
+            JSONObject argsJson = new JSONObject();
+            if (arguments != null) {
+                for (Map.Entry<String, String> entry : arguments.entrySet()) {
+                    argsJson.put(entry.getKey(), entry.getValue());
+                }
+            }
             JSONObject body = new JSONObject();
             body.put("operation", operation);
-            body.put("arguments", new JSONObject(arguments == null ? Map.of() : arguments));
+            body.put("arguments", argsJson);
             try (OutputStream output = connection.getOutputStream()) {
                 output.write(body.toString().getBytes(StandardCharsets.UTF_8));
             }
@@ -122,7 +125,7 @@ public final class AndroidExternalResearchGateway implements ExternalResearchGat
             String payload = response.optString("payload", "").trim();
             String source = response.optString("source", "").trim();
             String observedAt = response.optString("observed_at", "").trim();
-            if (payload.isBlank() || source.isBlank() || observedAt.isBlank() || !response.has("confidence")) {
+            if (payload.isEmpty() || source.isEmpty() || observedAt.isEmpty() || !response.has("confidence")) {
                 return ToolResult.failure("research endpoint response missing provenance");
             }
             double confidence = response.getDouble("confidence");
@@ -130,20 +133,23 @@ public final class AndroidExternalResearchGateway implements ExternalResearchGat
             return ToolResult.success(evidence.toToolOutput());
         } catch (Exception failure) {
             return ToolResult.failure("research adapter unavailable");
+        } finally {
+            if (connection != null) connection.disconnect();
         }
     }
 
     private static String readBounded(InputStream input) throws Exception {
         if (input == null) return "";
-        ByteArrayOutputStream output = new ByteArrayOutputStream();
-        byte[] buffer = new byte[8192];
-        int total = 0;
-        int read;
-        while ((read = input.read(buffer)) >= 0) {
-            total += read;
-            if (total > MAX_RESPONSE_BYTES) throw new IllegalStateException("research response too large");
-            output.write(buffer, 0, read);
+        try (InputStream boundedInput = input; ByteArrayOutputStream output = new ByteArrayOutputStream()) {
+            byte[] buffer = new byte[8192];
+            int total = 0;
+            int read;
+            while ((read = boundedInput.read(buffer)) >= 0) {
+                total += read;
+                if (total > MAX_RESPONSE_BYTES) throw new IllegalStateException("research response too large");
+                output.write(buffer, 0, read);
+            }
+            return new String(output.toByteArray(), StandardCharsets.UTF_8);
         }
-        return output.toString(StandardCharsets.UTF_8);
     }
 }
