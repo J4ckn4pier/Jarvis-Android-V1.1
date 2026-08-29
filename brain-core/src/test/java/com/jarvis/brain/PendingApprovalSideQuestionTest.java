@@ -20,7 +20,7 @@ public final class PendingApprovalSideQuestionTest {
         check(pending.state() == AssistantSurfaceState.AWAITING_APPROVAL, "message begins as pending approval");
         check(conversation.hasPendingApproval(), "approval is pending before side question");
 
-        RuntimeSurfacePresentation side = conversation.handle("what is the weather outside?");
+        RuntimeSurfacePresentation side = conversation.handle("what is the diagnostic value?");
         check(side.state() == AssistantSurfaceState.ACTION_DONE, "safe side question can complete");
         check(side.text().contains("72"), "side question returns its result");
         check(reads[0] == 1, "safe side tool executes exactly once");
@@ -43,16 +43,16 @@ public final class PendingApprovalSideQuestionTest {
                 });
         // DEVICE_REFLEX is intentionally used here: it remains non-consequential but is returned to BrainRuntime
         // as an ACTION_PLAN, which exercises preservation of the original pending approval cursor.
-        tools.register(new ToolSpec("read_info", false, Set.of("weather", "read"), Set.of(),
-                "read information", ToolExecutionClass.DEVICE_REFLEX), (args, ctx) -> {
+        tools.register(new ToolSpec("read_info", false, Set.of("diagnostic"), Set.of(),
+                "read diagnostic information", ToolExecutionClass.DEVICE_REFLEX), (args, ctx) -> {
                     reads[0]++;
-                    return ToolResult.success("72 degrees and clear");
+                    return ToolResult.success("72 diagnostic units");
                 });
 
         ReasoningRouter reasoning = request -> {
-            if (request.utterance().toLowerCase().contains("weather")) {
+            if (request.utterance().toLowerCase().contains("diagnostic value")) {
                 return new ReasoningResult("test", "Checking.", new Plan(
-                        "answer weather side question",
+                        "answer safe side question",
                         List.of(new PlanStep("read_info", Map.of(), false))));
             }
             return new ReasoningResult("test", "reasoned", null);
