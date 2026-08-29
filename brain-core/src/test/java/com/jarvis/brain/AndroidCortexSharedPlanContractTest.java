@@ -7,12 +7,15 @@ import java.nio.file.Path;
 public final class AndroidCortexSharedPlanContractTest {
     public static void main(String[] args) throws Exception {
         String runtime = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/AndroidBrainRuntime.java"));
+        String provider = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/providers/CortexProvider.java"));
         String adapter = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/providers/CortexPlanAdapter.java"));
 
         check(runtime.contains("reasonWithConfiguredCortex(app, request, tools)"),
                 "Android runtime must give provider reasoning the shared request and tool registry");
-        check(runtime.contains("CortexPlanAdapter.toReasoningResult"),
-                "Android runtime must bridge resolved cortex proposals into shared ReasoningResult plans");
+        check(runtime.contains("provider.proposeReasoning(request, tools)"),
+                "Android runtime must enter the provider-neutral shared reasoning path");
+        check(provider.contains("CortexPlanAdapter.toReasoningResult(this, propose(request.utterance()), tools)"),
+                "legacy cortex providers must retain a conservative shared-plan compatibility bridge");
         check(!runtime.contains("proposed.answer(), null"),
                 "resolved cortex proposals must not silently discard their action plan");
         check(adapter.contains("new PlanValidator(tools).validate"),
