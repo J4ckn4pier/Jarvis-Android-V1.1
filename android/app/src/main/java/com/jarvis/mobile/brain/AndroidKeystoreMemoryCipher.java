@@ -12,9 +12,17 @@ import javax.crypto.spec.GCMParameterSpec;
 
 /** Android Keystore-backed AES-GCM cipher for private JARVIS durable brain state. */
 public final class AndroidKeystoreMemoryCipher implements MemoryCipher {
-    private static final String ALIAS = "jarvis.outcome.followups.v1";
+    private static final String DEFAULT_ALIAS = "jarvis.outcome.followups.v1";
     private static final String TRANSFORMATION = "AES/GCM/NoPadding";
     private static final byte VERSION = 1;
+    private final String alias;
+
+    public AndroidKeystoreMemoryCipher() { this(DEFAULT_ALIAS); }
+
+    public AndroidKeystoreMemoryCipher(String alias) {
+        if (alias == null || alias.isBlank()) throw new IllegalArgumentException("Keystore alias required");
+        this.alias = alias.trim();
+    }
 
     @Override
     public byte[] encrypt(byte[] plaintext) {
@@ -27,7 +35,7 @@ public final class AndroidKeystoreMemoryCipher implements MemoryCipher {
             packed.put(VERSION).put((byte) iv.length).put(iv).put(encrypted);
             return packed.array();
         } catch (Exception e) {
-            throw new IllegalStateException("Unable to encrypt JARVIS follow-up state", e);
+            throw new IllegalStateException("Unable to encrypt JARVIS durable brain state", e);
         }
     }
 
@@ -47,18 +55,18 @@ public final class AndroidKeystoreMemoryCipher implements MemoryCipher {
             cipher.init(Cipher.DECRYPT_MODE, key(), new GCMParameterSpec(128, iv));
             return cipher.doFinal(encrypted);
         } catch (Exception e) {
-            throw new IllegalStateException("Unable to decrypt JARVIS follow-up state", e);
+            throw new IllegalStateException("Unable to decrypt JARVIS durable brain state", e);
         }
     }
 
     private SecretKey key() throws Exception {
         KeyStore store = KeyStore.getInstance("AndroidKeyStore");
         store.load(null);
-        java.security.Key existing = store.getKey(ALIAS, null);
+        java.security.Key existing = store.getKey(alias, null);
         if (existing instanceof SecretKey secretKey) return secretKey;
         KeyGenerator generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore");
         generator.init(new KeyGenParameterSpec.Builder(
-                ALIAS, KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
+                alias, KeyProperties.PURPOSE_ENCRYPT | KeyProperties.PURPOSE_DECRYPT)
                 .setBlockModes(KeyProperties.BLOCK_MODE_GCM)
                 .setEncryptionPaddings(KeyProperties.ENCRYPTION_PADDING_NONE)
                 .build());
