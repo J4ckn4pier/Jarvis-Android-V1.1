@@ -7,20 +7,22 @@ import java.nio.file.Path;
 public final class AndroidMediaToolBindingContractTest {
     public static void main(String[] args) throws Exception {
         String factory = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/AndroidToolRegistryFactory.java"));
-        String router = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/actions/AndroidActionRouter.java"));
+        String media = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/actions/AndroidMediaActions.java"));
 
-        check(factory.contains("args -> actions.playMediaQuery(args.get(\"query\"))"),
+        check(factory.contains("args -> media.playMediaQuery(args.get(\"query\"))"),
                 "media_play must bind directly to the typed Android media-query action");
         check(!factory.contains("actions.execute(\"play \" + args.get(\"query\"))"),
                 "media_play must not route arbitrary queries through the legacy string parser");
-        check(router.contains("public String playMediaQuery(String query)"),
+        check(media.contains("public String playMediaQuery(String query)"),
                 "Android action layer must expose a typed media-query entry point");
-        check(router.contains("MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH"),
+        check(media.contains("MediaStore.INTENT_ACTION_MEDIA_PLAY_FROM_SEARCH"),
                 "media query must use Android's play-from-search intent contract");
-        check(router.contains("SearchManager.QUERY, clean"),
+        check(media.contains("SearchManager.QUERY, clean"),
                 "media query must preserve the requested search text as structured intent data");
-        check(router.contains("Tell me what you want me to play."),
+        check(media.contains("Tell me what you want me to play."),
                 "blank media queries must fail closed instead of claiming playback");
+        check(media.contains("resolveActivity(context.getPackageManager()) == null"),
+                "media query must fail closed when no compatible media app exists");
 
         System.out.println("AndroidMediaToolBindingContractTest passed");
     }
