@@ -78,10 +78,31 @@ if [ "$DECISION_PENDING" -ne 1 ]; then
   grep -E 'JARVIS_RUNTIME_INPUT|JARVIS_RUNTIME_OUTPUT|JARVIS_SHARED_BRAIN_ACTIVE|JARVIS_COMMAND_RESULT' "$OUTPUT/emulator-decision-logcat.txt" || true
 fi
 test "$DECISION_PENDING" -eq 1
-adb shell uiautomator dump /sdcard/jarvis-decision-ui.xml
-adb pull /sdcard/jarvis-decision-ui.xml "$OUTPUT/jarvis-decision-ui.xml"
-grep -q 'content-desc="JARVIS APPROVE action"' "$OUTPUT/jarvis-decision-ui.xml"
-grep -q 'content-desc="JARVIS CANCEL action"' "$OUTPUT/jarvis-decision-ui.xml"
+
+# Runtime state can become visible in logcat a few frames before Android publishes the updated
+# accessibility tree. Retry the real tree rather than treating that publication gap as a missing UI.
+DECISION_CONTROLS_READY=0
+for attempt in $(seq 1 15); do
+  adb shell uiautomator dump /sdcard/jarvis-decision-ui.xml || true
+  if adb pull /sdcard/jarvis-decision-ui.xml "$OUTPUT/jarvis-decision-ui-attempt-$attempt.xml"; then
+    if grep -q 'content-desc="JARVIS APPROVE action"' "$OUTPUT/jarvis-decision-ui-attempt-$attempt.xml" \
+        && grep -q 'content-desc="JARVIS CANCEL action"' "$OUTPUT/jarvis-decision-ui-attempt-$attempt.xml"; then
+      cp "$OUTPUT/jarvis-decision-ui-attempt-$attempt.xml" "$OUTPUT/jarvis-decision-ui.xml"
+      DECISION_CONTROLS_READY=1
+      break
+    fi
+  fi
+  sleep 1
+done
+if [ "$DECISION_CONTROLS_READY" -ne 1 ]; then
+  adb shell dumpsys activity activities > "$OUTPUT/emulator-decision-activity.txt" || true
+  if ! grep -q 'com.jarvis.mobile/.MainActivity' "$OUTPUT/emulator-decision-activity.txt"; then
+    echo 'decision activity left foreground before controls could be inspected'
+  else
+    echo 'decision controls missing after runtime reached AWAITING_APPROVAL'
+  fi
+  exit 1
+fi
 adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-decision-pending.png"
 python3 - "$OUTPUT/jarvis-decision-ui.xml" > "$OUTPUT/jarvis-cancel-tap.txt" <<'PY'
 import re
