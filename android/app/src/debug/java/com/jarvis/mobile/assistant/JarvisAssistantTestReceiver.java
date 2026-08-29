@@ -1,0 +1,17 @@
+package com.jarvis.mobile.assistant;
+
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.util.Log;
+
+/** Debug-only CI hook for proving the system-bound VoiceInteractionService -> session path. */
+public final class JarvisAssistantTestReceiver extends BroadcastReceiver {
+    private static final String TAG = "JARVIS_ASSISTANT_TEST";
+
+    @Override
+    public void onReceive(Context context, Intent intent) {
+        boolean triggered = JarvisVoiceInteractionService.requestDebugTestSession(context);
+        Log.i(TAG, triggered ? "JARVIS_DEBUG_SESSION_REQUEST_ACCEPTED" : "JARVIS_DEBUG_SESSION_REQUEST_REJECTED");
+    }
+}
