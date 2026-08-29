@@ -22,8 +22,9 @@ public final class PendingRecoverySideQuestionTest {
         check(actionAttempts[0] == 2, "initial execution uses bounded automatic retry before asking user");
 
         RuntimeSurfacePresentation side = conversation.handle("what is the diagnostic value?");
-        check(side.state() == AssistantSurfaceState.ACTION_DONE, "safe side question can complete during recovery decision");
+        check(side.state() == AssistantSurfaceState.NEEDS_INPUT, "safe side question completes while recovery remains surfaced");
         check(side.text().contains("72"), "side question returns its result");
+        check(side.primaryAction() == RuntimeSurfaceAction.RETRY, "retry affordance remains after side answer");
         check(reads[0] == 1, "safe side tool executes exactly once");
         check(conversation.hasPendingRecovery(), "original recovery decision survives side question");
         check(actionAttempts[0] == 2, "side question never retries original action implicitly");
