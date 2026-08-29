@@ -9,6 +9,7 @@ import com.jarvis.brain.ToolResult;
 import com.jarvis.brain.ToolSpec;
 import com.jarvis.mobile.actions.AndroidActionRouter;
 import com.jarvis.mobile.actions.AndroidDialerActions;
+import com.jarvis.mobile.actions.AndroidFlashlightActions;
 import com.jarvis.mobile.actions.AndroidMediaActions;
 import com.jarvis.mobile.actions.AndroidNavigationActions;
 import com.jarvis.mobile.actions.AndroidTimerActions;
@@ -26,6 +27,7 @@ public final class AndroidToolRegistryFactory {
         Context appContext = context.getApplicationContext();
         AndroidActionRouter actions = new AndroidActionRouter(appContext);
         AndroidDialerActions dialer = new AndroidDialerActions(appContext);
+        AndroidFlashlightActions flashlight = new AndroidFlashlightActions(appContext);
         AndroidMediaActions media = new AndroidMediaActions(appContext);
         AndroidNavigationActions navigation = new AndroidNavigationActions(appContext);
         AndroidTimerActions timer = new AndroidTimerActions(appContext);
@@ -46,7 +48,7 @@ public final class AndroidToolRegistryFactory {
                 args -> media.playMediaQuery(args.get("query")));
         register(registry, "set_flashlight", false, Set.of("flashlight", "torch"), Set.of("state"),
                 "Set flashlight state", ToolExecutionClass.DEVICE_REFLEX,
-                args -> actions.execute("flashlight " + args.get("state")));
+                args -> flashlight.setState(args.get("state")));
         register(registry, "calendar_query", false, Set.of("calendar", "schedule"), Set.of("when"),
                 "Read calendar commitments", ToolExecutionClass.DEVICE_REFLEX,
                 args -> calendar.commitments(args.get("when")));
