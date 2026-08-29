@@ -11,6 +11,12 @@ public final class AndroidVoiceAecBargeInContractTest {
 
         check(monitor.contains("AcousticEchoCanceler.isAvailable()"),
                 "hands-free barge-in must fail closed when Android AEC is unavailable");
+        check(monitor.contains("context.checkSelfPermission(Manifest.permission.RECORD_AUDIO)"),
+                "barge-in capture must explicitly re-check runtime microphone permission at the capture boundary");
+        check(monitor.contains("PackageManager.PERMISSION_GRANTED"),
+                "barge-in capture may only proceed with granted microphone permission");
+        check(monitor.contains("catch (SecurityException"),
+                "barge-in capture must fail closed if microphone permission is revoked between check and AudioRecord creation");
         check(monitor.contains("MediaRecorder.AudioSource.VOICE_COMMUNICATION"),
                 "barge-in microphone path must request the communication audio source for echo handling");
         check(monitor.contains("AcousticEchoCanceler.create"),
