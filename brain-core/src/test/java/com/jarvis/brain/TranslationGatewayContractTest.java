@@ -29,10 +29,11 @@ public final class TranslationGatewayContractTest {
         check(translate.spec().executionClass() == ToolExecutionClass.AUTONOMOUS_RESEARCH,
                 "translation must route through the provider-neutral reasoning/research boundary");
         ToolResult result = translate.implementation().execute(
-                Map.of("request", "translate hello to French"), ExecutionContext.empty());
-        check(result.success(), "attached translation gateway should execute successfully");
-        check("bonjour".equals(result.message()), "translation result must come from the attached gateway");
-        check(!"translation-ready".equals(result.message()), "translation must never report synthetic readiness");
+                Map.of("request", "translate hello to French"), new ExecutionContext());
+        check(result.status() == ToolResult.Status.SUCCESS,
+                "attached translation gateway should execute successfully");
+        check("bonjour".equals(result.output()), "translation result must come from the attached gateway");
+        check(!"translation-ready".equals(result.output()), "translation must never report synthetic readiness");
         System.out.println("TranslationGatewayContractTest passed");
     }
 
