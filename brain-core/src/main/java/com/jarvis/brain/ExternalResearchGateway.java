@@ -3,9 +3,9 @@ package com.jarvis.brain;
 import java.util.Map;
 
 /**
- * Provider-neutral boundary for fresh external information used by the executive loop.
- * Platform/network implementations live outside the reasoning core and return structured
- * ToolResult values so failure/uncertainty remains visible to the cortex.
+ * Provider-neutral boundary for fresh external information and evidence-backed orchestration
+ * used by the executive loop. Platform/network/model implementations live outside the reasoning
+ * core and return structured ToolResult values so failure/uncertainty remains visible to cortex.
  */
 public interface ExternalResearchGateway {
     ToolResult discoverPlaces(Map<String, String> arguments, ExecutionContext context);
@@ -20,6 +20,21 @@ public interface ExternalResearchGateway {
     /** Translation is provider-neutral and must fail closed when no language adapter is attached. */
     default ToolResult translate(Map<String, String> arguments, ExecutionContext context) {
         return ToolResult.failure("translation adapter not attached");
+    }
+
+    /** Rank real candidate options using current user/context evidence. Never synthesize readiness. */
+    default ToolResult rankOptions(Map<String, String> arguments, ExecutionContext context) {
+        return ToolResult.failure("ranking adapter not attached");
+    }
+
+    /** Turn ranked evidence into a user-facing option presentation. Never synthesize readiness. */
+    default ToolResult presentOptions(Map<String, String> arguments, ExecutionContext context) {
+        return ToolResult.failure("presentation adapter not attached");
+    }
+
+    /** Report an actual completed multi-step outcome from evidence in the current execution. */
+    default ToolResult reportOutcome(Map<String, String> arguments, ExecutionContext context) {
+        return ToolResult.failure("outcome reporting adapter not attached");
     }
 
     /**
