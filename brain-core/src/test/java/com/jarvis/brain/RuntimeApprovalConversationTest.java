@@ -38,7 +38,7 @@ public final class RuntimeApprovalConversationTest {
     private static void lowConfidenceApprovalStaysPending() {
         int[] sends = {0};
         RuntimeApprovalConversation bridge = bridge(sends);
-        RuntimeSurfacePresentation pending = bridge.handle("Jarvis, text Mom dinner is ready");
+        RuntimeSurfacePresentation pending = bridge.handle("Jarvis, text Mom I am on my way");
         check(pending.state() == AssistantSurfaceState.AWAITING_APPROVAL, "message waits for approval before confidence check");
         RuntimeSurfacePresentation unclear = bridge.handle("yes", 0.42);
         check(unclear.state() == AssistantSurfaceState.AWAITING_APPROVAL, "low-confidence yes keeps approval pending");
