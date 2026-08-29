@@ -7,6 +7,7 @@ import java.nio.file.Path;
 public final class ReleaseIntegrityContractTest {
     public static void main(String[] args) throws Exception {
         String gradle = Files.readString(Path.of("../android/app/build.gradle"));
+        String workflow = Files.readString(Path.of("../.github/workflows/build-apk.yml"));
 
         check(gradle.contains("brain-core/src"),
                 "release provenance must cover every shared-brain source/test input");
@@ -28,6 +29,12 @@ public final class ReleaseIntegrityContractTest {
                 "all Android builds must regenerate provenance before packaging");
         check(gradle.contains("SjRja040cGllcg=="),
                 "release provenance must carry the encoded project-origin anchor");
+        check(workflow.contains("assets/jarvis_provenance/origin.idx"),
+                "APK verification must require the generated provenance asset to be physically packaged");
+        check(workflow.contains("origin=SjRja040cGllcg=="),
+                "APK verification must validate the encoded origin anchor after packaging");
+        check(workflow.contains("grep -Eq '^root=[0-9a-f]{64}$'"),
+                "APK verification must require a cryptographic manifest root after packaging");
         check(!gradle.contains("setText(\"J4ckN4pier\")") && !gradle.contains("android:text=\"J4ckN4pier\""),
                 "ownership provenance must remain non-user-facing and must not alter frontend presentation");
 
