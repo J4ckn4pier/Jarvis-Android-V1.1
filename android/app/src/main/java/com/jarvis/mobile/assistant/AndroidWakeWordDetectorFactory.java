@@ -5,6 +5,8 @@ import android.util.Log;
 
 import com.jarvis.brain.CommercialWakeWordPolicy;
 
+import java.util.Optional;
+
 /** Creates only commercially approved, local passive-wake detectors. */
 final class AndroidWakeWordDetectorFactory {
     private static final String TAG = "JARVIS_PASSIVE_WAKE";
@@ -12,9 +14,16 @@ final class AndroidWakeWordDetectorFactory {
     private AndroidWakeWordDetectorFactory() { }
 
     static WakeWordDetectorPort create(Context context) {
-        WakeWordDetectorPort candidate = configuredDetector(context == null ? null : context.getApplicationContext());
-        if (candidate == null) {
+        if (context == null) return new DisabledWakeWordDetector("commercial wake model not configured");
+        Context app = context.getApplicationContext();
+        Optional<AndroidWakeWordModelStore.ApprovedArtifact> approved = new AndroidWakeWordModelStore(context).loadApproved();
+        if (approved.isEmpty()) {
             return new DisabledWakeWordDetector("commercial wake model not configured");
+        }
+
+        WakeWordDetectorPort candidate = configuredDetector(app, approved.get());
+        if (candidate == null) {
+            return new DisabledWakeWordDetector("approved wake model present but local detector engine not attached");
         }
 
         CommercialWakeWordPolicy.Decision decision = new CommercialWakeWordPolicy().approve(candidate.modelDescriptor());
@@ -26,9 +35,11 @@ final class AndroidWakeWordDetectorFactory {
         return candidate;
     }
 
-    private static WakeWordDetectorPort configuredDetector(Context context) {
-        // Shipping beta intentionally has no bundled detector/model yet. A future adapter may be attached here
-        // only with an integrity-pinned model whose redistribution and training-data provenance pass the policy.
+    private static WakeWordDetectorPort configuredDetector(
+            Context context,
+            AndroidWakeWordModelStore.ApprovedArtifact artifact) {
+        // Deliberately no bundled inference engine/model in this beta. Attach a local engine here only after
+        // its runtime license and this exact model artifact's redistribution/training provenance are approved.
         return null;
     }
 }
