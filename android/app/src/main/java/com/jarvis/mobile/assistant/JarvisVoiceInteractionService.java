@@ -11,6 +11,7 @@ import android.util.Log;
 public class JarvisVoiceInteractionService extends VoiceInteractionService {
     private static final String TEST_TAG = "JARVIS_ASSISTANT_TEST";
     private static final String WAKE_TAG = "JARVIS_PASSIVE_WAKE";
+    private static final String TEST_COMMAND_EXTRA = "jarvis_test_command";
     private static volatile JarvisVoiceInteractionService activeInstance;
     private WakeWordDetectorPort wakeWordDetector;
 
@@ -48,6 +49,11 @@ public class JarvisVoiceInteractionService extends VoiceInteractionService {
      * service -> session path without privileged shell permissions or OEM key-routing behavior.
      */
     public static boolean requestDebugTestSession(Context context) {
+        return requestDebugTestSession(context, "");
+    }
+
+    /** Debug-only deterministic command injection used solely by emulator acceptance tests. */
+    public static boolean requestDebugTestSession(Context context, String testCommand) {
         if (context == null || (context.getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0) {
             return false;
         }
@@ -56,7 +62,11 @@ public class JarvisVoiceInteractionService extends VoiceInteractionService {
             Log.w(TEST_TAG, "JARVIS_DEBUG_SESSION_TRIGGER_NO_SERVICE");
             return false;
         }
-        service.showSession(new Bundle(), VoiceInteractionSession.SHOW_WITH_ASSIST);
+        Bundle args = new Bundle();
+        if (testCommand != null && !testCommand.isBlank()) {
+            args.putString(TEST_COMMAND_EXTRA, testCommand);
+        }
+        service.showSession(args, VoiceInteractionSession.SHOW_WITH_ASSIST);
         Log.i(TEST_TAG, "JARVIS_DEBUG_SESSION_TRIGGERED");
         return true;
     }
