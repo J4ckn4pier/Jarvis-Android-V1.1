@@ -10,7 +10,7 @@ public final class ManualMemoryEditor {
     public void addOrReplace(String key, MemoryType type, String content, Instant when) {
         String k = require(key,"key"), c = require(content,"content");
         Instant at = when == null ? Instant.now() : when;
-        store.put(new RichMemory(k, type, c, "manual-user-entry", 1.0, 0.90, at, null, Set.of("manual-entry","user-authored")));
+        store.put(new RichMemory(k, type, c, "manual-user-edit", 1.0, 0.90, at, null, Set.of("manual-edit","user-authored")));
     }
     public void remove(String key, Instant when) {
         String k=require(key,"key");
