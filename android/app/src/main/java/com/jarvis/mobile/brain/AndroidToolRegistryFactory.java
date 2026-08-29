@@ -76,10 +76,22 @@ public final class AndroidToolRegistryFactory {
             String result = command.run(args);
             if (result == null || result.isBlank()) return ToolResult.failure("Android capability did not return an outcome");
             String lower = result.toLowerCase(java.util.Locale.ROOT);
-            if (lower.contains("couldn’t") || lower.contains("couldn't") || lower.contains("failed") || lower.contains("blocked")) {
-                return ToolResult.failure(result);
-            }
+            if (isFailureOutcome(lower)) return ToolResult.failure(result);
             return ToolResult.success(result);
         });
+    }
+
+    private static boolean isFailureOutcome(String lower) {
+        return lower.contains("couldn’t")
+                || lower.contains("couldn't")
+                || lower.contains("failed")
+                || lower.contains("blocked")
+                || lower.startsWith("no compatible")
+                || lower.startsWith("tell me")
+                || lower.startsWith("enable ")
+                || lower.contains("unavailable")
+                || lower.contains("must be")
+                || lower.contains("too large")
+                || lower.contains("does not expose");
     }
 }
