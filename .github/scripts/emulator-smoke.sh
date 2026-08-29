@@ -83,6 +83,7 @@ adb pull /sdcard/jarvis-home-ui.xml "$OUTPUT/jarvis-home-ui.xml"
 ! grep -q 'PRIVATE ANDROID V1.1' "$OUTPUT/jarvis-home-ui.xml"
 adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-home.png"
 
+# Prove Android owns the assistant selection and has bound JARVIS's VoiceInteractionService.
 adb logcat -c
 adb shell cmd role add-role-holder android.app.role.ASSISTANT "$PACKAGE"
 adb shell cmd role get-role-holders android.app.role.ASSISTANT | tee "$OUTPUT/emulator-assistant-role.txt" | grep -q "^$PACKAGE$"
@@ -95,31 +96,31 @@ adb shell dumpsys package "$PACKAGE" | tee "$OUTPUT/emulator-package-dumpsys.txt
 adb logcat -d > "$OUTPUT/emulator-assistant-preinvoke-logcat.txt"
 grep -q 'JARVIS_VOICE_SERVICE_READY' "$OUTPUT/emulator-assistant-preinvoke-logcat.txt"
 
+# Invoke the active assistant through Android's VoiceInteractionManager shell surface. Synthetic
+# KEYCODE_ASSIST routing is emulator/OEM input behavior and is not a reliable substitute for
+# proving the registered VoiceInteractionService -> VoiceInteractionSession path itself.
 adb shell input keyevent KEYCODE_HOME
 sleep 1
-ASSISTANT_PASSED=0
 adb logcat -c
-adb shell input keyevent KEYCODE_ASSIST | tee "$OUTPUT/emulator-assistant-key-assist.txt"
-for attempt in $(seq 1 10); do
-  adb logcat -d > "$OUTPUT/emulator-assistant-key-assist-logcat.txt"
-  if grep -q 'JARVIS_ASSISTANT_READY' "$OUTPUT/emulator-assistant-key-assist-logcat.txt"; then ASSISTANT_PASSED=1; break; fi
+adb shell cmd voiceinteraction show | tee "$OUTPUT/emulator-assistant-system-show.txt"
+VOICE_SESSION_PASSED=0
+for attempt in $(seq 1 30); do
+  adb logcat -d > "$OUTPUT/emulator-assistant-logcat.txt"
+  if grep -q 'JARVIS_SESSION_SERVICE_NEW_SESSION' "$OUTPUT/emulator-assistant-logcat.txt" && grep -q 'JARVIS_ASSISTANT_READY' "$OUTPUT/emulator-assistant-logcat.txt"; then
+    VOICE_SESSION_PASSED=1
+    break
+  fi
   sleep 1
 done
-if [ "$ASSISTANT_PASSED" -eq 0 ]; then
-  adb logcat -c
-  adb shell input keyevent KEYCODE_VOICE_ASSIST | tee "$OUTPUT/emulator-assistant-key-voice-assist.txt"
-  for attempt in $(seq 1 10); do
-    adb logcat -d > "$OUTPUT/emulator-assistant-key-voice-assist-logcat.txt"
-    if grep -q 'JARVIS_ASSISTANT_READY' "$OUTPUT/emulator-assistant-key-voice-assist-logcat.txt"; then ASSISTANT_PASSED=1; break; fi
-    sleep 1
-  done
+if [ "$VOICE_SESSION_PASSED" -ne 1 ]; then
+  echo '--- JARVIS assistant invocation trace ---'
+  grep -E 'JARVIS_VOICE_SERVICE_READY|JARVIS_SESSION_SERVICE_NEW_SESSION|JARVIS_ASSISTANT_READY|VoiceInteraction|voiceinteraction|JarvisVoice|RecognitionService|SecurityException|FATAL EXCEPTION' "$OUTPUT/emulator-assistant-logcat.txt" || true
+  cat "$OUTPUT/emulator-assistant-system-show.txt" || true
 fi
-adb logcat -d > "$OUTPUT/emulator-assistant-logcat.txt"
-grep -E 'JARVIS_VOICE_SERVICE_READY|JARVIS_SESSION_SERVICE_NEW_SESSION|JARVIS_ASSISTANT_READY|VoiceInteraction|voiceinteraction|JarvisVoice|RecognitionService|SecurityException|FATAL EXCEPTION' "$OUTPUT/emulator-assistant-logcat.txt" || true
 adb shell settings get secure assistant | tee "$OUTPUT/emulator-secure-assistant-post.txt" || true
 adb shell settings get secure voice_interaction_service | tee "$OUTPUT/emulator-secure-voice-interaction-service-post.txt" || true
 adb shell dumpsys voiceinteraction | tee "$OUTPUT/emulator-voiceinteraction-dumpsys-post.txt" || true
-test "$ASSISTANT_PASSED" -eq 1
+test "$VOICE_SESSION_PASSED" -eq 1
 adb shell pidof "$PACKAGE"
 adb shell uiautomator dump /sdcard/jarvis-assistant-ui.xml
 adb pull /sdcard/jarvis-assistant-ui.xml "$OUTPUT/jarvis-assistant-ui.xml"
