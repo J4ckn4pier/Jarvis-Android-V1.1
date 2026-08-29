@@ -26,6 +26,8 @@ public final class BrainExitGateCompositionContractTest {
                 "current time and relevant normalized device context must be part of the composed brain gate");
         require(gate, "KeywordGatedAssistantContextSourceTest.class",
                 "potentially private reasoning context must remain unread unless the current request makes it relevant");
+        require(gate, "WorkflowActionVersionContractTest.class",
+                "release CI action-version integrity must be part of the composed brain gate");
         require(gate, "ToolRegistryOverrideSemanticsTest.class",
                 "production tool overrides must retain their still-owned aliases without stealing aliases claimed elsewhere");
         require(gate, "MainActivityCleanRoomAudioContractTest.class",
