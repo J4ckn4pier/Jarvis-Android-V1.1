@@ -45,3 +45,31 @@ async def test_same_session_commands_are_serialized():
         orchestrator.submit("two", "primary"),
     )
     assert runtime.max_active == 1
+
+
+async def test_history_recovers_events_after_client_was_offline():
+    bus = InMemoryEventBus()
+    orchestrator = Orchestrator(bus, EchoRuntime())
+
+    first = await orchestrator.submit("offline command", "phone")
+    recovered = await bus.history("phone")
+
+    assert len(recovered) == 4
+    assert [event.sequence for event in recovered] == [1, 2, 3, 4]
+    assert {event.task_id for event in recovered} == {first["task_id"]}
+    assert recovered[-1].active_layer == "IDLE"
+
+
+async def test_history_is_session_scoped_and_limit_applies():
+    bus = InMemoryEventBus()
+    orchestrator = Orchestrator(bus, EchoRuntime())
+    await orchestrator.submit("phone work", "phone")
+    await orchestrator.submit("desktop work", "desktop")
+
+    phone = await bus.history("phone", limit=2)
+    desktop = await bus.history("desktop")
+
+    assert len(phone) == 2
+    assert all(event.session_id == "phone" for event in phone)
+    assert len(desktop) == 4
+    assert all(event.session_id == "desktop" for event in desktop)
