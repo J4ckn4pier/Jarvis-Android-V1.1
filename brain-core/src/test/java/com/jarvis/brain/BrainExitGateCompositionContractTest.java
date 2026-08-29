@@ -44,6 +44,8 @@ public final class BrainExitGateCompositionContractTest {
                 "pending consequential approvals must survive safe side questions in the composed brain gate");
         require(gate, "PendingRecoverySideQuestionTest.class",
                 "pending recovery decisions must survive safe side questions in the composed brain gate");
+        require(gate, "PendingConsequentialInterruptionTest.class",
+                "a second consequential request must remain unqueued while an approval or recovery decision is pending");
         require(gate, "PendingDecisionInterruptionPolicyTest.class",
                 "pending runtime decisions must use explicit ASK/DO_BOTH interruption policy in the composed brain gate");
         require(gate, "PendingDecisionSurfaceContinuityTest.class",
