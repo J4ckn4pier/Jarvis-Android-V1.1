@@ -8,11 +8,13 @@ import android.graphics.Color;
 import android.graphics.Typeface;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.SystemClock;
 import android.service.voice.VoiceInteractionSession;
 import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
+import android.speech.tts.UtteranceProgressListener;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
@@ -32,6 +34,9 @@ import java.util.ArrayList;
 import java.util.Locale;
 
 public class JarvisVoiceSession extends VoiceInteractionSession implements TextToSpeech.OnInitListener {
+    private static final long CONVERSATION_WINDOW_MILLIS = 10 * 60 * 1000L;
+    private static final long NEXT_LISTEN_DELAY_MILLIS = 180L;
+
     private final AdaptiveEndpointingPolicy endpointing = new AdaptiveEndpointingPolicy();
     private AndroidBrainRuntime brain;
     private SpeechRecognizer speechRecognizer;
@@ -42,7 +47,10 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private Button primaryButton;
     private Button cancelButton;
     private boolean viewReady;
+    private boolean sessionVisible;
     private boolean autoListenTriggered;
+    private boolean resumeAfterSpeech;
+    private long conversationDeadlineElapsedRealtime;
     private String lastCommand = "";
     private String lastPartial = "";
 
@@ -92,7 +100,10 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         LinearLayout buttons = new LinearLayout(getContext());
         buttons.setGravity(Gravity.CENTER);
         Button listen = button("LISTEN");
-        listen.setOnClickListener(v -> startListening());
+        listen.setOnClickListener(v -> {
+            beginConversationWindowIfNeeded();
+            startListening();
+        });
         buttons.addView(listen);
 
         primaryButton = button("APPROVE");
@@ -117,22 +128,64 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         root.addView(buttons, buttonParams);
 
         viewReady = true;
-        root.postDelayed(this::triggerAutoListen, 180);
+        root.postDelayed(this::triggerAutoListen, NEXT_LISTEN_DELAY_MILLIS);
         return root;
     }
 
     @Override public void onShow(Bundle args, int flags) {
         super.onShow(args, flags);
+        sessionVisible = true;
+        beginConversationWindowIfNeeded();
         if (viewReady && output != null) output.postDelayed(this::triggerAutoListen, 120);
     }
 
+    @Override public void onHide() {
+        sessionVisible = false;
+        autoListenTriggered = false;
+        resumeAfterSpeech = false;
+        conversationDeadlineElapsedRealtime = 0L;
+        if (output != null) output.removeCallbacks(this::scheduleNextListen);
+        if (speechRecognizer != null) speechRecognizer.cancel();
+        if (textToSpeech != null) textToSpeech.stop();
+        setActive(false);
+        super.onHide();
+    }
+
+    private void beginConversationWindowIfNeeded() {
+        long now = SystemClock.elapsedRealtime();
+        if (conversationDeadlineElapsedRealtime <= now) {
+            conversationDeadlineElapsedRealtime = now + CONVERSATION_WINDOW_MILLIS;
+        }
+    }
+
+    private boolean conversationWindowOpen() {
+        return sessionVisible && SystemClock.elapsedRealtime() < conversationDeadlineElapsedRealtime;
+    }
+
     private void triggerAutoListen() {
-        if (autoListenTriggered) return;
+        if (autoListenTriggered || !sessionVisible) return;
         autoListenTriggered = true;
+        beginConversationWindowIfNeeded();
         startListening();
     }
 
+    private void scheduleNextListen() {
+        if (!viewReady || !conversationWindowOpen() || output == null) {
+            setActive(false);
+            return;
+        }
+        output.postDelayed(() -> {
+            if (conversationWindowOpen()) startListening();
+            else setActive(false);
+        }, NEXT_LISTEN_DELAY_MILLIS);
+    }
+
     private void startListening() {
+        if (!conversationWindowOpen()) {
+            if (output != null) output.setText("Conversation paused. Tap LISTEN when you want me again.");
+            setActive(false);
+            return;
+        }
         if (getContext().checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             output.setText("Open JARVIS once and grant Microphone permission.");
             setActive(false);
@@ -152,6 +205,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
             @Override public void onReadyForSpeech(Bundle params) { output.setText("Listening…"); setActive(true); }
             @Override public void onBeginningOfSpeech() {
                 if (textToSpeech != null) textToSpeech.stop();
+                resumeAfterSpeech = false;
                 output.setText("I’m listening.");
             }
             @Override public void onRmsChanged(float rmsdB) { }
@@ -159,15 +213,17 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
             @Override public void onEndOfSpeech() { output.setText("Thinking…"); }
             @Override public void onError(int error) {
                 output.setText(error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
-                        ? "I didn’t catch that. Tap LISTEN to try again."
-                        : "Listening stopped. Tap LISTEN to try again.");
+                        ? "I didn’t catch that. I’m still listening."
+                        : "Listening paused briefly; I’ll reopen it.");
                 setActive(false);
+                scheduleNextListen();
             }
             @Override public void onResults(Bundle results) {
                 ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
                 if (matches == null || matches.isEmpty()) {
                     output.setText("I didn’t catch that.");
                     setActive(false);
+                    scheduleNextListen();
                     return;
                 }
                 float[] scores = results.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES);
@@ -220,8 +276,19 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
                 : brain.approvePresentation()));
         cancelButton.setVisibility(approval || recovery ? View.VISIBLE : View.GONE);
 
+        resumeAfterSpeech = false;
+        if (!approval && !recovery) {
+            resumeAfterSpeech = conversationWindowOpen();
+        }
         if (!text.isBlank() && textToSpeech != null) {
-            textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "jarvis-session");
+            int result = textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "jarvis-session");
+            if (result == TextToSpeech.ERROR && resumeAfterSpeech) {
+                resumeAfterSpeech = false;
+                scheduleNextListen();
+            }
+        } else if (resumeAfterSpeech) {
+            resumeAfterSpeech = false;
+            scheduleNextListen();
         }
         setActive(false);
     }
@@ -262,12 +329,36 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         if (status == TextToSpeech.SUCCESS && textToSpeech != null) {
             textToSpeech.setLanguage(Locale.getDefault());
             textToSpeech.setSpeechRate(0.95f);
+            textToSpeech.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                @Override public void onStart(String utteranceId) { }
+
+                @Override public void onDone(String utteranceId) {
+                    if (!"jarvis-session".equals(utteranceId) || !resumeAfterSpeech) return;
+                    resumeAfterSpeech = false;
+                    if (output != null) output.post(JarvisVoiceSession.this::scheduleNextListen);
+                }
+
+                @Override public void onError(String utteranceId) {
+                    if (!"jarvis-session".equals(utteranceId) || !resumeAfterSpeech) return;
+                    resumeAfterSpeech = false;
+                    if (output != null) output.post(JarvisVoiceSession.this::scheduleNextListen);
+                }
+            });
         }
     }
 
     @Override public void onDestroy() {
-        if (speechRecognizer != null) speechRecognizer.destroy();
-        if (textToSpeech != null) textToSpeech.shutdown();
+        sessionVisible = false;
+        resumeAfterSpeech = false;
+        conversationDeadlineElapsedRealtime = 0L;
+        if (speechRecognizer != null) {
+            speechRecognizer.cancel();
+            speechRecognizer.destroy();
+        }
+        if (textToSpeech != null) {
+            textToSpeech.stop();
+            textToSpeech.shutdown();
+        }
         super.onDestroy();
     }
 }
