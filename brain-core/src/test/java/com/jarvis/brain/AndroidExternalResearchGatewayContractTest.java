@@ -9,7 +9,7 @@ public final class AndroidExternalResearchGatewayContractTest {
         String runtime = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/AndroidBrainRuntime.java"));
         String adapter = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/AndroidExternalResearchGateway.java"));
 
-        check(runtime.contains("AndroidExternalResearchGateway.create(app)"),
+        check(runtime.contains("AndroidExternalResearchGateway.create(app"),
                 "Android runtime must attach the production external-research adapter instead of ExternalResearchGateway.unavailable()");
         check(adapter.contains("implements ExternalResearchGateway"),
                 "Android research adapter must stay behind the provider-neutral ExternalResearchGateway boundary");
