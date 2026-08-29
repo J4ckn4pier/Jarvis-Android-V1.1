@@ -51,7 +51,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-/** Modern assistant brain inside the original My Jarvis home-screen chassis. */
+/** Modern assistant brain inside the current Android shell. */
 public class MainActivity extends Activity implements TextToSpeech.OnInitListener {
     private static final int PERMISSION_REQUEST = 70;
     private static final int ASSISTANT_ROLE_REQUEST = 71;
@@ -328,10 +328,10 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     }
 
     private void runEmbeddedSelfTest() {
-        setActive(true, "RUNNING DONOR-BRAIN SELF TEST ...");
+        setActive(true, "RUNNING JARVIS SELF TEST ...");
         try {
-            requireSelfTest("com.itsmylab.jarvis".equals(getPackageName()),
-                    "Donor package identity changed");
+            requireSelfTest("com.jarvis.mobile".equals(getPackageName()),
+                    "Unexpected application identity");
 
             PackageInfo packageInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
             long versionCode = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
@@ -344,14 +344,14 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             requireSelfTest(getDrawable(R.drawable.background_mk3) != null, "MKIII shell missing");
             requireSelfTest(getDrawable(R.drawable.background_mk3_active) != null,
                     "MKIII active shell missing");
-            requireSelfTest(getDrawable(R.drawable.menu_dots) != null, "Donor menu missing");
+            requireSelfTest(getDrawable(R.drawable.menu_dots) != null, "Current menu missing");
             requireSelfTest(getDrawable(R.drawable.jarvis_normal) != null,
-                    "Donor normal reactor missing");
+                    "Current normal reactor missing");
             requireSelfTest(getDrawable(R.drawable.jarvis_active) != null,
-                    "Donor active reactor missing");
-            requireSelfTest(R.raw.hello_sir != 0, "Donor hello response missing");
-            requireSelfTest(R.raw.didnt_understand != 0, "Donor fallback response missing");
-            requireSelfTest(R.raw.what_can_i_do != 0, "Donor help response missing");
+                    "Current active reactor missing");
+            requireSelfTest(R.raw.hello_sir != 0, "Current hello response missing");
+            requireSelfTest(R.raw.didnt_understand != 0, "Current fallback response missing");
+            requireSelfTest(R.raw.what_can_i_do != 0, "Current help response missing");
 
             PackageManager packages = getPackageManager();
             packages.getServiceInfo(new ComponentName(this, JarvisVoiceInteractionService.class), 0);
@@ -362,11 +362,11 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             packages.getReceiverInfo(new ComponentName(this, QuickActivationWidget.class), 0);
 
             String testId = "runtime " + System.currentTimeMillis();
-            String remember = brain.handle("remember " + testId + " is donor shell");
+            String remember = brain.handle("remember " + testId + " is current shell");
             requireSelfTest(remember.toLowerCase(Locale.ROOT).contains("remember"),
                     "Memory write failed: " + remember);
             String recall = brain.handle("recall " + testId);
-            requireSelfTest(recall.toLowerCase(Locale.ROOT).contains("donor shell"),
+            requireSelfTest(recall.toLowerCase(Locale.ROOT).contains("current shell"),
                     "Memory recall failed: " + recall);
 
             String task = "runtime task " + System.currentTimeMillis();
