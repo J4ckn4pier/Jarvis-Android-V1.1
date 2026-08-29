@@ -37,11 +37,20 @@ public final class JarvisUiBackend {
                            ConnectionRegistry connections,
                            SettingsStore settings,
                            DefaultAppPreferenceStore defaultApps) {
+        this(memory, tools, connections, settings, defaultApps, new UiListStore());
+    }
+
+    public JarvisUiBackend(LongTermMemoryStore memory,
+                           ToolRegistry tools,
+                           ConnectionRegistry connections,
+                           SettingsStore settings,
+                           DefaultAppPreferenceStore defaultApps,
+                           UiListStore lists) {
         this.memory = memory == null ? new LongTermMemoryStore() : memory;
         this.memoryEditor = new ManualMemoryEditor(this.memory);
         this.tools = tools == null ? ToolRegistry.standard() : tools;
         this.connections = connections == null ? new ConnectionRegistry() : connections;
-        this.lists = new UiListStore();
+        this.lists = lists == null ? new UiListStore() : lists;
         this.routines = new RoutineStore();
         this.activity = new ActivityLog();
         this.devices = new DeviceStateStore();
