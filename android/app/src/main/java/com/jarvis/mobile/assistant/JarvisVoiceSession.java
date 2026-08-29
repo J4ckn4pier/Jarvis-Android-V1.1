@@ -38,6 +38,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private static final long CONVERSATION_WINDOW_MILLIS = 10 * 60 * 1000L;
     private static final long NEXT_LISTEN_DELAY_MILLIS = 180L;
     private static final String TEST_TAG = "JARVIS_ASSISTANT_TEST";
+    private static final String SHARED_BRAIN_TAG = "JARVIS_SHARED_BRAIN_ACTIVE";
     private static final String TEST_COMMAND_EXTRA = "jarvis_test_command";
 
     private final AdaptiveEndpointingPolicy endpointing = new AdaptiveEndpointingPolicy();
@@ -305,6 +306,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     }
 
     private void deliver(RuntimeSurfacePresentation presentation) {
+        Log.i(SHARED_BRAIN_TAG, "state=" + presentation.state());
         String text = presentation.text();
         String detail = presentation.detail();
         String rendered = text;
