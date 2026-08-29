@@ -24,8 +24,8 @@ public final class AndroidRoutinePersistenceContractTest {
                 "Android runtime must bind durable routine persistence");
         check(runtime.contains("RoutineStore routines = new RoutineStore("),
                 "Android runtime must own the durable routine store");
-        check(runtime.contains("new JarvisUiBackend(null, tools, connections, settings, defaultApps, lists, routines)"),
-                "frontend facade must receive the same durable routine store");
+        check(runtime.contains("new JarvisUiBackend(null, tools, connections, settings, defaultApps, lists, routines, activity, devices)"),
+                "frontend facade must receive the same durable routine store in the full shared composition");
 
         System.out.println("AndroidRoutinePersistenceContractTest passed");
     }
