@@ -22,6 +22,14 @@ public final class BrainExitGateCompositionContractTest {
                 "durable user-created routines must be part of the composed brain gate");
         require(gate, "JarvisUiRoutineCompositionTest.class",
                 "frontend/runtime routine source-of-truth must be part of the composed brain gate");
+        require(gate, "ActivityLogPersistenceTest.class",
+                "durable user-visible activity audit state must be part of the composed brain gate");
+        require(gate, "JarvisUiActivityCompositionTest.class",
+                "frontend/runtime activity source-of-truth must be part of the composed brain gate");
+        require(gate, "DeviceStateStorePersistenceTest.class",
+                "durable normalized device state must be part of the composed brain gate");
+        require(gate, "JarvisUiDeviceCompositionTest.class",
+                "frontend/runtime device source-of-truth must be part of the composed brain gate");
 
         System.out.println("BrainExitGateCompositionContractTest passed");
     }
