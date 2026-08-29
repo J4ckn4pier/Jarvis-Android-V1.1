@@ -24,7 +24,8 @@ public final class AndroidBrainRuntime {
     public AndroidBrainRuntime(Context context) {
         Context app = context.getApplicationContext();
         clock = Clock.systemDefaultZone();
-        ExternalResearchGateway research = AndroidExternalResearchGateway.create(app);
+        settings = new SettingsStore(new AndroidSharedPreferencesSettingsPersistence(app));
+        ExternalResearchGateway research = AndroidExternalResearchGateway.create(app, settings);
         ToolRegistry tools = AndroidToolRegistryFactory.create(app, research);
         ConnectionRegistry connections = new ConnectionRegistry(new AndroidConnectionRegistryPersistence(app));
         ReasoningRouter reasoning = request -> reasonWithConfiguredCortex(app, request, tools);
@@ -41,7 +42,6 @@ public final class AndroidBrainRuntime {
         runtime = new BrainRuntime(assistant, tools);
         conversation = new RuntimeApprovalConversation(runtime);
 
-        settings = new SettingsStore(new AndroidSharedPreferencesSettingsPersistence(app));
         DefaultAppPreferenceStore defaultApps = new DefaultAppPreferenceStore(
                 new AndroidDefaultAppPreferencePersistence(app));
         UiListStore lists = new UiListStore(new AndroidUiListStorePersistence(app));
