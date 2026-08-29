@@ -1,0 +1,1 @@
+Orchestrator CI belongs in repository .github/workflows when enabled. This marker keeps orchestrator files isolated.
