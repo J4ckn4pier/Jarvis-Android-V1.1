@@ -40,8 +40,10 @@ final class AndroidWakeWordModelStore {
             Properties properties = new Properties();
             try (InputStream in = Files.newInputStream(metadata)) { properties.load(in); }
 
+            long revision = parseRevision(properties.getProperty("revision", "1"));
             WakeWordModelDescriptor descriptor = new WakeWordModelDescriptor(
                     properties.getProperty("identifier", ""),
+                    revision,
                     properties.getProperty("sha256", ""),
                     properties.getProperty("license", ""),
                     Boolean.parseBoolean(properties.getProperty("commercialRedistributionAllowed", "false")),
@@ -56,6 +58,14 @@ final class AndroidWakeWordModelStore {
         } catch (IOException | NoSuchAlgorithmException failure) {
             Log.w(TAG, "Unable to validate wake model artifact", failure);
             return Optional.empty();
+        }
+    }
+
+    private static long parseRevision(String raw) {
+        try {
+            return Math.max(1L, Long.parseLong(raw == null ? "1" : raw.trim()));
+        } catch (NumberFormatException ignored) {
+            return 1L;
         }
     }
 
