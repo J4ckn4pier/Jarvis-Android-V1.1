@@ -38,6 +38,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private static final long NEXT_LISTEN_DELAY_MILLIS = 180L;
 
     private final AdaptiveEndpointingPolicy endpointing = new AdaptiveEndpointingPolicy();
+    private final AndroidAecBargeInMonitor bargeInMonitor;
     private AndroidBrainRuntime brain;
     private SpeechRecognizer speechRecognizer;
     private TextToSpeech textToSpeech;
@@ -54,7 +55,10 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private String lastCommand = "";
     private String lastPartial = "";
 
-    public JarvisVoiceSession(Context context) { super(context); }
+    public JarvisVoiceSession(Context context) {
+        super(context);
+        bargeInMonitor = new AndroidAecBargeInMonitor(context);
+    }
 
     @Override public void onCreate() {
         super.onCreate();
@@ -141,7 +145,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         autoListenTriggered = false;
         resumeAfterSpeech = false;
         conversationDeadlineElapsedRealtime = 0L;
-        if (output != null) output.removeCallbacks(this::scheduleNextListen);
+        bargeInMonitor.stop();
         if (speechRecognizer != null) speechRecognizer.cancel();
         if (textToSpeech != null) textToSpeech.stop();
         setActive(false);
@@ -158,8 +162,21 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private void interruptSpeechAndListen() {
         beginConversationWindowIfNeeded();
         resumeAfterSpeech = false;
+        bargeInMonitor.stop();
         if (textToSpeech != null) textToSpeech.stop();
         startListening();
+    }
+
+    private void handleHandsFreeBargeIn() {
+        TextView surface = output;
+        if (surface == null) return;
+        surface.post(() -> {
+            if (!conversationWindowOpen()) return;
+            resumeAfterSpeech = false;
+            bargeInMonitor.stop();
+            if (textToSpeech != null) textToSpeech.stop();
+            startListening();
+        });
     }
 
     private boolean conversationWindowOpen() {
@@ -185,6 +202,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     }
 
     private void startListening() {
+        bargeInMonitor.stop();
         if (!conversationWindowOpen()) {
             if (output != null) output.setText("Conversation paused. Tap LISTEN when you want me again.");
             setActive(false);
@@ -280,13 +298,16 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
                 : brain.approvePresentation()));
         cancelButton.setVisibility(approval || recovery ? View.VISIBLE : View.GONE);
 
+        bargeInMonitor.stop();
         resumeAfterSpeech = false;
         if (!approval && !recovery) {
             resumeAfterSpeech = conversationWindowOpen();
         }
         if (!text.isBlank() && textToSpeech != null) {
             int result = textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "jarvis-session");
-            if (result == TextToSpeech.ERROR && resumeAfterSpeech) {
+            if (result == TextToSpeech.SUCCESS) {
+                bargeInMonitor.start(this::handleHandsFreeBargeIn);
+            } else if (resumeAfterSpeech) {
                 resumeAfterSpeech = false;
                 scheduleNextListen();
             }
@@ -337,13 +358,17 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
                 @Override public void onStart(String utteranceId) { }
 
                 @Override public void onDone(String utteranceId) {
-                    if (!"jarvis-session".equals(utteranceId) || !resumeAfterSpeech) return;
+                    if (!"jarvis-session".equals(utteranceId)) return;
+                    bargeInMonitor.stop();
+                    if (!resumeAfterSpeech) return;
                     resumeAfterSpeech = false;
                     if (output != null) output.post(JarvisVoiceSession.this::scheduleNextListen);
                 }
 
                 @Override public void onError(String utteranceId) {
-                    if (!"jarvis-session".equals(utteranceId) || !resumeAfterSpeech) return;
+                    if (!"jarvis-session".equals(utteranceId)) return;
+                    bargeInMonitor.stop();
+                    if (!resumeAfterSpeech) return;
                     resumeAfterSpeech = false;
                     if (output != null) output.post(JarvisVoiceSession.this::scheduleNextListen);
                 }
@@ -355,6 +380,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         sessionVisible = false;
         resumeAfterSpeech = false;
         conversationDeadlineElapsedRealtime = 0L;
+        bargeInMonitor.stop();
         if (speechRecognizer != null) {
             speechRecognizer.cancel();
             speechRecognizer.destroy();
