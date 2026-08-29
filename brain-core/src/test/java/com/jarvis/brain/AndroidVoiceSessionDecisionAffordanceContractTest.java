@@ -7,7 +7,8 @@ import java.nio.file.Path;
 public final class AndroidVoiceSessionDecisionAffordanceContractTest {
     public static void main(String[] args) throws Exception {
         String session = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/assistant/JarvisVoiceSession.java"));
-        String smoke = Files.readString(Path.of("../.github/scripts/emulator-smoke.sh"));
+        String smoke = Files.readString(Path.of("../.github/scripts/overlay-decision-smoke.sh"));
+        String workflow = Files.readString(Path.of("../.github/workflows/build-apk.yml"));
 
         check(session.contains("primaryButton.setContentDescription(recovery ? \"JARVIS RETRY action\" : \"JARVIS APPROVE action\");"),
                 "assistant overlay primary decision control must reuse the full-app accessibility identifier space");
@@ -26,6 +27,8 @@ public final class AndroidVoiceSessionDecisionAffordanceContractTest {
                 "emulator smoke must tap the overlay CANCEL node by accessibility bounds");
         check(smoke.contains("JARVIS_SHARED_BRAIN_ACTIVE.*state=IDLE"),
                 "emulator smoke must prove overlay cancellation clears the shared runtime decision");
+        check(workflow.contains("sh .github/scripts/emulator-smoke.sh && sh .github/scripts/overlay-decision-smoke.sh"),
+                "Android 16 workflow must execute overlay decision smoke after baseline emulator acceptance");
 
         System.out.println("AndroidVoiceSessionDecisionAffordanceContractTest passed");
     }
