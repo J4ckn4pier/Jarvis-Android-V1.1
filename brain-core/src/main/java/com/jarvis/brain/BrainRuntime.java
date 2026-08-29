@@ -37,13 +37,13 @@ public final class BrainRuntime {
         if(response.kind()==BrainResponse.Kind.IGNORED_AMBIENT)return new Result(Status.IGNORED,"","",List.of());
         if(response.kind()!=BrainResponse.Kind.ACTION_PLAN||response.plan()==null)return new Result(Status.COMPLETED,response.text(),"",List.of());
         InterruptionDecision decision=pendingInterruptionPolicy.decide(pendingStatus,pendingTool,response.plan());
-        if(decision!=InterruptionDecision.DO_BOTH)return pendingDecisionResult("I still need your decision on the pending action before I can run that request.",List.of());
+        if(decision!=InterruptionDecision.DO_BOTH)return pendingDecisionResult("I still need your decision on the pending action before I can run that request. I did not queue the new request; resolve the pending action first, then ask me again.",List.of());
         ExecutionReport report=executor.run(executor.start(response.plan()),new ExecutionContext());
         return switch(report.status()){
             case COMPLETED->new Result(Status.COMPLETED,lastNonBlank(report.outputs(),response.text()),"",report.outputs());
             case FAILED->pendingDecisionResult(sideFailureText(report,"That side request failed safely."),report.outputs());
             case RECOVERY_REQUIRED->pendingDecisionResult(sideFailureText(report,"That side request needs recovery before it can continue."),report.outputs());
-            case APPROVAL_REQUIRED->pendingDecisionResult("I still need your decision on the original pending action before I start another consequential action.",report.outputs());
+            case APPROVAL_REQUIRED->pendingDecisionResult("I still need your decision on the original pending action before I start another consequential action. I did not queue the new request; resolve the pending action first, then ask me again.",report.outputs());
         };
     }
     private Result pendingDecisionResult(String text,List<String> outputs){
