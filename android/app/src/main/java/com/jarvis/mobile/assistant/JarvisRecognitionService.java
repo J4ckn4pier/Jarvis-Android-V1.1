@@ -76,7 +76,8 @@ public final class JarvisRecognitionService extends RecognitionService {
                 safe(() -> listener.partialResults(partialResults));
             }
             @Override public void onEvent(int eventType, Bundle params) {
-                safe(() -> listener.event(eventType, params));
+                // RecognitionService.Callback has no generic event forwarding API. Ignoring this
+                // optional provider-specific callback is safer than inventing a false mapping.
             }
         });
         try {
