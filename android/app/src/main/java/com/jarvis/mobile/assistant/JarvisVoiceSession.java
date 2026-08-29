@@ -3,6 +3,7 @@ package com.jarvis.mobile.assistant;
 import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
 import android.graphics.Typeface;
@@ -36,6 +37,8 @@ import java.util.Locale;
 public class JarvisVoiceSession extends VoiceInteractionSession implements TextToSpeech.OnInitListener {
     private static final long CONVERSATION_WINDOW_MILLIS = 10 * 60 * 1000L;
     private static final long NEXT_LISTEN_DELAY_MILLIS = 180L;
+    private static final String TEST_TAG = "JARVIS_ASSISTANT_TEST";
+    private static final String TEST_COMMAND_EXTRA = "jarvis_test_command";
 
     private final AdaptiveEndpointingPolicy endpointing = new AdaptiveEndpointingPolicy();
     private final AndroidAecBargeInMonitor bargeInMonitor;
@@ -67,7 +70,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     }
 
     @Override public View onCreateContentView() {
-        Log.i("JARVIS_ASSISTANT_TEST", "JARVIS_ASSISTANT_READY");
+        Log.i(TEST_TAG, "JARVIS_ASSISTANT_READY");
         FrameLayout root = new FrameLayout(getContext());
         root.setPadding(dp(12), dp(12), dp(12), dp(10));
 
@@ -108,11 +111,13 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         buttons.addView(listen);
 
         primaryButton = button("APPROVE");
+        primaryButton.setContentDescription("JARVIS APPROVE action");
         primaryButton.setVisibility(View.GONE);
         primaryButton.setOnClickListener(v -> deliver(brain.approvePresentation()));
         buttons.addView(primaryButton);
 
         cancelButton = button("NOT YET");
+        cancelButton.setContentDescription("JARVIS CANCEL action");
         cancelButton.setVisibility(View.GONE);
         cancelButton.setOnClickListener(v -> deliver(brain.cancelPresentation()));
         buttons.addView(cancelButton);
@@ -137,7 +142,24 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         super.onShow(args, flags);
         sessionVisible = true;
         beginConversationWindowIfNeeded();
-        if (viewReady && output != null) output.postDelayed(this::triggerAutoListen, 120);
+        Log.i(TEST_TAG, "JARVIS_OVERLAY_SESSION_SHOWN");
+        String testCommand = debugTestCommand(args);
+        if (viewReady && output != null && !testCommand.isBlank()) {
+            autoListenTriggered = true;
+            output.post(() -> {
+                if (sessionVisible) execute(testCommand, 1.0);
+            });
+        } else if (viewReady && output != null) {
+            output.postDelayed(this::triggerAutoListen, 120);
+        }
+    }
+
+    private String debugTestCommand(Bundle args) {
+        if ((getContext().getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0 || args == null) {
+            return "";
+        }
+        String command = args.getString(TEST_COMMAND_EXTRA, "");
+        return command == null ? "" : command.trim();
     }
 
     @Override public void onHide() {
@@ -293,9 +315,11 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         boolean recovery = presentation.state() == AssistantSurfaceState.NEEDS_INPUT;
         primaryButton.setVisibility(approval || recovery ? View.VISIBLE : View.GONE);
         primaryButton.setText(recovery ? "RETRY" : "APPROVE");
+        primaryButton.setContentDescription(recovery ? "JARVIS RETRY action" : "JARVIS APPROVE action");
         primaryButton.setOnClickListener(v -> deliver(recovery
                 ? brain.retryPresentation()
                 : brain.approvePresentation()));
+        cancelButton.setContentDescription("JARVIS CANCEL action");
         cancelButton.setVisibility(approval || recovery ? View.VISIBLE : View.GONE);
 
         bargeInMonitor.stop();
