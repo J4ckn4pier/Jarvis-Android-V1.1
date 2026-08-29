@@ -21,13 +21,20 @@ public final class AndroidBrainRuntime {
 
     public AndroidBrainRuntime(Context context) {
         Context app = context.getApplicationContext();
+        Clock clock = Clock.systemDefaultZone();
         ExternalResearchGateway research = ExternalResearchGateway.unavailable();
         ToolRegistry tools = AndroidToolRegistryFactory.create(app, research);
         ConnectionRegistry connections = new ConnectionRegistry(new AndroidConnectionRegistryPersistence(app));
         ReasoningRouter reasoning = request -> reasonWithConfiguredCortex(app, request, tools);
-        BrainEngine brain = BrainEngine.createDefault(Clock.systemDefaultZone());
+
+        LongTermMemoryStore memory = new LongTermMemoryStore(new AndroidLongTermMemoryPersistence(
+                app.getNoBackupFilesDir().toPath().resolve("jarvis").resolve("long-term-memory.bin"),
+                new AndroidKeystoreMemoryCipher("jarvis.long.term.memory.v1")));
+        MemoryContextSource memoryContext = new MemoryContextSource(memory, clock, 8);
+
+        BrainEngine brain = BrainEngine.createDefault(clock);
         brain.beginInvokedConversation();
-        AssistantCore assistant = new AssistantCore(brain, reasoning, tools);
+        AssistantCore assistant = new AssistantCore(brain, reasoning, tools, memoryContext);
         runtime = new BrainRuntime(assistant, tools);
         conversation = new RuntimeApprovalConversation(runtime);
 
@@ -39,7 +46,7 @@ public final class AndroidBrainRuntime {
         ActivityLog activity = new ActivityLog(new AndroidActivityLogPersistence(app));
         DeviceStateStore devices = new DeviceStateStore(new AndroidDeviceStateStorePersistence(app));
         MusicQueueStore music = new MusicQueueStore(new AndroidMusicQueueStorePersistence(app));
-        uiBackend = new JarvisUiBackend(null, tools, connections, settings, defaultApps, lists, routines, activity, devices, music);
+        uiBackend = new JarvisUiBackend(memory, tools, connections, settings, defaultApps, lists, routines, activity, devices, music);
         OutcomeFollowupStore followupStore = new EncryptedFileOutcomeFollowupStore(
                 app.getNoBackupFilesDir().toPath().resolve("jarvis").resolve("pending-outcome-followups.bin"),
                 new AndroidKeystoreMemoryCipher());
