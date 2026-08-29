@@ -32,7 +32,9 @@ public final class AndroidBrainRuntime {
         conversation = new RuntimeApprovalConversation(runtime);
 
         settings = new SettingsStore(new AndroidSharedPreferencesSettingsPersistence(app));
-        uiBackend = new JarvisUiBackend(null, tools, connections, settings);
+        DefaultAppPreferenceStore defaultApps = new DefaultAppPreferenceStore(
+                new AndroidDefaultAppPreferencePersistence(app));
+        uiBackend = new JarvisUiBackend(null, tools, connections, settings, defaultApps);
         OutcomeFollowupStore followupStore = new EncryptedFileOutcomeFollowupStore(
                 app.getNoBackupFilesDir().toPath().resolve("jarvis").resolve("pending-outcome-followups.bin"),
                 new AndroidKeystoreMemoryCipher());
