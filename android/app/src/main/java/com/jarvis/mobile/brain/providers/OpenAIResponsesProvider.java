@@ -32,7 +32,8 @@ public final class OpenAIResponsesProvider implements CortexProvider {
         if (!isConfigured()) return new ReasoningResult(id(), "", null);
         JSONObject format = new JSONObject().put("type", "json_schema").put("name", "jarvis_shared_plan")
                 .put("strict", true).put("schema", ProviderSharedPlanSchema.jsonSchema(tools));
-        JSONObject response = post(request.utterance(), ProviderSharedPlanSchema.systemPrompt(), format);
+        JSONObject response = post(ProviderReasoningEnvelope.userContent(request),
+                ProviderSharedPlanSchema.systemPrompt(), format);
         String json = outputText(response);
         return json.isEmpty()
                 ? new ReasoningResult(id(), "", null)
