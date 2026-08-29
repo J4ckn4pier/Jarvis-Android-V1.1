@@ -24,8 +24,8 @@ public final class AndroidMusicQueuePersistenceContractTest {
                 "Android runtime must bind durable music persistence");
         check(runtime.contains("MusicQueueStore music = new MusicQueueStore("),
                 "Android runtime must own the durable music store");
-        check(runtime.contains("new JarvisUiBackend(null, tools, connections, settings, defaultApps, lists, routines, activity, devices, music)"),
-                "frontend facade must receive the same durable music store");
+        check(runtime.contains("new JarvisUiBackend(memory, tools, connections, settings, defaultApps, lists, routines, activity, devices, music)"),
+                "frontend facade must receive the same durable music store alongside the shared durable memory store");
 
         System.out.println("AndroidMusicQueuePersistenceContractTest passed");
     }
