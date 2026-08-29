@@ -26,10 +26,10 @@ public final class PendingConsequentialInterruptionTest {
         check(pending.state() == AssistantSurfaceState.AWAITING_APPROVAL, "approval variant begins pending");
         check(originalSends[0] == 0, "original consequential action has not executed before approval");
 
-        RuntimeSurfacePresentation conflict = conversation.handle("also create the dinner event");
+        RuntimeSurfacePresentation conflict = conversation.handle("also perform omega operation");
         check(conflict.state() == AssistantSurfaceState.AWAITING_APPROVAL, "second consequential request preserves original approval state");
         check(conflict.primaryAction() == RuntimeSurfaceAction.APPROVE, "original approve affordance remains visible");
-        check(conflict.text().toLowerCase().contains("not queued"), "conflict text truthfully says second request was not queued");
+        check(conflict.text().toLowerCase().contains("not queue"), "conflict text truthfully says second request was not queued");
         check(originalSends[0] == 0, "conflict does not execute original action early");
         check(secondActions[0] == 0, "conflict does not execute second consequential action");
         check(conversation.hasPendingApproval(), "original approval cursor remains pending after conflict");
@@ -49,10 +49,10 @@ public final class PendingConsequentialInterruptionTest {
         check(pending.state() == AssistantSurfaceState.NEEDS_INPUT, "recovery variant begins pending");
         check(originalAttempts[0] == 2, "original action reaches bounded recovery decision");
 
-        RuntimeSurfacePresentation conflict = conversation.handle("also send the status message");
+        RuntimeSurfacePresentation conflict = conversation.handle("also perform omega operation");
         check(conflict.state() == AssistantSurfaceState.NEEDS_INPUT, "second consequential request preserves original recovery state");
         check(conflict.primaryAction() == RuntimeSurfaceAction.RETRY, "original retry affordance remains visible");
-        check(conflict.text().toLowerCase().contains("not queued"), "recovery conflict text truthfully says second request was not queued");
+        check(conflict.text().toLowerCase().contains("not queue"), "recovery conflict text truthfully says second request was not queued");
         check(originalAttempts[0] == 2, "conflict does not retry original action implicitly");
         check(secondActions[0] == 0, "conflict does not execute second consequential action");
         check(conversation.hasPendingRecovery(), "original recovery cursor remains pending after conflict");
@@ -70,17 +70,17 @@ public final class PendingConsequentialInterruptionTest {
                     originalSends[0]++;
                     return ToolResult.success("Message sent");
                 });
-        tools.register(new ToolSpec("create_event", true, Set.of("event", "calendar"), Set.of(),
-                "create calendar event", ToolExecutionClass.CONSEQUENTIAL), (args, ctx) -> {
+        tools.register(new ToolSpec("omega_action", true, Set.of("omega"), Set.of(),
+                "perform synthetic consequential omega action", ToolExecutionClass.CONSEQUENTIAL), (args, ctx) -> {
                     secondActions[0]++;
-                    return ToolResult.success("Event created");
+                    return ToolResult.success("omega completed");
                 });
 
         ReasoningRouter reasoning = request -> {
-            if (request.utterance().toLowerCase().contains("dinner event")) {
-                return new ReasoningResult("test", "Creating event.", new Plan(
-                        "create second consequential event",
-                        List.of(new PlanStep("create_event", Map.of(), true))));
+            if (request.utterance().toLowerCase().contains("omega operation")) {
+                return new ReasoningResult("test", "Starting omega.", new Plan(
+                        "perform second consequential omega action",
+                        List.of(new PlanStep("omega_action", Map.of(), true))));
             }
             return new ReasoningResult("test", "reasoned", null);
         };
@@ -97,10 +97,10 @@ public final class PendingConsequentialInterruptionTest {
                     if (originalAttempts[0] <= 2) return ToolResult.retryableFailure("temporary zeta failure");
                     return ToolResult.success("zeta recovered");
                 });
-        tools.register(new ToolSpec("send_message", true, Set.of("message", "status"), Set.of(),
-                "send status message", ToolExecutionClass.CONSEQUENTIAL), (args, ctx) -> {
+        tools.register(new ToolSpec("omega_action", true, Set.of("omega"), Set.of(),
+                "perform synthetic consequential omega action", ToolExecutionClass.CONSEQUENTIAL), (args, ctx) -> {
                     secondActions[0]++;
-                    return ToolResult.success("Status message sent");
+                    return ToolResult.success("omega completed");
                 });
 
         ReasoningRouter reasoning = request -> {
@@ -110,10 +110,10 @@ public final class PendingConsequentialInterruptionTest {
                         "perform recoverable zeta action",
                         List.of(new PlanStep("zeta_action", Map.of(), false))));
             }
-            if (utterance.contains("status message")) {
-                return new ReasoningResult("test", "Sending status.", new Plan(
-                        "send second consequential message",
-                        List.of(new PlanStep("send_message", Map.of(), true))));
+            if (utterance.contains("omega operation")) {
+                return new ReasoningResult("test", "Starting omega.", new Plan(
+                        "perform second consequential omega action",
+                        List.of(new PlanStep("omega_action", Map.of(), true))));
             }
             return new ReasoningResult("test", "reasoned", null);
         };
