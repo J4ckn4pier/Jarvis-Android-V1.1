@@ -18,10 +18,12 @@ public final class AndroidBrainRuntime {
     private final SettingsStore settings;
     private final OutcomeFollowupRuntime followups;
     private final JarvisUiBackend uiBackend;
+    private final MemoryConsolidator memoryConsolidator;
+    private final Clock clock;
 
     public AndroidBrainRuntime(Context context) {
         Context app = context.getApplicationContext();
-        Clock clock = Clock.systemDefaultZone();
+        clock = Clock.systemDefaultZone();
         ExternalResearchGateway research = ExternalResearchGateway.unavailable();
         ToolRegistry tools = AndroidToolRegistryFactory.create(app, research);
         ConnectionRegistry connections = new ConnectionRegistry(new AndroidConnectionRegistryPersistence(app));
@@ -30,6 +32,7 @@ public final class AndroidBrainRuntime {
         LongTermMemoryStore memory = new LongTermMemoryStore(new AndroidLongTermMemoryPersistence(
                 app.getNoBackupFilesDir().toPath().resolve("jarvis").resolve("long-term-memory.bin"),
                 new AndroidKeystoreMemoryCipher("jarvis.long.term.memory.v1")));
+        memoryConsolidator = new MemoryConsolidator(new RuleMemoryExtractor(), memory);
         MemoryContextSource memoryContext = new MemoryContextSource(memory, clock, 8);
 
         BrainEngine brain = BrainEngine.createDefault(clock);
@@ -64,8 +67,15 @@ public final class AndroidBrainRuntime {
     public boolean hasPendingApproval() { return runtime.hasPendingApproval(); }
     public boolean hasPendingRecovery() { return runtime.hasPendingRecovery(); }
 
+    /** Explicit typed/text surfaces are already-confirmed user input. */
     public RuntimeSurfacePresentation handlePresentation(String utterance) {
+        return handlePresentation(utterance, 1.0);
+    }
+
+    /** Speech surfaces supply recognizer confidence so uncertain ASR never masquerades as trusted memory. */
+    public RuntimeSurfacePresentation handlePresentation(String utterance, double speechConfidence) {
         Log.i(TRACE_TAG, "JARVIS_RUNTIME_INPUT utterance=" + String.valueOf(utterance));
+        memoryConsolidator.ingestUserTurn(utterance, speechConfidence, clock.instant());
         RuntimeSurfacePresentation presentation = conversation.handle(utterance);
         Log.i(TRACE_TAG, "JARVIS_RUNTIME_OUTPUT state=" + presentation.state() + " text=" + presentation.text());
         return presentation;
