@@ -35,8 +35,10 @@ import android.widget.LinearLayout;
 import android.widget.PopupMenu;
 import android.widget.TextView;
 
+import com.jarvis.brain.FullAppRuntimeViewState;
+import com.jarvis.brain.RuntimeSurfacePresentation;
+import com.jarvis.mobile.brain.AndroidBrainRuntime;
 import com.jarvis.mobile.brain.JarvisBrain;
-import com.jarvis.mobile.brain.core.BrainResult;
 import com.jarvis.mobile.assistant.JarvisVoiceInteractionService;
 import com.jarvis.mobile.assistant.JarvisVoiceSessionService;
 import com.jarvis.mobile.events.JarvisNotificationListener;
@@ -57,6 +59,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private static final String SELF_TEST_TAG = "JARVIS_SELF_TEST";
     private static final String COMMAND_TEST_TAG = "JARVIS_COMMAND_TEST";
     private static final String UI_TEST_TAG = "JARVIS_UI_TEST";
+    private static final String SHARED_BRAIN_TAG = "JARVIS_SHARED_BRAIN_ACTIVE";
 
     private final android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
     private final Runnable pulse = new Runnable() {
@@ -68,6 +71,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     };
 
     private JarvisBrain brain;
+    private AndroidBrainRuntime runtime;
     private SpeechRecognizer speechRecognizer;
     private TextToSpeech textToSpeech;
     private LegacyResponsePlayer legacyResponses;
@@ -90,13 +94,11 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
         preferences = getSharedPreferences("jarvis_shell", MODE_PRIVATE);
         brain = new JarvisBrain(this);
+        runtime = new AndroidBrainRuntime(this);
         legacyResponses = new LegacyResponsePlayer(this);
         textToSpeech = new TextToSpeech(this, this);
         buildDonorShell();
 
-        // The build pipeline invokes this on the production activity after installing the
-        // finished APK in Android. It intentionally runs before permission prompts so CI can
-        // prove the transplanted brain, private memory, and declared Android components work.
         if (getIntent() != null && getIntent().getBooleanExtra("jarvis_self_test", false)) {
             ui.postDelayed(this::runEmbeddedSelfTest, 350L);
             return;
@@ -164,7 +166,6 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         statusParams.setMargins(dp(18), 0, dp(18), dp(218));
         root.addView(status, statusParams);
 
-        // The donor's MK3 layout used an invisible speech target over the arc reactor.
         View reactorTarget = new View(this);
         reactorTarget.setContentDescription("Speak to JARVIS");
         reactorTarget.setFocusable(true);
@@ -301,7 +302,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         }
         setActive(true, "Processing ...");
         status.setText("Heard you say, “" + command + "”");
-        ui.postDelayed(() -> brain.handle(command, this::deliverResult), 120L);
+        ui.postDelayed(() -> deliverPresentation(runtime.handlePresentation(command)), 120L);
     }
 
     private void runCandidates(ArrayList<String> candidates) {
@@ -309,18 +310,21 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             setActive(false, "I didn’t catch that. Tap the reactor to try again.");
             return;
         }
-        setActive(true, "Processing ...");
-        status.setText("Heard you say, “" + candidates.get(0) + "”");
-        brain.handleCandidates(candidates, this::deliverResult);
+        runCommand(candidates.get(0));
     }
 
-    private void deliverResult(BrainResult result) {
-        setActive(false, result.spokenText());
-        if (commandTestMode) Log.i(COMMAND_TEST_TAG, "JARVIS_COMMAND_RESULT " + result.spokenText());
-        boolean needsNarration = result.spokenText().length() > 90;
-        boolean playedOriginalLine = !needsNarration && legacyResponses != null &&
-                legacyResponses.play(result.cue());
-        if (!playedOriginalLine) speak(result.spokenText());
+    private void deliverPresentation(RuntimeSurfacePresentation presentation) {
+        FullAppRuntimeViewState view = FullAppRuntimeViewState.from(presentation);
+        String rendered = view.text();
+        if (!view.detail().isBlank() && !view.detail().equals(view.text())) {
+            rendered += "\n\n" + view.detail();
+        }
+        if (view.primaryEnabled()) rendered += "\n\n" + view.primaryAction();
+        if (view.secondaryEnabled()) rendered += " / " + view.secondaryAction();
+        setActive(false, rendered);
+        Log.i(SHARED_BRAIN_TAG, "state=" + view.state() + " primary=" + view.primaryAction());
+        if (commandTestMode) Log.i(COMMAND_TEST_TAG, "JARVIS_COMMAND_RESULT " + view.text());
+        if (!view.text().isBlank()) speak(view.text());
     }
 
     private void runEmbeddedSelfTest() {
@@ -420,7 +424,10 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                 : SpeechRecognizer.createSpeechRecognizer(this);
         speechRecognizer.setRecognitionListener(new RecognitionListener() {
             @Override public void onReadyForSpeech(Bundle params) { setActive(true, "Listening ..."); }
-            @Override public void onBeginningOfSpeech() { setActive(true, "Hearing you ..."); }
+            @Override public void onBeginningOfSpeech() {
+                if (textToSpeech != null) textToSpeech.stop();
+                setActive(true, "Hearing you ...");
+            }
             @Override public void onRmsChanged(float rmsdB) { }
             @Override public void onBufferReceived(byte[] buffer) { }
             @Override public void onEndOfSpeech() { setActive(true, "Processing ..."); }
