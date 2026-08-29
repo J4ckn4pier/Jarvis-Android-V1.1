@@ -36,6 +36,9 @@ public final class BrainEngine {
         session.rememberTurn(input);
         String context = session.snapshot();
         if (lower.contains("how are you")) return BrainResponse.of(BrainResponse.Kind.CONVERSATION, "I'm doing well. How are you?", null, true, acceptedWithoutWake, context);
+        if (isHelpRequest(lower)) return BrainResponse.of(BrainResponse.Kind.CONVERSATION,
+                "You can speak naturally. I can call contacts, send messages, set reminders and timers, check your calendar, weather and notifications, navigate, control media and device features, research, plan, and remember useful context. I can prepare consequential actions, but I require your approval before I communicate, call, book, spend, or make destructive changes on your behalf.",
+                null, true, acceptedWithoutWake, context);
 
         BrainResponse memoryResponse = handleMemory(input, lower, acceptedWithoutWake, context);
         if (memoryResponse != null) return memoryResponse;
@@ -137,6 +140,10 @@ public final class BrainEngine {
         return BrainResponse.of(BrainResponse.Kind.ACTION_PLAN, "Understood.", new Plan(goal, List.of(new PlanStep(tool, args, consequential))), true, acceptedWithoutWake, context);
     }
 
+    private static boolean isHelpRequest(String lower) {
+        String normalized = lower.replaceAll("[^a-z0-9']+", " ").trim();
+        return normalized.matches("help(?: me)?|what can you do|what do you do|capabilities|show me what you can do");
+    }
     private static boolean isDialerAlias(String lower) { return lower.matches("(?:open\\s+)?(?:the\\s+)?(?:phone(?:\\s+app)?|dialer|calls?|telephone)"); }
     private static boolean isDinnerDiscovery(String lower, String context) { if (lower.contains("find me a place to eat") || lower.contains("find me somewhere good") || lower.contains("where should i eat") || lower.contains("dinner tonight")) return true; return lower.contains("find me somewhere") && (context.contains("food") || context.contains("italian") || context.contains("dinner")); }
     private static boolean isConversationalFollowup(String lower) { return lower.startsWith("what have you") || lower.startsWith("how about you") || lower.startsWith("why do you") || lower.startsWith("tell me more") || lower.startsWith("and what") || lower.startsWith("what do you think"); }
