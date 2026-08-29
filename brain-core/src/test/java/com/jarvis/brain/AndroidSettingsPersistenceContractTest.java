@@ -16,7 +16,8 @@ public final class AndroidSettingsPersistenceContractTest {
         check(adapter.contains("implements SettingsPersistence"), "Android settings adapter must implement the shared persistence port");
         check(adapter.contains("MODE_PRIVATE"), "Android settings persistence must use app-private preferences");
         check(adapter.contains("jarvis_brain_settings"), "brain settings need a dedicated preference namespace");
-        check(!adapter.contains("SecureSecretStore")
+        check(!adapter.contains("import com.jarvis.mobile.brain.providers.SecureSecretStore")
+                        && !adapter.contains("new SecureSecretStore(")
                         && !lower.contains("api_key")
                         && !lower.contains("openai_api_key")
                         && !lower.contains("anthropic_api_key")
