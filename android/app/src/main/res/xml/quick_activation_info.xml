@@ -4,7 +4,7 @@
     android:initialLayout="@layout/widget_quick_activation"
     android:minWidth="250dp"
     android:minHeight="70dp"
-    android:previewImage="@drawable/jarvis_widget_icon"
+    android:previewImage="@drawable/ic_launcher_foreground"
     android:resizeMode="horizontal"
     android:updatePeriodMillis="0"
     android:widgetCategory="home_screen" />
