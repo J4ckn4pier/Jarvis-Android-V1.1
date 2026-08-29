@@ -10,17 +10,33 @@ import android.util.Log;
 /** Android system entry point for the active JARVIS voice interaction service. */
 public class JarvisVoiceInteractionService extends VoiceInteractionService {
     private static final String TEST_TAG = "JARVIS_ASSISTANT_TEST";
+    private static final String WAKE_TAG = "JARVIS_PASSIVE_WAKE";
     private static volatile JarvisVoiceInteractionService activeInstance;
+    private WakeWordDetectorPort wakeWordDetector;
 
     @Override
     public void onReady() {
         super.onReady();
         activeInstance = this;
+        wakeWordDetector = AndroidWakeWordDetectorFactory.create(this);
+        boolean started = wakeWordDetector.start(this::showWakeSession);
+        Log.i(WAKE_TAG, started
+                ? "JARVIS_PASSIVE_WAKE_READY model=" + wakeWordDetector.modelDescriptor().identifier()
+                : "JARVIS_PASSIVE_WAKE_DISABLED reason=" + wakeWordDetector.status());
         Log.i(TEST_TAG, "JARVIS_VOICE_SERVICE_READY");
+    }
+
+    private void showWakeSession() {
+        showSession(new Bundle(), VoiceInteractionSession.SHOW_WITH_ASSIST);
+        Log.i(WAKE_TAG, "JARVIS_PASSIVE_WAKE_TRIGGERED");
     }
 
     @Override
     public void onShutdown() {
+        if (wakeWordDetector != null) {
+            wakeWordDetector.stop();
+            wakeWordDetector = null;
+        }
         if (activeInstance == this) activeInstance = null;
         Log.i(TEST_TAG, "JARVIS_VOICE_SERVICE_SHUTDOWN");
         super.onShutdown();
