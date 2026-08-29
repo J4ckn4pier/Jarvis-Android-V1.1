@@ -21,8 +21,9 @@ public final class PendingApprovalSideQuestionTest {
         check(conversation.hasPendingApproval(), "approval is pending before side question");
 
         RuntimeSurfacePresentation side = conversation.handle("what is the diagnostic value?");
-        check(side.state() == AssistantSurfaceState.ACTION_DONE, "safe side question can complete");
+        check(side.state() == AssistantSurfaceState.AWAITING_APPROVAL, "safe side question completes while approval remains surfaced");
         check(side.text().contains("72"), "side question returns its result");
+        check(side.primaryAction() == RuntimeSurfaceAction.APPROVE, "approval affordance remains after side answer");
         check(reads[0] == 1, "safe side tool executes exactly once");
         check(conversation.hasPendingApproval(), "original consequential approval survives side question");
         check(sends[0] == 0, "side question never executes pending consequential tool");
@@ -41,8 +42,6 @@ public final class PendingApprovalSideQuestionTest {
                     sends[0]++;
                     return ToolResult.success("Message sent");
                 });
-        // DEVICE_REFLEX is intentionally used here: it remains non-consequential but is returned to BrainRuntime
-        // as an ACTION_PLAN, which exercises preservation of the original pending approval cursor.
         tools.register(new ToolSpec("read_info", false, Set.of("diagnostic"), Set.of(),
                 "read diagnostic information", ToolExecutionClass.DEVICE_REFLEX), (args, ctx) -> {
                     reads[0]++;
