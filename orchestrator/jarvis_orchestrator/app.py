@@ -1,10 +1,9 @@
 from __future__ import annotations
 
-import asyncio
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Header, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, Header, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
 from .core import EchoRuntime, InMemoryEventBus, Orchestrator, ValkeyEventBus
@@ -38,7 +37,7 @@ async def lifespan(app: FastAPI):
         await app.state.valkey.aclose()
 
 
-app = FastAPI(title="JARVIS Orchestrator", version="0.1.0", lifespan=lifespan)
+app = FastAPI(title="JARVIS Orchestrator", version="0.2.0", lifespan=lifespan)
 
 
 @app.get("/health")
@@ -52,6 +51,31 @@ async def command(body: Command, authorization: str | None = Header(default=None
     if not _authorized(token):
         raise HTTPException(status_code=401, detail="Unauthorized")
     return await app.state.orchestrator.submit(body.text, body.session_id)
+
+
+@app.get("/v1/sessions/{session_id}/events")
+async def event_history(
+    session_id: str,
+    limit: int = Query(default=100, ge=1, le=1000),
+    authorization: str | None = Header(default=None),
+):
+    """Recover state missed while a phone/desktop client was disconnected."""
+    token = authorization.removeprefix("Bearer ") if authorization else None
+    if not _authorized(token):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    events = await app.state.bus.history(session_id, limit)
+    return {"session_id": session_id, "events": [
+        {
+            "session_id": event.session_id,
+            "task_id": event.task_id,
+            "active_layer": event.active_layer,
+            "neurons_firing": event.neurons_firing,
+            "agent_ops_status": event.agent_ops_status,
+            "sequence": event.sequence,
+            "timestamp": event.timestamp,
+        }
+        for event in events
+    ]}
 
 
 @app.websocket("/v1/events")
