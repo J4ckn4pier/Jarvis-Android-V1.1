@@ -2,6 +2,7 @@ package com.jarvis.mobile.brain;
 
 import android.content.Context;
 
+import com.jarvis.brain.ConversationalCallTransport;
 import com.jarvis.brain.ExternalResearchGateway;
 import com.jarvis.brain.ToolExecutionClass;
 import com.jarvis.brain.ToolRegistry;
@@ -20,11 +21,15 @@ import com.jarvis.mobile.memory.JarvisDatabase;
 import java.util.Map;
 import java.util.Set;
 
-/** Android hands for the shared brain tool registry. Research remains a separate injected gateway. */
+/** Android hands for the shared brain tool registry. Research and duplex call transport remain injected boundaries. */
 public final class AndroidToolRegistryFactory {
     private AndroidToolRegistryFactory() {}
 
     public static ToolRegistry create(Context context, ExternalResearchGateway research) {
+        return create(context, research, null);
+    }
+
+    public static ToolRegistry create(Context context, ExternalResearchGateway research, ConversationalCallTransport callTransport) {
         Context appContext = context.getApplicationContext();
         AndroidDialerActions dialer = new AndroidDialerActions(appContext);
         AndroidFlashlightActions flashlight = new AndroidFlashlightActions(appContext);
@@ -34,7 +39,7 @@ public final class AndroidToolRegistryFactory {
         AndroidReminderActions reminders = new AndroidReminderActions(appContext);
         AndroidTimerActions timer = new AndroidTimerActions(appContext);
         AndroidCalendarReader calendar = new AndroidCalendarReader(appContext);
-        ToolRegistry registry = ToolRegistry.standard(research);
+        ToolRegistry registry = ToolRegistry.standard(research, callTransport);
 
         register(registry, "open_dialer", false, Set.of("phone", "phone app", "dialer"), Set.of(),
                 "Open Android phone dialer", ToolExecutionClass.DEVICE_REFLEX,
