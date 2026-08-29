@@ -8,8 +8,21 @@ public final class BrainRuntime {
     public record Result(Status status, String text, String blockedTool, List<String> outputs) {
         public Result { if(status==null)throw new IllegalArgumentException("status required"); text=text==null?"":text.trim(); blockedTool=blockedTool==null?"":blockedTool.trim(); outputs=outputs==null?List.of():List.copyOf(outputs); }
     }
-    private final AssistantCore assistant; private final ToolRegistry tools; private final ApprovalGate approvals=new ApprovalGate(); private final ResumablePlanExecutor executor; private ExecutionCursor pending; private String pendingTool=""; private Status pendingStatus;
-    public BrainRuntime(AssistantCore assistant,ToolRegistry tools){if(assistant==null)throw new IllegalArgumentException("assistant required");if(tools==null)throw new IllegalArgumentException("tool registry required");this.assistant=assistant;this.tools=tools;this.executor=new ResumablePlanExecutor(tools,approvals);}
+    private final AssistantCore assistant;
+    private final ApprovalGate approvals=new ApprovalGate();
+    private final ResumablePlanExecutor executor;
+    private final PendingDecisionInterruptionPolicy pendingInterruptionPolicy;
+    private ExecutionCursor pending;
+    private String pendingTool="";
+    private Status pendingStatus;
+
+    public BrainRuntime(AssistantCore assistant,ToolRegistry tools){
+        if(assistant==null)throw new IllegalArgumentException("assistant required");
+        if(tools==null)throw new IllegalArgumentException("tool registry required");
+        this.assistant=assistant;
+        this.executor=new ResumablePlanExecutor(tools,approvals);
+        this.pendingInterruptionPolicy=new PendingDecisionInterruptionPolicy(tools);
+    }
     public synchronized Result handle(String utterance){
         if(pending!=null&&(pendingStatus==Status.APPROVAL_REQUIRED||pendingStatus==Status.RECOVERY_REQUIRED))return handleSideQuestionWhileDecisionPending(utterance);
         BrainResponse response=assistant.handle(utterance);if(response.kind()==BrainResponse.Kind.IGNORED_AMBIENT)return new Result(Status.IGNORED,"","",List.of());if(response.kind()!=BrainResponse.Kind.ACTION_PLAN||response.plan()==null)return new Result(Status.COMPLETED,response.text(),"",List.of());pending=executor.start(response.plan());pendingStatus=null;return runPending(response.text());
@@ -23,7 +36,8 @@ public final class BrainRuntime {
         BrainResponse response=assistant.handle(utterance);
         if(response.kind()==BrainResponse.Kind.IGNORED_AMBIENT)return new Result(Status.IGNORED,"","",List.of());
         if(response.kind()!=BrainResponse.Kind.ACTION_PLAN||response.plan()==null)return new Result(Status.COMPLETED,response.text(),"",List.of());
-        if(!isSafeSidePlan(response.plan()))return pendingDecisionResult("I still need your decision on the pending action before I can run that request.",List.of());
+        InterruptionDecision decision=pendingInterruptionPolicy.decide(pendingStatus,pendingTool,response.plan());
+        if(decision!=InterruptionDecision.DO_BOTH)return pendingDecisionResult("I still need your decision on the pending action before I can run that request.",List.of());
         ExecutionReport report=executor.run(executor.start(response.plan()),new ExecutionContext());
         return switch(report.status()){
             case COMPLETED->new Result(Status.COMPLETED,lastNonBlank(report.outputs(),response.text()),"",report.outputs());
@@ -39,15 +53,6 @@ public final class BrainRuntime {
     private static String sideFailureText(ExecutionReport report,String fallback){
         String detail=report.failureDetail()==null||report.failureDetail().isBlank()?fallback:report.failureDetail();
         return detail+" Your previous action is still waiting for your decision.";
-    }
-    private boolean isSafeSidePlan(Plan plan){
-        for(PlanStep step:plan.steps()){
-            if(step.consequential())return false;
-            ToolRegistry.RegisteredTool tool=tools.resolve(step.tool()).orElse(null);
-            if(tool==null||tool.spec().consequential()||tool.spec().executionClass()==ToolExecutionClass.CONSEQUENTIAL)return false;
-            if(pendingStatus==Status.RECOVERY_REQUIRED&&tool.name().equals(pendingTool))return false;
-        }
-        return true;
     }
     private Result runPending(String assistantText){ExecutionReport report=executor.run(pending,new ExecutionContext());return switch(report.status()){
         case COMPLETED->{String text=lastNonBlank(report.outputs(),assistantText);clearPending();yield new Result(Status.COMPLETED,text,"",report.outputs());}
