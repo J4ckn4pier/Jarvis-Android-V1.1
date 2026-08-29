@@ -1,5 +1,64 @@
+import java.security.MessageDigest
+
 plugins {
     id 'com.android.application'
+}
+
+def repositoryRoot = rootProject.projectDir.parentFile
+def generatedIntegrityAssets = file("$buildDir/generated/release-integrity/assets")
+def integrityRoots = [
+        new File(repositoryRoot, 'brain-core/src'),
+        new File(repositoryRoot, 'android/app/src')
+]
+
+def sha256File = { File input ->
+    MessageDigest digest = MessageDigest.getInstance('SHA-256')
+    input.withInputStream { stream ->
+        byte[] buffer = new byte[8192]
+        int read
+        while ((read = stream.read(buffer)) != -1) {
+            if (read > 0) digest.update(buffer, 0, read)
+        }
+    }
+    digest.digest().encodeHex().toString()
+}
+
+def generateReleaseIntegrity = tasks.register('generateReleaseIntegrity') {
+    inputs.files(integrityRoots.collect { root -> fileTree(root) })
+    outputs.dir(generatedIntegrityAssets)
+
+    doLast {
+        delete(generatedIntegrityAssets)
+        generatedIntegrityAssets.mkdirs()
+
+        List<File> covered = []
+        integrityRoots.each { File root ->
+            if (!root.isDirectory()) {
+                throw new GradleException("Release integrity input root is missing: ${root}")
+            }
+            root.eachFileRecurse { File candidate ->
+                if (candidate.isFile()) covered << candidate
+            }
+        }
+        covered.sort { a, b -> a.path <=> b.path }
+
+        StringBuilder manifest = new StringBuilder()
+        manifest.append('format=jarvis-release-integrity-v1\n')
+        manifest.append('origin=SjRja040cGllcg==\n')
+        manifest.append("files=${covered.size()}\n")
+        covered.each { File source ->
+            String relative = repositoryRoot.toPath().relativize(source.toPath()).toString().replace(File.separatorChar, '/' as char)
+            manifest.append(sha256File(source)).append('  ').append(relative).append('\n')
+        }
+
+        MessageDigest rootDigest = MessageDigest.getInstance('SHA-256')
+        String rootHash = rootDigest.digest(manifest.toString().getBytes('UTF-8')).encodeHex().toString()
+        manifest.append('root=').append(rootHash).append('\n')
+
+        File marker = new File(generatedIntegrityAssets, 'jarvis_provenance/origin.idx')
+        marker.parentFile.mkdirs()
+        marker.setText(manifest.toString(), 'UTF-8')
+    }
 }
 
 android {
@@ -14,6 +73,8 @@ android {
         versionName '1.1.0-brain-first'
     }
 
+    sourceSets.main.assets.srcDir(generatedIntegrityAssets)
+
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
         targetCompatibility JavaVersion.VERSION_17
@@ -23,6 +84,10 @@ android {
         debug { debuggable true }
         release { minifyEnabled false; shrinkResources false }
     }
+}
+
+tasks.named('preBuild').configure {
+    dependsOn(generateReleaseIntegrity)
 }
 
 dependencies {
