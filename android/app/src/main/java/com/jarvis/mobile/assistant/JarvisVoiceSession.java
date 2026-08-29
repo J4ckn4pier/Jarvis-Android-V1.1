@@ -100,10 +100,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         LinearLayout buttons = new LinearLayout(getContext());
         buttons.setGravity(Gravity.CENTER);
         Button listen = button("LISTEN");
-        listen.setOnClickListener(v -> {
-            beginConversationWindowIfNeeded();
-            startListening();
-        });
+        listen.setOnClickListener(v -> interruptSpeechAndListen());
         buttons.addView(listen);
 
         primaryButton = button("APPROVE");
@@ -156,6 +153,13 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         if (conversationDeadlineElapsedRealtime <= now) {
             conversationDeadlineElapsedRealtime = now + CONVERSATION_WINDOW_MILLIS;
         }
+    }
+
+    private void interruptSpeechAndListen() {
+        beginConversationWindowIfNeeded();
+        resumeAfterSpeech = false;
+        if (textToSpeech != null) textToSpeech.stop();
+        startListening();
     }
 
     private boolean conversationWindowOpen() {
