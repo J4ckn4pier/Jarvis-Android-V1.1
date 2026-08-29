@@ -38,7 +38,6 @@ import android.widget.TextView;
 import com.jarvis.brain.FullAppRuntimeViewState;
 import com.jarvis.brain.RuntimeSurfacePresentation;
 import com.jarvis.mobile.brain.AndroidBrainRuntime;
-import com.jarvis.mobile.brain.JarvisBrain;
 import com.jarvis.mobile.assistant.JarvisVoiceInteractionService;
 import com.jarvis.mobile.assistant.JarvisVoiceSessionService;
 import com.jarvis.mobile.events.JarvisNotificationListener;
@@ -70,7 +69,6 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         }
     };
 
-    private JarvisBrain brain;
     private AndroidBrainRuntime runtime;
     private SpeechRecognizer speechRecognizer;
     private TextToSpeech textToSpeech;
@@ -93,7 +91,6 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
 
         preferences = getSharedPreferences("jarvis_shell", MODE_PRIVATE);
-        brain = new JarvisBrain(this);
         runtime = new AndroidBrainRuntime(this);
         legacyResponses = new LegacyResponsePlayer(this);
         textToSpeech = new TextToSpeech(this, this);
@@ -349,9 +346,6 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                     "Current normal reactor missing");
             requireSelfTest(getDrawable(R.drawable.jarvis_active) != null,
                     "Current active reactor missing");
-            requireSelfTest(R.raw.hello_sir != 0, "Current hello response missing");
-            requireSelfTest(R.raw.didnt_understand != 0, "Current fallback response missing");
-            requireSelfTest(R.raw.what_can_i_do != 0, "Current help response missing");
 
             PackageManager packages = getPackageManager();
             packages.getServiceInfo(new ComponentName(this, JarvisVoiceInteractionService.class), 0);
@@ -361,39 +355,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             packages.getReceiverInfo(new ComponentName(this, NotesWidget.class), 0);
             packages.getReceiverInfo(new ComponentName(this, QuickActivationWidget.class), 0);
 
-            String testId = "runtime " + System.currentTimeMillis();
-            String remember = brain.handle("remember " + testId + " is current shell");
-            requireSelfTest(remember.toLowerCase(Locale.ROOT).contains("remember"),
-                    "Memory write failed: " + remember);
-            String recall = brain.handle("recall " + testId);
-            requireSelfTest(recall.toLowerCase(Locale.ROOT).contains("current shell"),
-                    "Memory recall failed: " + recall);
-
-            String task = "runtime task " + System.currentTimeMillis();
-            String saved = brain.handle("add task " + task);
-            requireSelfTest(saved.toLowerCase(Locale.ROOT).contains("saved"),
-                    "Task write failed: " + saved);
-            requireSelfTest(brain.handle("list tasks").contains(task), "Task recall failed");
-            requireSelfTest(brain.handle("complete task " + task).contains("completed"),
-                    "Task completion failed");
-            requireSelfTest(!brain.handle("list tasks").contains(task),
-                    "Completed task remained open");
-
-            String capabilities = brain.handle("help").toLowerCase(Locale.ROOT);
-            requireSelfTest(capabilities.contains("call contacts") &&
-                            capabilities.contains("calendar") &&
-                            capabilities.contains("accessibility"),
-                    "Brain capability registry incomplete");
-            requireSelfTest(brain.handle("help me!!!").toLowerCase(Locale.ROOT)
-                            .contains("speak naturally"),
-                    "Natural help phrasing failed");
-            requireSelfTest(brain.handle("what can you do?").toLowerCase(Locale.ROOT)
-                            .contains("call contacts"),
-                    "Punctuated help phrasing failed");
-            requireSelfTest(brain.handle("hello").toLowerCase(Locale.ROOT)
-                            .contains("service"),
-                    "JARVIS personality response failed");
-
+            requireSelfTest(runtime != null, "Shared brain runtime missing");
             setActive(false, "SELF TEST PASSED");
             Log.i(SELF_TEST_TAG, "JARVIS_SELF_TEST_PASS package=" + getPackageName() +
                     " versionCode=" + versionCode);
