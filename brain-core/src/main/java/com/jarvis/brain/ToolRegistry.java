@@ -59,7 +59,7 @@ public final class ToolRegistry {
         r.register(spec("set_flashlight", false, Set.of("flashlight", "torch"), Set.of("state"), "Turn flashlight on/off", ToolExecutionClass.DEVICE_REFLEX), ready("flashlight-ready"));
         r.register(spec("calendar_query", false, Set.of("calendar", "schedule"), Set.of("when"), "Read calendar commitments", ToolExecutionClass.DEVICE_REFLEX), ready("calendar-ready"));
         r.register(spec("notification_query", false, Set.of("notifications"), Set.of(), "Read captured notifications", ToolExecutionClass.DEVICE_REFLEX), ready("notifications-ready"));
-        r.register(spec("translate", false, Set.of("translation"), Set.of("request"), "Translate text", ToolExecutionClass.DEVICE_REFLEX), ready("translation-ready"));
+        r.register(spec("translate", false, Set.of("translation"), Set.of("request"), "Translate text through the provider-neutral language gateway", ToolExecutionClass.AUTONOMOUS_RESEARCH), gateway::translate);
         r.register(spec("send_message", true, Set.of("text", "message"), Set.of("recipient", "message"), "Send an external message on the user's behalf", ToolExecutionClass.CONSEQUENTIAL), ready("message-ready"));
         return r;
     }
