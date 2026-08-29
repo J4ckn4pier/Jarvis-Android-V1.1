@@ -22,14 +22,20 @@ class BrainEvent:
 class EventBus(Protocol):
     async def publish(self, event: BrainEvent) -> None: ...
     async def subscribe(self) -> AsyncIterator[BrainEvent]: ...
+    async def history(self, session_id: str, limit: int = 100) -> list[BrainEvent]: ...
 
 
 class InMemoryEventBus:
     """Zero-infrastructure bus for development/tests; production swaps in ValkeyEventBus."""
     def __init__(self) -> None:
         self._subscribers: set[asyncio.Queue[BrainEvent]] = set()
+        self._history: dict[str, list[BrainEvent]] = {}
 
     async def publish(self, event: BrainEvent) -> None:
+        events = self._history.setdefault(event.session_id, [])
+        events.append(event)
+        if len(events) > 1000:
+            del events[:-1000]
         for queue in tuple(self._subscribers):
             await queue.put(event)
 
@@ -42,18 +48,26 @@ class InMemoryEventBus:
         finally:
             self._subscribers.discard(queue)
 
+    async def history(self, session_id: str, limit: int = 100) -> list[BrainEvent]:
+        return list(self._history.get(session_id, []))[-limit:]
+
 
 class ValkeyEventBus:
-    """Valkey uses the Redis wire protocol; redis-py is the MIT-licensed Python client."""
+    """Live Pub/Sub plus durable per-session Valkey Streams history."""
     CHANNEL = "brain:state"
+    STREAM_PREFIX = "brain:events:"
 
     def __init__(self, client) -> None:
         self.client = client
 
     async def publish(self, event: BrainEvent) -> None:
         payload = json.dumps(asdict(event), separators=(",", ":"))
-        await self.client.publish(self.CHANNEL, payload)
+        stream = f"{self.STREAM_PREFIX}{event.session_id}"
+        # XADD makes reconnect recovery durable; Pub/Sub remains the low-latency live path.
+        await self.client.xadd(stream, {"event": payload}, maxlen=10_000, approximate=True)
+        await self.client.expire(stream, 604800)
         await self.client.set(f"brain:session:{event.session_id}:latest", payload, ex=86400)
+        await self.client.publish(self.CHANNEL, payload)
 
     async def subscribe(self) -> AsyncIterator[BrainEvent]:
         pubsub = self.client.pubsub()
@@ -69,6 +83,17 @@ class ValkeyEventBus:
         finally:
             await pubsub.unsubscribe(self.CHANNEL)
             await pubsub.aclose()
+
+    async def history(self, session_id: str, limit: int = 100) -> list[BrainEvent]:
+        rows = await self.client.xrevrange(f"{self.STREAM_PREFIX}{session_id}", count=limit)
+        events: list[BrainEvent] = []
+        for _, fields in reversed(rows):
+            raw = fields.get(b"event") if b"event" in fields else fields.get("event")
+            if isinstance(raw, bytes):
+                raw = raw.decode()
+            if raw:
+                events.append(BrainEvent(**json.loads(raw)))
+        return events
 
 
 class AgentRuntime(Protocol):
