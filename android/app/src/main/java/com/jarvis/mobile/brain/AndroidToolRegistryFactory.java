@@ -8,6 +8,7 @@ import com.jarvis.brain.ToolRegistry;
 import com.jarvis.brain.ToolResult;
 import com.jarvis.brain.ToolSpec;
 import com.jarvis.mobile.actions.AndroidActionRouter;
+import com.jarvis.mobile.actions.AndroidDialerActions;
 import com.jarvis.mobile.actions.AndroidMediaActions;
 import com.jarvis.mobile.calendar.AndroidCalendarReader;
 import com.jarvis.mobile.memory.JarvisDatabase;
@@ -22,13 +23,14 @@ public final class AndroidToolRegistryFactory {
     public static ToolRegistry create(Context context, ExternalResearchGateway research) {
         Context appContext = context.getApplicationContext();
         AndroidActionRouter actions = new AndroidActionRouter(appContext);
+        AndroidDialerActions dialer = new AndroidDialerActions(appContext);
         AndroidMediaActions media = new AndroidMediaActions(appContext);
         AndroidCalendarReader calendar = new AndroidCalendarReader(appContext);
         ToolRegistry registry = ToolRegistry.standard(research);
 
         register(registry, "open_dialer", false, Set.of("phone", "phone app", "dialer"), Set.of(),
                 "Open Android phone dialer", ToolExecutionClass.DEVICE_REFLEX,
-                args -> actions.execute("open phone"));
+                args -> dialer.openDialer());
         register(registry, "set_timer", false, Set.of("timer"), Set.of("amount", "unit"),
                 "Set Android timer", ToolExecutionClass.DEVICE_REFLEX,
                 args -> actions.execute("set timer for " + args.get("amount") + " " + args.get("unit")));
