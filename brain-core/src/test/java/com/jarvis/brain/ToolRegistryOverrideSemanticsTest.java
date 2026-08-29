@@ -53,7 +53,7 @@ public final class ToolRegistryOverrideSemanticsTest {
     private static String run(ToolRegistry registry, String name) throws Exception {
         ToolRegistry.RegisteredTool tool = registry.resolve(name)
                 .orElseThrow(() -> new AssertionError("missing tool alias: " + name));
-        ToolResult result = tool.implementation().execute(java.util.Map.of(), new ToolContext("test", "test"));
+        ToolResult result = tool.implementation().execute(java.util.Map.of(), new ExecutionContext());
         return result.output();
     }
 
