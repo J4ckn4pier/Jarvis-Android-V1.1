@@ -3,7 +3,7 @@ package com.jarvis.brain;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-/** Android wake models must be app-private, metadata-backed, hash verified, and min-SDK compatible. */
+/** Android wake models must be app-private, metadata-backed, versioned, hash verified, and min-SDK compatible. */
 public final class AndroidWakeWordModelStoreContractTest {
     public static void main(String[] args) throws Exception {
         String store = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/assistant/AndroidWakeWordModelStore.java"));
@@ -12,6 +12,10 @@ public final class AndroidWakeWordModelStoreContractTest {
         check(store.contains("getNoBackupFilesDir()"), "wake model artifact must live in app-private no-backup storage");
         check(store.contains("wake-model.properties"), "wake model must have explicit provenance metadata");
         check(store.contains("wake-model.bin"), "wake model bytes must use a distinct app-private artifact file");
+        check(store.contains("properties.getProperty(\"revision\""),
+                "Android loader must read the release-reviewed wake model revision instead of silently treating every artifact as revision 1");
+        check(store.contains("Long.parseLong"),
+                "wake model revision metadata must be parsed as a numeric monotonic revision");
         check(store.contains("MessageDigest.getInstance(\"SHA-256\")"), "wake model bytes must be SHA-256 verified");
         check(store.contains("WakeWordArtifactVerifier"), "Android loader must reuse the core commercial+integrity gate");
         check(store.contains("WakeWordReleaseTrustRegistry.currentPolicy()"),
