@@ -3,7 +3,6 @@ package com.jarvis.brain;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
-import java.util.Map;
 import java.util.Set;
 
 public final class RuntimeApprovalConversationTest {
@@ -11,6 +10,7 @@ public final class RuntimeApprovalConversationTest {
     public static void main(String[] args) {
         spokenYesApprovesExactlyOnce();
         spokenDeferralCancelsWithoutExecution();
+        lowConfidenceApprovalStaysPending();
         System.out.println("RuntimeApprovalConversationTest: " + checks + " assertions passed");
     }
 
@@ -33,6 +33,19 @@ public final class RuntimeApprovalConversationTest {
         RuntimeSurfacePresentation cancelled = bridge.handle("not yet");
         check(cancelled.state() == AssistantSurfaceState.IDLE, "deferral returns idle");
         check(sends[0] == 0, "deferral never executes message");
+    }
+
+    private static void lowConfidenceApprovalStaysPending() {
+        int[] sends = {0};
+        RuntimeApprovalConversation bridge = bridge(sends);
+        RuntimeSurfacePresentation pending = bridge.handle("Jarvis, text Mom dinner is ready");
+        check(pending.state() == AssistantSurfaceState.AWAITING_APPROVAL, "message waits for approval before confidence check");
+        RuntimeSurfacePresentation unclear = bridge.handle("yes", 0.42);
+        check(unclear.state() == AssistantSurfaceState.AWAITING_APPROVAL, "low-confidence yes keeps approval pending");
+        check(sends[0] == 0, "low-confidence yes never executes consequential tool");
+        RuntimeSurfacePresentation done = bridge.handle("confirm", 0.95);
+        check(done.state() == AssistantSurfaceState.ACTION_DONE, "clear explicit confirmation resumes pending plan");
+        check(sends[0] == 1, "clear explicit confirmation executes exactly once");
     }
 
     private static RuntimeApprovalConversation bridge(int[] sends) {
