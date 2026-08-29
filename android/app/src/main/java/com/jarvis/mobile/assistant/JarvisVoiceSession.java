@@ -20,6 +20,7 @@ import android.util.Log;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowInsets;
 import android.widget.Button;
 import android.widget.FrameLayout;
 import android.widget.LinearLayout;
@@ -73,7 +74,17 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     @Override public View onCreateContentView() {
         Log.i(TEST_TAG, "JARVIS_ASSISTANT_READY");
         FrameLayout root = new FrameLayout(getContext());
-        root.setPadding(dp(12), dp(12), dp(12), dp(10));
+        final int horizontalPadding = dp(12);
+        final int topPadding = dp(12);
+        final int bottomPadding = dp(10);
+        root.setPadding(horizontalPadding, topPadding, horizontalPadding, bottomPadding);
+        root.setOnApplyWindowInsetsListener((v, insets) -> {
+            int navigationBottom = Build.VERSION.SDK_INT >= Build.VERSION_CODES.R
+                    ? insets.getInsets(WindowInsets.Type.navigationBars()).bottom
+                    : insets.getSystemWindowInsetBottom();
+            v.setPadding(horizontalPadding, topPadding, horizontalPadding, bottomPadding + navigationBottom);
+            return insets;
+        });
 
         background = new FrameLayout(getContext());
         background.setBackgroundColor(Color.rgb(1, 18, 27));
