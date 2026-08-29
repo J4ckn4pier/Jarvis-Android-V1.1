@@ -18,8 +18,11 @@ public final class AndroidVoiceConversationContinuityContractTest {
         check(session.contains("presentation.state() == AssistantSurfaceState.NEEDS_INPUT"), "recovery state must remain explicit");
         check(!session.contains("if (!approval && !recovery)"), "approval/recovery prompts must not force a tap before the user can answer by voice");
         check(session.contains("resumeAfterSpeech = conversationWindowOpen();"), "spoken prompts must reopen recognition while the active conversation window remains open");
-        check(approval.contains("if(runtime.hasPendingApproval())") && approval.contains("if(isApproval(n))return RuntimeSurfacePresentation.from(runtime.approvePending())"),
-                "pending consequential actions must still require an explicit recognized approval phrase before execution");
+        check(approval.contains("runtime.hasPendingApproval()")
+                        && approval.contains("isApproval(n)")
+                        && approval.contains("MIN_VOICE_APPROVAL_CONFIDENCE")
+                        && approval.contains("runtime.approvePending()"),
+                "pending consequential actions must still require an explicit, confidence-gated recognized approval phrase before execution");
         check(approval.contains("v.equals(\"yes\")") && approval.contains("v.equals(\"go ahead\")") && approval.contains("v.equals(\"confirm\")"),
                 "voice approval vocabulary must remain explicit and narrow");
         check(approval.contains("if(isDeferral(n))return cancel"), "spoken deferral/cancel must remain available while an approval is pending");
