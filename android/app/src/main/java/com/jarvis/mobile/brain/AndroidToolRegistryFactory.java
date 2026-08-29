@@ -8,6 +8,7 @@ import com.jarvis.brain.ToolRegistry;
 import com.jarvis.brain.ToolResult;
 import com.jarvis.brain.ToolSpec;
 import com.jarvis.mobile.actions.AndroidActionRouter;
+import com.jarvis.mobile.actions.AndroidMediaActions;
 import com.jarvis.mobile.calendar.AndroidCalendarReader;
 import com.jarvis.mobile.memory.JarvisDatabase;
 
@@ -21,6 +22,7 @@ public final class AndroidToolRegistryFactory {
     public static ToolRegistry create(Context context, ExternalResearchGateway research) {
         Context appContext = context.getApplicationContext();
         AndroidActionRouter actions = new AndroidActionRouter(appContext);
+        AndroidMediaActions media = new AndroidMediaActions(appContext);
         AndroidCalendarReader calendar = new AndroidCalendarReader(appContext);
         ToolRegistry registry = ToolRegistry.standard(research);
 
@@ -35,7 +37,7 @@ public final class AndroidToolRegistryFactory {
                 args -> actions.execute("navigate to " + args.get("destination")));
         register(registry, "media_play", false, Set.of("play music", "play media"), Set.of("query"),
                 "Play requested media", ToolExecutionClass.DEVICE_REFLEX,
-                args -> actions.execute("play " + args.get("query")));
+                args -> media.playMediaQuery(args.get("query")));
         register(registry, "set_flashlight", false, Set.of("flashlight", "torch"), Set.of("state"),
                 "Set flashlight state", ToolExecutionClass.DEVICE_REFLEX,
                 args -> actions.execute("flashlight " + args.get("state")));
