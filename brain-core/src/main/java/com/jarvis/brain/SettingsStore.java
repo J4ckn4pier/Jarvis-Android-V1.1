@@ -13,6 +13,7 @@ public final class SettingsStore {
         values.put("language", "en-US");
         values.put("personality", "humble-butler-beta");
         values.put("proactive_enabled", "true");
+        values.put("presence_followup_opt_in", "false");
         values.put("offline_enabled", "true");
         values.put("overlay_enabled", "true");
         values.put("ambient_orb_enabled", "false");
