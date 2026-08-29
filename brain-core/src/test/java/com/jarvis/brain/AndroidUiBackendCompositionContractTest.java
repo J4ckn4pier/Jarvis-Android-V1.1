@@ -21,8 +21,10 @@ public final class AndroidUiBackendCompositionContractTest {
                 "Android runtime must own one activity/audit store for backend/UI composition");
         check(runtime.contains("DeviceStateStore devices ="),
                 "Android runtime must own one device-state store for backend/UI composition");
-        check(runtime.contains("new JarvisUiBackend(null, tools, connections, settings, defaultApps, lists, routines, activity, devices)"),
-                "UI backend must share runtime tools, connections, settings, default apps, lists, routines, activity, and device state");
+        check(runtime.contains("MusicQueueStore music ="),
+                "Android runtime must own one music queue store for backend/UI composition");
+        check(runtime.contains("settings, defaultApps, lists, routines, activity, devices, music)"),
+                "UI backend must share settings, default apps, lists, routines, activity, devices, and music");
         check(runtime.contains("public JarvisUiBackend uiBackend()"),
                 "Android frontend adapter must be able to reach the shared UI backend facade");
 
