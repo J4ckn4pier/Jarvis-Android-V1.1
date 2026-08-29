@@ -79,6 +79,19 @@ public final class JarvisUiBackend {
                            RoutineStore routines,
                            ActivityLog activity,
                            DeviceStateStore devices) {
+        this(memory, tools, connections, settings, defaultApps, lists, routines, activity, devices, new MusicQueueStore());
+    }
+
+    public JarvisUiBackend(LongTermMemoryStore memory,
+                           ToolRegistry tools,
+                           ConnectionRegistry connections,
+                           SettingsStore settings,
+                           DefaultAppPreferenceStore defaultApps,
+                           UiListStore lists,
+                           RoutineStore routines,
+                           ActivityLog activity,
+                           DeviceStateStore devices,
+                           MusicQueueStore music) {
         this.memory = memory == null ? new LongTermMemoryStore() : memory;
         this.memoryEditor = new ManualMemoryEditor(this.memory);
         this.tools = tools == null ? ToolRegistry.standard() : tools;
@@ -87,7 +100,7 @@ public final class JarvisUiBackend {
         this.routines = routines == null ? new RoutineStore() : routines;
         this.activity = activity == null ? new ActivityLog() : activity;
         this.devices = devices == null ? new DeviceStateStore() : devices;
-        this.music = new MusicQueueStore();
+        this.music = music == null ? new MusicQueueStore() : music;
         this.settings = settings == null ? new SettingsStore() : settings;
         this.defaultApps = defaultApps == null ? new DefaultAppPreferenceStore() : defaultApps;
         this.popup = new PopupOverlayController();
