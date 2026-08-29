@@ -46,6 +46,8 @@ public final class BrainExitGateCompositionContractTest {
                 "pending recovery decisions must survive safe side questions in the composed brain gate");
         require(gate, "PendingDecisionInterruptionPolicyTest.class",
                 "pending runtime decisions must use explicit ASK/DO_BOTH interruption policy in the composed brain gate");
+        require(gate, "PendingDecisionSurfaceContinuityTest.class",
+                "pending decision affordances must survive side answers in the composed brain gate");
 
         System.out.println("BrainExitGateCompositionContractTest passed");
     }
