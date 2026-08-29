@@ -13,7 +13,9 @@ public final class JarvisAssistantTestReceiver extends BroadcastReceiver {
     @Override
     public void onReceive(Context context, Intent intent) {
         String testCommand = intent == null ? "" : intent.getStringExtra(TEST_COMMAND_EXTRA);
-        boolean triggered = JarvisVoiceInteractionService.requestDebugTestSession(context, testCommand);
+        boolean triggered = testCommand == null || testCommand.isBlank()
+                ? JarvisVoiceInteractionService.requestDebugTestSession(context)
+                : JarvisVoiceInteractionService.requestDebugTestSession(context, testCommand);
         Log.i(TAG, triggered ? "JARVIS_DEBUG_SESSION_REQUEST_ACCEPTED" : "JARVIS_DEBUG_SESSION_REQUEST_REJECTED");
     }
 }
