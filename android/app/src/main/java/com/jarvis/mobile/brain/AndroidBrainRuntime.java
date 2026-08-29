@@ -35,7 +35,8 @@ public final class AndroidBrainRuntime {
         DefaultAppPreferenceStore defaultApps = new DefaultAppPreferenceStore(
                 new AndroidDefaultAppPreferencePersistence(app));
         UiListStore lists = new UiListStore(new AndroidUiListStorePersistence(app));
-        uiBackend = new JarvisUiBackend(null, tools, connections, settings, defaultApps, lists);
+        RoutineStore routines = new RoutineStore(new AndroidRoutineStorePersistence(app));
+        uiBackend = new JarvisUiBackend(null, tools, connections, settings, defaultApps, lists, routines);
         OutcomeFollowupStore followupStore = new EncryptedFileOutcomeFollowupStore(
                 app.getNoBackupFilesDir().toPath().resolve("jarvis").resolve("pending-outcome-followups.bin"),
                 new AndroidKeystoreMemoryCipher());
