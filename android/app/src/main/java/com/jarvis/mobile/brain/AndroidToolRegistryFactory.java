@@ -42,6 +42,10 @@ public final class AndroidToolRegistryFactory {
         register(registry, "calendar_query", false, Set.of("calendar", "schedule"), Set.of("when"),
                 "Read calendar commitments", ToolExecutionClass.DEVICE_REFLEX,
                 args -> calendar.commitments(args.get("when")));
+        register(registry, "create_reminder", false, Set.of("reminder", "remind me"), Set.of("request"),
+                "Open the Android calendar editor with the requested reminder details for user confirmation",
+                ToolExecutionClass.DEVICE_REFLEX,
+                args -> actions.execute("schedule " + args.get("request")));
         register(registry, "notification_query", false, Set.of("notifications", "notification"), Set.of(),
                 "Read captured notifications", ToolExecutionClass.DEVICE_REFLEX,
                 args -> {
