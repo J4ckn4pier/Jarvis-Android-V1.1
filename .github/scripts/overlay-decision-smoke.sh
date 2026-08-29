@@ -6,11 +6,14 @@ PACKAGE="com.jarvis.mobile"
 
 # Start from HOME so the prior assistant smoke session is not reused. The debug-only receiver asks
 # Android's already-bound JARVIS VoiceInteractionService to show a fresh real session and carries a
-# deterministic command only in debuggable builds.
+# deterministic command only in debuggable builds. Encode the fixture before it crosses adb/device
+# shell boundaries so punctuation and whitespace cannot be reinterpreted by nested shell parsing.
 adb shell input keyevent KEYCODE_HOME
 sleep 1
 adb logcat -c
-adb shell "am broadcast -a com.jarvis.mobile.DEBUG_SHOW_ASSISTANT -p $PACKAGE --es jarvis_test_command 'Jarvis, text Mom I am on my way'" \
+JARVIS_TEST_COMMAND_B64=$(printf '%s' "Jarvis, text Mom I am on my way" | base64 | tr -d '\n')
+adb shell am broadcast -a com.jarvis.mobile.DEBUG_SHOW_ASSISTANT -p "$PACKAGE" \
+  --es jarvis_test_command_b64 "$JARVIS_TEST_COMMAND_B64" \
   | tee "$OUTPUT/emulator-overlay-decision-trigger.txt"
 
 OVERLAY_READY=0
