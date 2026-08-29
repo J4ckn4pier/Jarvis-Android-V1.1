@@ -23,7 +23,7 @@ public final class BrainRuntime {
         BrainResponse response=assistant.handle(utterance);
         if(response.kind()==BrainResponse.Kind.IGNORED_AMBIENT)return new Result(Status.IGNORED,"","",List.of());
         if(response.kind()!=BrainResponse.Kind.ACTION_PLAN||response.plan()==null)return new Result(Status.COMPLETED,response.text(),"",List.of());
-        if(!isSafeSidePlan(response.plan()))return pendingDecisionResult("I still need your decision on the pending action before I start another consequential action.",List.of());
+        if(!isSafeSidePlan(response.plan()))return pendingDecisionResult("I still need your decision on the pending action before I can run that request.",List.of());
         ExecutionReport report=executor.run(executor.start(response.plan()),new ExecutionContext());
         return switch(report.status()){
             case COMPLETED->new Result(Status.COMPLETED,lastNonBlank(report.outputs(),response.text()),"",report.outputs());
@@ -45,6 +45,7 @@ public final class BrainRuntime {
             if(step.consequential())return false;
             ToolRegistry.RegisteredTool tool=tools.resolve(step.tool()).orElse(null);
             if(tool==null||tool.spec().consequential()||tool.spec().executionClass()==ToolExecutionClass.CONSEQUENTIAL)return false;
+            if(pendingStatus==Status.RECOVERY_REQUIRED&&tool.name().equals(pendingTool))return false;
         }
         return true;
     }
