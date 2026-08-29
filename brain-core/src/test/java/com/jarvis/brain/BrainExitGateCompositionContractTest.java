@@ -20,6 +20,10 @@ public final class BrainExitGateCompositionContractTest {
                 "wake model artifact integrity must be part of the composed brain gate");
         require(gate, "WakeWordReleaseTrustRegistryTest.class",
                 "release-owned legal/provenance trust must be part of the composed brain gate");
+        require(gate, "CompositeAssistantContextSourceTest.class",
+                "provider-neutral reasoning context composition must be part of the composed brain gate");
+        require(gate, "RuntimeEnvironmentContextSourceTest.class",
+                "current time and relevant normalized device context must be part of the composed brain gate");
         require(gate, "UiListStorePersistenceTest.class",
                 "durable editable UI lists must be part of the composed brain gate");
         require(gate, "JarvisUiListCompositionTest.class",
