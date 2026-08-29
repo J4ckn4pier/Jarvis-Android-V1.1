@@ -1,0 +1,21 @@
+services:
+  valkey:
+    image: valkey/valkey:8-alpine
+    restart: unless-stopped
+    command: ["valkey-server", "--appendonly", "yes"]
+    volumes:
+      - valkey-data:/data
+
+  orchestrator:
+    build: .
+    restart: unless-stopped
+    environment:
+      VALKEY_URL: redis://valkey:6379/0
+      JARVIS_API_TOKEN: ${JARVIS_API_TOKEN:-}
+    ports:
+      - "8000:8000"
+    depends_on:
+      - valkey
+
+volumes:
+  valkey-data:
