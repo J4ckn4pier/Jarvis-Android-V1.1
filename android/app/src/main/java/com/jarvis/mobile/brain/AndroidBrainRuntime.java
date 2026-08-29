@@ -17,11 +17,13 @@ public final class AndroidBrainRuntime {
     private final RuntimeApprovalConversation conversation;
     private final SettingsStore settings;
     private final OutcomeFollowupRuntime followups;
+    private final JarvisUiBackend uiBackend;
 
     public AndroidBrainRuntime(Context context) {
         Context app = context.getApplicationContext();
         ExternalResearchGateway research = ExternalResearchGateway.unavailable();
         ToolRegistry tools = AndroidToolRegistryFactory.create(app, research);
+        ConnectionRegistry connections = new ConnectionRegistry();
         ReasoningRouter reasoning = request -> reasonWithConfiguredCortex(app, request, tools);
         BrainEngine brain = BrainEngine.createDefault(Clock.systemDefaultZone());
         brain.beginInvokedConversation();
@@ -30,6 +32,7 @@ public final class AndroidBrainRuntime {
         conversation = new RuntimeApprovalConversation(runtime);
 
         settings = new SettingsStore(new AndroidSharedPreferencesSettingsPersistence(app));
+        uiBackend = new JarvisUiBackend(null, tools, connections, settings);
         OutcomeFollowupStore followupStore = new EncryptedFileOutcomeFollowupStore(
                 app.getNoBackupFilesDir().toPath().resolve("jarvis").resolve("pending-outcome-followups.bin"),
                 new AndroidKeystoreMemoryCipher());
@@ -69,6 +72,7 @@ public final class AndroidBrainRuntime {
     }
 
     public SettingsStore settings() { return settings; }
+    public JarvisUiBackend uiBackend() { return uiBackend; }
 
     private static ReasoningResult reasonWithConfiguredCortex(
             Context context, ReasoningRequest request, ToolRegistry tools) {
