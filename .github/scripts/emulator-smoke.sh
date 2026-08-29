@@ -96,17 +96,18 @@ adb shell dumpsys package "$PACKAGE" | tee "$OUTPUT/emulator-package-dumpsys.txt
 adb logcat -d > "$OUTPUT/emulator-assistant-preinvoke-logcat.txt"
 grep -q 'JARVIS_VOICE_SERVICE_READY' "$OUTPUT/emulator-assistant-preinvoke-logcat.txt"
 
-# Invoke the active assistant through Android's VoiceInteractionManager shell surface. Synthetic
-# KEYCODE_ASSIST routing is emulator/OEM input behavior and is not a reliable substitute for
-# proving the registered VoiceInteractionService -> VoiceInteractionSession path itself.
+# The Android 16 emulator shell is not privileged for `cmd voiceinteraction show`. Trigger the
+# already system-bound JARVIS service through a receiver that exists only in the debug source set,
+# then require Android to create/show the real VoiceInteractionSession. Production builds contain
+# neither the receiver nor this trigger; physical assistant-key/gesture routing remains a device test.
 adb shell input keyevent KEYCODE_HOME
 sleep 1
 adb logcat -c
-adb shell cmd voiceinteraction show | tee "$OUTPUT/emulator-assistant-system-show.txt"
+adb shell am broadcast -a com.jarvis.mobile.DEBUG_SHOW_ASSISTANT -p "$PACKAGE" | tee "$OUTPUT/emulator-assistant-debug-trigger.txt"
 VOICE_SESSION_PASSED=0
 for attempt in $(seq 1 30); do
   adb logcat -d > "$OUTPUT/emulator-assistant-logcat.txt"
-  if grep -q 'JARVIS_SESSION_SERVICE_NEW_SESSION' "$OUTPUT/emulator-assistant-logcat.txt" && grep -q 'JARVIS_ASSISTANT_READY' "$OUTPUT/emulator-assistant-logcat.txt"; then
+  if grep -q 'JARVIS_DEBUG_SESSION_REQUEST_ACCEPTED' "$OUTPUT/emulator-assistant-logcat.txt" && grep -q 'JARVIS_SESSION_SERVICE_NEW_SESSION' "$OUTPUT/emulator-assistant-logcat.txt" && grep -q 'JARVIS_ASSISTANT_READY' "$OUTPUT/emulator-assistant-logcat.txt"; then
     VOICE_SESSION_PASSED=1
     break
   fi
@@ -114,8 +115,8 @@ for attempt in $(seq 1 30); do
 done
 if [ "$VOICE_SESSION_PASSED" -ne 1 ]; then
   echo '--- JARVIS assistant invocation trace ---'
-  grep -E 'JARVIS_VOICE_SERVICE_READY|JARVIS_SESSION_SERVICE_NEW_SESSION|JARVIS_ASSISTANT_READY|VoiceInteraction|voiceinteraction|JarvisVoice|RecognitionService|SecurityException|FATAL EXCEPTION' "$OUTPUT/emulator-assistant-logcat.txt" || true
-  cat "$OUTPUT/emulator-assistant-system-show.txt" || true
+  grep -E 'JARVIS_VOICE_SERVICE_READY|JARVIS_DEBUG_SESSION|JARVIS_SESSION_SERVICE_NEW_SESSION|JARVIS_ASSISTANT_READY|VoiceInteraction|voiceinteraction|JarvisVoice|RecognitionService|SecurityException|FATAL EXCEPTION' "$OUTPUT/emulator-assistant-logcat.txt" || true
+  cat "$OUTPUT/emulator-assistant-debug-trigger.txt" || true
 fi
 adb shell settings get secure assistant | tee "$OUTPUT/emulator-secure-assistant-post.txt" || true
 adb shell settings get secure voice_interaction_service | tee "$OUTPUT/emulator-secure-voice-interaction-service-post.txt" || true
