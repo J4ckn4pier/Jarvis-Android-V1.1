@@ -8,6 +8,7 @@ import com.jarvis.mobile.brain.providers.CortexProviderFactory;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 
 /** Android composition root for the shared brain. UI/voice surfaces must use this instead of owning intent logic. */
@@ -35,10 +36,14 @@ public final class AndroidBrainRuntime {
                 new AndroidKeystoreMemoryCipher("jarvis.long.term.memory.v1")));
         memoryConsolidator = new MemoryConsolidator(new RuleMemoryExtractor(), memory);
         MemoryContextSource memoryContext = new MemoryContextSource(memory, clock, 8);
+        DeviceStateStore devices = new DeviceStateStore(new AndroidDeviceStateStorePersistence(app));
+        AssistantContextSource runtimeContext = new CompositeAssistantContextSource(List.of(
+                memoryContext,
+                new RuntimeEnvironmentContextSource(clock, devices)));
 
         BrainEngine brain = BrainEngine.createDefault(clock);
         brain.beginInvokedConversation();
-        AssistantCore assistant = new AssistantCore(brain, reasoning, tools, memoryContext);
+        AssistantCore assistant = new AssistantCore(brain, reasoning, tools, runtimeContext);
         runtime = new BrainRuntime(assistant, tools);
         conversation = new RuntimeApprovalConversation(runtime);
 
@@ -47,7 +52,6 @@ public final class AndroidBrainRuntime {
         UiListStore lists = new UiListStore(new AndroidUiListStorePersistence(app));
         RoutineStore routines = new RoutineStore(new AndroidRoutineStorePersistence(app));
         ActivityLog activity = new ActivityLog(new AndroidActivityLogPersistence(app));
-        DeviceStateStore devices = new DeviceStateStore(new AndroidDeviceStateStorePersistence(app));
         MusicQueueStore music = new MusicQueueStore(new AndroidMusicQueueStorePersistence(app));
         uiBackend = new JarvisUiBackend(memory, tools, connections, settings, defaultApps, lists, routines, activity, devices, music);
         OutcomeFollowupStore followupStore = new EncryptedFileOutcomeFollowupStore(
