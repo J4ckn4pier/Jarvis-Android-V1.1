@@ -72,11 +72,11 @@ public final class AndroidBrainRuntime {
         return handlePresentation(utterance, 1.0);
     }
 
-    /** Speech surfaces supply recognizer confidence so uncertain ASR never masquerades as trusted memory. */
+    /** Speech surfaces supply recognizer confidence so uncertain ASR never masquerades as trusted memory or approval. */
     public RuntimeSurfacePresentation handlePresentation(String utterance, double speechConfidence) {
         Log.i(TRACE_TAG, "JARVIS_RUNTIME_INPUT utterance=" + String.valueOf(utterance));
         memoryConsolidator.ingestUserTurn(utterance, speechConfidence, clock.instant());
-        RuntimeSurfacePresentation presentation = conversation.handle(utterance);
+        RuntimeSurfacePresentation presentation = conversation.handle(utterance, speechConfidence);
         Log.i(TRACE_TAG, "JARVIS_RUNTIME_OUTPUT state=" + presentation.state() + " text=" + presentation.text());
         return presentation;
     }
