@@ -4,6 +4,7 @@ import android.content.Context;
 import android.util.Log;
 
 import com.jarvis.brain.CommercialWakeWordPolicy;
+import com.jarvis.brain.WakeWordReleaseTrustRegistry;
 
 import java.util.Optional;
 
@@ -26,7 +27,7 @@ final class AndroidWakeWordDetectorFactory {
             return new DisabledWakeWordDetector("approved wake model present but local detector engine not attached");
         }
 
-        CommercialWakeWordPolicy.Decision decision = new CommercialWakeWordPolicy().approve(candidate.modelDescriptor());
+        CommercialWakeWordPolicy.Decision decision = WakeWordReleaseTrustRegistry.currentPolicy().approve(candidate.modelDescriptor());
         if (!decision.approved()) {
             candidate.stop();
             Log.w(TAG, "Passive wake disabled: " + decision.reason());
