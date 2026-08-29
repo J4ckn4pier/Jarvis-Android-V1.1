@@ -21,7 +21,10 @@ public final class AndroidRecognitionServiceDelegationContractTest {
         check(service.contains("new RecognitionListener()"),
                 "legacy compatibility path must forward the external provider callback stream");
         check(service.contains("listener.readyForSpeech(params)"), "ready callback must be forwarded");
-        check(service.contains("listener.beginningOfSpeech()"), "speech-start callback must be forwarded");
+        check(service.contains("safe(listener::beginningOfSpeech)"),
+                "speech-start callback must be forwarded through the exception-safe callback boundary");
+        check(service.contains("safe(listener::endOfSpeech)"),
+                "speech-end callback must be forwarded through the exception-safe callback boundary");
         check(service.contains("listener.partialResults(partialResults)"), "partial results must be forwarded");
         check(service.contains("listener.results(results)"), "final results must be forwarded");
         check(service.contains("listener.error(error)"), "recognition failures must remain truthful");
