@@ -14,6 +14,8 @@ public final class AndroidWakeWordModelStoreContractTest {
         check(store.contains("wake-model.bin"), "wake model bytes must use a distinct app-private artifact file");
         check(store.contains("MessageDigest.getInstance(\"SHA-256\")"), "wake model bytes must be SHA-256 verified");
         check(store.contains("WakeWordArtifactVerifier"), "Android loader must reuse the core commercial+integrity gate");
+        check(store.contains("WakeWordReleaseTrustRegistry.currentPolicy()"),
+                "Android loader must use the release-owned legal/provenance trust registry rather than mutable metadata alone");
         check(store.contains("commercialRedistributionAllowed"), "metadata must record commercial redistribution permission");
         check(store.contains("trainingDataProvenanceVerified"), "metadata must record training-data provenance status");
         check(!store.contains("java.util.HexFormat"), "minSdk 29 path must not depend on newer HexFormat runtime API");
