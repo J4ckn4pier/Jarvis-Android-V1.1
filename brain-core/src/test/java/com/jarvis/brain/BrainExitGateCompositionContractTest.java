@@ -30,6 +30,10 @@ public final class BrainExitGateCompositionContractTest {
                 "durable normalized device state must be part of the composed brain gate");
         require(gate, "JarvisUiDeviceCompositionTest.class",
                 "frontend/runtime device source-of-truth must be part of the composed brain gate");
+        require(gate, "MusicQueueStorePersistenceTest.class",
+                "durable music queue/playback state must be part of the composed brain gate");
+        require(gate, "JarvisUiMusicCompositionTest.class",
+                "frontend/runtime music source-of-truth must be part of the composed brain gate");
 
         System.out.println("BrainExitGateCompositionContractTest passed");
     }
