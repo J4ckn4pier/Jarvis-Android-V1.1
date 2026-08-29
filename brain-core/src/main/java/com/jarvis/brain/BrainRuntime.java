@@ -11,8 +11,7 @@ public final class BrainRuntime {
     private final AssistantCore assistant; private final ToolRegistry tools; private final ApprovalGate approvals=new ApprovalGate(); private final ResumablePlanExecutor executor; private ExecutionCursor pending; private String pendingTool=""; private Status pendingStatus;
     public BrainRuntime(AssistantCore assistant,ToolRegistry tools){if(assistant==null)throw new IllegalArgumentException("assistant required");if(tools==null)throw new IllegalArgumentException("tool registry required");this.assistant=assistant;this.tools=tools;this.executor=new ResumablePlanExecutor(tools,approvals);}
     public synchronized Result handle(String utterance){
-        if(pending!=null&&pendingStatus==Status.RECOVERY_REQUIRED){return new Result(Status.RECOVERY_REQUIRED,"I still need your decision before I retry that action.",pendingTool,List.of());}
-        if(pending!=null&&pendingStatus==Status.APPROVAL_REQUIRED)return handleSideQuestionWhileApprovalPending(utterance);
+        if(pending!=null&&(pendingStatus==Status.APPROVAL_REQUIRED||pendingStatus==Status.RECOVERY_REQUIRED))return handleSideQuestionWhileDecisionPending(utterance);
         BrainResponse response=assistant.handle(utterance);if(response.kind()==BrainResponse.Kind.IGNORED_AMBIENT)return new Result(Status.IGNORED,"","",List.of());if(response.kind()!=BrainResponse.Kind.ACTION_PLAN||response.plan()==null)return new Result(Status.COMPLETED,response.text(),"",List.of());pending=executor.start(response.plan());pendingStatus=null;return runPending(response.text());
     }
     public synchronized Result approvePending(){if(pending==null||pendingTool.isBlank()||pendingStatus!=Status.APPROVAL_REQUIRED)return new Result(Status.FAILED,"There is no action waiting for approval.","",List.of());approvals.approve(pendingTool);return runPending("");}
@@ -20,18 +19,26 @@ public final class BrainRuntime {
     public synchronized void cancelPending(){pending=null;pendingTool="";pendingStatus=null;}
     public synchronized boolean hasPendingApproval(){return pending!=null&&!pendingTool.isBlank()&&pendingStatus==Status.APPROVAL_REQUIRED;}
     public synchronized boolean hasPendingRecovery(){return pending!=null&&!pendingTool.isBlank()&&pendingStatus==Status.RECOVERY_REQUIRED;}
-    private Result handleSideQuestionWhileApprovalPending(String utterance){
+    private Result handleSideQuestionWhileDecisionPending(String utterance){
         BrainResponse response=assistant.handle(utterance);
         if(response.kind()==BrainResponse.Kind.IGNORED_AMBIENT)return new Result(Status.IGNORED,"","",List.of());
         if(response.kind()!=BrainResponse.Kind.ACTION_PLAN||response.plan()==null)return new Result(Status.COMPLETED,response.text(),"",List.of());
-        if(!isSafeSidePlan(response.plan()))return new Result(Status.APPROVAL_REQUIRED,"I still need your decision on the pending action before I start another consequential action.",pendingTool,List.of());
+        if(!isSafeSidePlan(response.plan()))return pendingDecisionResult("I still need your decision on the pending action before I start another consequential action.",List.of());
         ExecutionReport report=executor.run(executor.start(response.plan()),new ExecutionContext());
         return switch(report.status()){
             case COMPLETED->new Result(Status.COMPLETED,lastNonBlank(report.outputs(),response.text()),"",report.outputs());
-            case FAILED->new Result(Status.FAILED,report.failureDetail().isBlank()?"That side request failed safely.":report.failureDetail(),report.blockedTool(),report.outputs());
-            case RECOVERY_REQUIRED->new Result(Status.FAILED,report.failureDetail().isBlank()?"That side request needs recovery before it can continue.":report.failureDetail(),report.blockedTool(),report.outputs());
-            case APPROVAL_REQUIRED->new Result(Status.APPROVAL_REQUIRED,"I still need your decision on the original pending action before I start another consequential action.",pendingTool,report.outputs());
+            case FAILED->pendingDecisionResult(sideFailureText(report,"That side request failed safely."),report.outputs());
+            case RECOVERY_REQUIRED->pendingDecisionResult(sideFailureText(report,"That side request needs recovery before it can continue."),report.outputs());
+            case APPROVAL_REQUIRED->pendingDecisionResult("I still need your decision on the original pending action before I start another consequential action.",report.outputs());
         };
+    }
+    private Result pendingDecisionResult(String text,List<String> outputs){
+        Status status=pendingStatus==Status.RECOVERY_REQUIRED?Status.RECOVERY_REQUIRED:Status.APPROVAL_REQUIRED;
+        return new Result(status,text,pendingTool,outputs);
+    }
+    private static String sideFailureText(ExecutionReport report,String fallback){
+        String detail=report.failureDetail()==null||report.failureDetail().isBlank()?fallback:report.failureDetail();
+        return detail+" Your previous action is still waiting for your decision.";
     }
     private boolean isSafeSidePlan(Plan plan){
         for(PlanStep step:plan.steps()){
