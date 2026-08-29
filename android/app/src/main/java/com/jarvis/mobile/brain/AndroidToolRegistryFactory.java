@@ -10,6 +10,7 @@ import com.jarvis.brain.ToolSpec;
 import com.jarvis.mobile.actions.AndroidActionRouter;
 import com.jarvis.mobile.actions.AndroidDialerActions;
 import com.jarvis.mobile.actions.AndroidMediaActions;
+import com.jarvis.mobile.actions.AndroidTimerActions;
 import com.jarvis.mobile.calendar.AndroidCalendarReader;
 import com.jarvis.mobile.memory.JarvisDatabase;
 
@@ -25,6 +26,7 @@ public final class AndroidToolRegistryFactory {
         AndroidActionRouter actions = new AndroidActionRouter(appContext);
         AndroidDialerActions dialer = new AndroidDialerActions(appContext);
         AndroidMediaActions media = new AndroidMediaActions(appContext);
+        AndroidTimerActions timer = new AndroidTimerActions(appContext);
         AndroidCalendarReader calendar = new AndroidCalendarReader(appContext);
         ToolRegistry registry = ToolRegistry.standard(research);
 
@@ -33,7 +35,7 @@ public final class AndroidToolRegistryFactory {
                 args -> dialer.openDialer());
         register(registry, "set_timer", false, Set.of("timer"), Set.of("amount", "unit"),
                 "Set Android timer", ToolExecutionClass.DEVICE_REFLEX,
-                args -> actions.execute("set timer for " + args.get("amount") + " " + args.get("unit")));
+                args -> timer.setTimer(args.get("amount"), args.get("unit")));
         register(registry, "navigate", false, Set.of("directions", "navigation"), Set.of("destination"),
                 "Open navigation", ToolExecutionClass.DEVICE_REFLEX,
                 args -> actions.execute("navigate to " + args.get("destination")));
