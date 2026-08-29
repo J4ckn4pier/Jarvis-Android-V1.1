@@ -23,7 +23,7 @@ public final class AndroidBrainRuntime {
         Context app = context.getApplicationContext();
         ExternalResearchGateway research = ExternalResearchGateway.unavailable();
         ToolRegistry tools = AndroidToolRegistryFactory.create(app, research);
-        ConnectionRegistry connections = new ConnectionRegistry();
+        ConnectionRegistry connections = new ConnectionRegistry(new AndroidConnectionRegistryPersistence(app));
         ReasoningRouter reasoning = request -> reasonWithConfiguredCortex(app, request, tools);
         BrainEngine brain = BrainEngine.createDefault(Clock.systemDefaultZone());
         brain.beginInvokedConversation();
