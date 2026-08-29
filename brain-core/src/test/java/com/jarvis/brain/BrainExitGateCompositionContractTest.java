@@ -14,6 +14,10 @@ public final class BrainExitGateCompositionContractTest {
                 "ranking/presentation/outcome truthfulness must be part of the composed brain gate");
         require(gate, "ResponseStyleContractTest.class",
                 "central beta response style must be part of the composed brain gate");
+        require(gate, "CommercialWakeWordPolicyTest.class",
+                "commercial wake model provenance must be part of the composed brain gate");
+        require(gate, "WakeWordArtifactVerifierTest.class",
+                "wake model artifact integrity must be part of the composed brain gate");
         require(gate, "UiListStorePersistenceTest.class",
                 "durable editable UI lists must be part of the composed brain gate");
         require(gate, "JarvisUiListCompositionTest.class",
