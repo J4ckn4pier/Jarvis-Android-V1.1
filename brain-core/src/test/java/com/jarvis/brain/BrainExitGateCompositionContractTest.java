@@ -34,6 +34,8 @@ public final class BrainExitGateCompositionContractTest {
                 "production Activity donor-audio isolation must be part of the composed brain gate");
         require(gate, "AndroidMainActivityDecisionAffordanceContractTest.class",
                 "full-app approval/recovery controls must be part of the composed brain gate");
+        require(gate, "AndroidVoiceSessionDecisionAffordanceContractTest.class",
+                "assistant-overlay approval/recovery controls and Android-16 decision proof must be part of the composed brain gate");
         require(gate, "UiListStorePersistenceTest.class",
                 "durable editable UI lists must be part of the composed brain gate");
         require(gate, "JarvisUiListCompositionTest.class",
