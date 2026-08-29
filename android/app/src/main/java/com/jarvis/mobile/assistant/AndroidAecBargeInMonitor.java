@@ -38,6 +38,9 @@ final class AndroidAecBargeInMonitor {
         if (onBargeIn == null || !isSupported()) return false;
         synchronized (lock) {
             stopLocked();
+            if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                return false;
+            }
             int minimum = AudioRecord.getMinBufferSize(
                     SAMPLE_RATE_HZ,
                     AudioFormat.CHANNEL_IN_MONO,
@@ -55,6 +58,8 @@ final class AndroidAecBargeInMonitor {
                                 .build())
                         .setBufferSizeInBytes(bufferBytes)
                         .build();
+            } catch (SecurityException permissionRevoked) {
+                return false;
             } catch (RuntimeException unavailable) {
                 return false;
             }
@@ -90,6 +95,9 @@ final class AndroidAecBargeInMonitor {
                 audioRecord.startRecording();
                 worker.start();
                 return true;
+            } catch (SecurityException permissionRevoked) {
+                stopLocked();
+                return false;
             } catch (RuntimeException startFailure) {
                 stopLocked();
                 return false;
@@ -124,6 +132,8 @@ final class AndroidAecBargeInMonitor {
                     hotFrames = 0;
                 }
             }
+        } catch (SecurityException permissionRevoked) {
+            // Runtime microphone permission can disappear while the app is active; fail closed.
         } catch (RuntimeException ignored) {
             // Capture failure simply disables hands-free barge-in; the normal conversation loop remains usable.
         } finally {
