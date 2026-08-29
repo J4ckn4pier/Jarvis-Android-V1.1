@@ -10,6 +10,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 
 /** Android composition root for the shared brain. UI/voice surfaces must use this instead of owning intent logic. */
 public final class AndroidBrainRuntime {
@@ -37,9 +38,13 @@ public final class AndroidBrainRuntime {
         memoryConsolidator = new MemoryConsolidator(new RuleMemoryExtractor(), memory);
         MemoryContextSource memoryContext = new MemoryContextSource(memory, clock, 8);
         DeviceStateStore devices = new DeviceStateStore(new AndroidDeviceStateStorePersistence(app));
+        AssistantContextSource notificationContext = new KeywordGatedAssistantContextSource(
+                new AndroidRecentNotificationContextSource(app),
+                Set.of("notification", "notifications", "what did i miss"));
         AssistantContextSource runtimeContext = new CompositeAssistantContextSource(List.of(
                 memoryContext,
-                new RuntimeEnvironmentContextSource(clock, devices)));
+                new RuntimeEnvironmentContextSource(clock, devices),
+                notificationContext));
 
         BrainEngine brain = BrainEngine.createDefault(clock);
         brain.beginInvokedConversation();
