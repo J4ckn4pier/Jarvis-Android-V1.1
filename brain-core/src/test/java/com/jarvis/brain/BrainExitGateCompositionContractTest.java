@@ -42,6 +42,8 @@ public final class BrainExitGateCompositionContractTest {
                 "frontend/runtime music source-of-truth must be part of the composed brain gate");
         require(gate, "PendingApprovalSideQuestionTest.class",
                 "pending consequential approvals must survive safe side questions in the composed brain gate");
+        require(gate, "PendingRecoverySideQuestionTest.class",
+                "pending recovery decisions must survive safe side questions in the composed brain gate");
 
         System.out.println("BrainExitGateCompositionContractTest passed");
     }
