@@ -11,31 +11,44 @@ import java.util.Optional;
  * privacy-sensitive signals are accepted only when the caller supplies explicit opt-in.
  */
 public final class OutcomeFollowupCoordinator {
-    private record PendingEpisode(RecommendationEpisode episode, Instant actedAt) {}
-
     private final EpisodeFollowupPolicy followupPolicy;
     private final ProactiveExecutive proactiveExecutive;
-    private final Map<String, PendingEpisode> pending = new LinkedHashMap<>();
+    private final OutcomeFollowupStore store;
+    private final Map<String, OutcomeFollowupStore.Entry> pending = new LinkedHashMap<>();
 
     public OutcomeFollowupCoordinator(EpisodeFollowupPolicy followupPolicy,
                                       ProactiveExecutive proactiveExecutive) {
+        this(followupPolicy, proactiveExecutive, new InMemoryOutcomeFollowupStore());
+    }
+
+    public OutcomeFollowupCoordinator(EpisodeFollowupPolicy followupPolicy,
+                                      ProactiveExecutive proactiveExecutive,
+                                      OutcomeFollowupStore store) {
         if (followupPolicy == null) throw new IllegalArgumentException("followup policy required");
         if (proactiveExecutive == null) throw new IllegalArgumentException("proactive executive required");
+        if (store == null) throw new IllegalArgumentException("followup store required");
         this.followupPolicy = followupPolicy;
         this.proactiveExecutive = proactiveExecutive;
+        this.store = store;
+        for (OutcomeFollowupStore.Entry entry : store.loadAll()) {
+            if (entry != null && entry.episode() != null) pending.put(entry.episode().id(), entry);
+        }
     }
 
     /** Registers an episode without assuming the user acted on it. */
     public synchronized void recordEpisode(RecommendationEpisode episode) {
         if (episode == null) throw new IllegalArgumentException("episode required");
         pending.remove(episode.id());
+        store.remove(episode.id());
     }
 
     /** Marks an episode as acted on and therefore eligible for a later outcome follow-up. */
     public synchronized void recordActedOn(RecommendationEpisode episode, Instant actedAt) {
         if (episode == null) throw new IllegalArgumentException("episode required");
         Instant when = actedAt == null ? episode.recommendedAt() : actedAt;
-        pending.put(episode.id(), new PendingEpisode(episode, when));
+        OutcomeFollowupStore.Entry entry = new OutcomeFollowupStore.Entry(episode, when);
+        pending.put(episode.id(), entry);
+        store.upsert(entry);
     }
 
     /** Number of acted-on episodes still awaiting a useful follow-up opportunity. */
@@ -55,7 +68,7 @@ public final class OutcomeFollowupCoordinator {
                                                                   Instant now) {
         String id = episodeId == null ? "" : episodeId.trim();
         if (id.isBlank() || trigger == null || now == null) return Optional.empty();
-        PendingEpisode pendingEpisode = pending.get(id);
+        OutcomeFollowupStore.Entry pendingEpisode = pending.get(id);
         if (pendingEpisode == null) return Optional.empty();
 
         boolean presenceSignal = trigger == FollowupTrigger.USER_RETURNED_HOME;
@@ -72,6 +85,7 @@ public final class OutcomeFollowupCoordinator {
         if (intervention.mode() == InterventionMode.SILENT) return Optional.empty();
 
         pending.remove(id);
+        store.remove(id);
         return Optional.of(intervention);
     }
 }
