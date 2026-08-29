@@ -24,6 +24,8 @@ public final class BrainExitGateCompositionContractTest {
                 "provider-neutral reasoning context composition must be part of the composed brain gate");
         require(gate, "RuntimeEnvironmentContextSourceTest.class",
                 "current time and relevant normalized device context must be part of the composed brain gate");
+        require(gate, "KeywordGatedAssistantContextSourceTest.class",
+                "potentially private reasoning context must remain unread unless the current request makes it relevant");
         require(gate, "UiListStorePersistenceTest.class",
                 "durable editable UI lists must be part of the composed brain gate");
         require(gate, "JarvisUiListCompositionTest.class",
