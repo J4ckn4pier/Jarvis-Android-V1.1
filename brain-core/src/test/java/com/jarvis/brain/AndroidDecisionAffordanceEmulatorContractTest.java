@@ -17,6 +17,12 @@ public final class AndroidDecisionAffordanceEmulatorContractTest {
                 "emulator smoke must drive a deterministic consequential message request through MainActivity");
         check(smoke.contains("JARVIS_RUNTIME_OUTPUT state=AWAITING_APPROVAL"),
                 "emulator smoke must prove the runtime reaches pending approval before interacting with controls");
+        check(smoke.contains("DECISION_CONTROLS_READY=0"),
+                "emulator smoke must wait for Android accessibility publication after runtime approval state");
+        check(smoke.contains("jarvis-decision-ui-attempt-"),
+                "emulator smoke must retain per-attempt UI evidence while waiting for decision controls");
+        check(smoke.contains("decision activity left foreground before controls could be inspected"),
+                "emulator smoke must distinguish foreground loss from missing decision controls");
         check(smoke.contains("JARVIS APPROVE action"),
                 "emulator smoke must prove the primary approval control is in the Android UI tree");
         check(smoke.contains("JARVIS CANCEL action"),
