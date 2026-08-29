@@ -28,6 +28,8 @@ public final class BrainExitGateCompositionContractTest {
                 "potentially private reasoning context must remain unread unless the current request makes it relevant");
         require(gate, "ToolRegistryOverrideSemanticsTest.class",
                 "production tool overrides must retain their still-owned aliases without stealing aliases claimed elsewhere");
+        require(gate, "MainActivityCleanRoomAudioContractTest.class",
+                "production Activity donor-audio isolation must be part of the composed brain gate");
         require(gate, "UiListStorePersistenceTest.class",
                 "durable editable UI lists must be part of the composed brain gate");
         require(gate, "JarvisUiListCompositionTest.class",
