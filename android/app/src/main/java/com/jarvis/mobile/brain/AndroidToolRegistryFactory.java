@@ -8,6 +8,7 @@ import com.jarvis.brain.ToolRegistry;
 import com.jarvis.brain.ToolResult;
 import com.jarvis.brain.ToolSpec;
 import com.jarvis.mobile.actions.AndroidActionRouter;
+import com.jarvis.mobile.calendar.AndroidCalendarReader;
 import com.jarvis.mobile.memory.JarvisDatabase;
 
 import java.util.Map;
@@ -20,6 +21,7 @@ public final class AndroidToolRegistryFactory {
     public static ToolRegistry create(Context context, ExternalResearchGateway research) {
         Context appContext = context.getApplicationContext();
         AndroidActionRouter actions = new AndroidActionRouter(appContext);
+        AndroidCalendarReader calendar = new AndroidCalendarReader(appContext);
         ToolRegistry registry = ToolRegistry.standard(research);
 
         register(registry, "open_dialer", false, Set.of("phone", "phone app", "dialer"), Set.of(),
@@ -37,6 +39,9 @@ public final class AndroidToolRegistryFactory {
         register(registry, "set_flashlight", false, Set.of("flashlight", "torch"), Set.of("state"),
                 "Set flashlight state", ToolExecutionClass.DEVICE_REFLEX,
                 args -> actions.execute("flashlight " + args.get("state")));
+        register(registry, "calendar_query", false, Set.of("calendar", "schedule"), Set.of("when"),
+                "Read calendar commitments", ToolExecutionClass.DEVICE_REFLEX,
+                args -> calendar.commitments(args.get("when")));
         register(registry, "notification_query", false, Set.of("notifications", "notification"), Set.of(),
                 "Read captured notifications", ToolExecutionClass.DEVICE_REFLEX,
                 args -> {
