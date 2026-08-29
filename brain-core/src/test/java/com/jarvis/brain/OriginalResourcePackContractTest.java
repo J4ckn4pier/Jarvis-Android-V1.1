@@ -3,7 +3,7 @@ package com.jarvis.brain;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-/** Locks Claude's approved clean-room launcher/status/palette resource handoff into the build contract. */
+/** Locks Claude's approved clean-room launcher/status/palette resource handoff into source and APK verification. */
 public final class OriginalResourcePackContractTest {
     public static void main(String[] args) throws Exception {
         Path res = Path.of("../android/app/src/main/res");
@@ -14,6 +14,7 @@ public final class OriginalResourcePackContractTest {
         Path launcher = res.resolve("mipmap-anydpi-v26/ic_launcher.xml");
         Path launcherRound = res.resolve("mipmap-anydpi-v26/ic_launcher_round.xml");
         Path legacyLauncher = res.resolve("mipmap-xxxhdpi/ic_launcher.png");
+        String workflow = Files.readString(Path.of("../.github/workflows/build-apk.yml"));
 
         check(Files.exists(background), "original launcher background resource missing");
         check(Files.exists(foreground), "original launcher foreground resource missing");
@@ -31,6 +32,11 @@ public final class OriginalResourcePackContractTest {
         check(fg.contains("#FFBDF1FF") && fg.contains("#FF55D6FF") && fg.contains("#FF082433"), "launcher foreground must use approved original orb gradient");
         check(palette.contains("name=\"jarvis_cyan\">#55D6FF"), "brand palette must expose approved cyan token");
         check(adaptive.contains("@drawable/ic_launcher_background") && adaptive.contains("@drawable/ic_launcher_foreground"), "adaptive launcher must compose approved original layers");
+
+        check(workflow.contains("aapt dump resources \"$APK\""), "APK verification must inspect compiled resource table");
+        check(workflow.contains("ic_launcher_background"), "APK verification must require original launcher background");
+        check(workflow.contains("ic_launcher_foreground"), "APK verification must require original launcher foreground");
+        check(workflow.contains("ic_stat_jarvis"), "APK verification must require original notification icon");
         System.out.println("OriginalResourcePackContractTest passed");
     }
 
