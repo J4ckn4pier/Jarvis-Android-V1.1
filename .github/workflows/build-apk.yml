@@ -46,7 +46,7 @@ jobs:
         working-directory: android
         run: gradle :brain-core:test :app:lintDebug :app:assembleDebug --stacktrace
 
-      - name: Verify signed donor-transplant payload
+      - name: Verify signed JARVIS payload
         run: |
           APK="android/app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
@@ -54,7 +54,7 @@ jobs:
           unzip -t "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
           BADGING=$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK")
-          printf '%s\n' "$BADGING" | grep -q "package: name='com.itsmylab.jarvis' versionCode='2102' versionName='2.0.1-prefrontal-transplant-v1.2'"
+          printf '%s\n' "$BADGING" | grep -q "package: name='com.jarvis.mobile' versionCode='2102' versionName='1.1.0-brain-first'"
           unzip -Z1 "$APK" | grep -q '^AndroidManifest.xml$'
           unzip -Z1 "$APK" | grep -q '^classes.dex$'
           unzip -l "$APK" | grep -q 'jarvis_normal'
@@ -91,12 +91,12 @@ jobs:
       - name: Stage single verified APK
         run: |
           mkdir -p release
-          cp android/app/build/outputs/apk/debug/app-debug.apk release/JARVIS-Android-V1.1-Donor-Beta.apk
-          sha256sum release/JARVIS-Android-V1.1-Donor-Beta.apk | tee release/SHA256.txt
+          cp android/app/build/outputs/apk/debug/app-debug.apk release/JARVIS-Android-V1.1.apk
+          sha256sum release/JARVIS-Android-V1.1.apk | tee release/SHA256.txt
 
       - uses: actions/upload-artifact@v4
         with:
-          name: JARVIS-Android-V1.1-Donor-Beta
-          path: release/JARVIS-Android-V1.1-Donor-Beta.apk
+          name: JARVIS-Android-V1.1
+          path: release/JARVIS-Android-V1.1.apk
           if-no-files-found: error
           retention-days: 30
