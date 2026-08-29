@@ -27,8 +27,9 @@ public final class AnthropicMessagesProvider implements CortexProvider {
     @Override
     public ReasoningResult proposeReasoning(ReasoningRequest request, ToolRegistry tools) throws Exception {
         if (!isConfigured()) return new ReasoningResult(id(), "", null);
-        JSONObject input = toolInput(request.utterance(), ProviderSharedPlanSchema.systemPrompt(),
-                ProviderSharedPlanSchema.jsonSchema(tools), "jarvis_shared_plan");
+        JSONObject input = toolInput(ProviderReasoningEnvelope.userContent(request),
+                ProviderSharedPlanSchema.systemPrompt(), ProviderSharedPlanSchema.jsonSchema(tools),
+                "jarvis_shared_plan");
         return input == null
                 ? new ReasoningResult(id(), "", null)
                 : ProviderSharedPlanFactory.fromJson(id(), input, tools);
