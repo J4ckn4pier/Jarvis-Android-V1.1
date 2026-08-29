@@ -15,9 +15,27 @@ public final class ToolRegistry {
     private final Map<String, RegisteredTool> byKey = new HashMap<>();
 
     public void register(ToolSpec spec, Tool implementation) {
-        RegisteredTool registered = new RegisteredTool(spec, implementation);
-        byKey.put(normalize(spec.name()), registered);
-        for (String alias : spec.aliases()) byKey.put(normalize(alias), registered);
+        String canonical = normalize(spec.name());
+        RegisteredTool previous = byKey.get(canonical);
+        Set<String> aliases = new HashSet<>(spec.aliases());
+
+        if (previous != null && normalize(previous.spec().name()).equals(canonical)) {
+            for (Map.Entry<String, RegisteredTool> entry : byKey.entrySet()) {
+                if (entry.getValue() == previous && !entry.getKey().equals(canonical)) aliases.add(entry.getKey());
+            }
+            byKey.entrySet().removeIf(entry -> entry.getValue() == previous);
+        }
+
+        ToolSpec effectiveSpec = new ToolSpec(
+                spec.name(),
+                spec.consequential(),
+                aliases,
+                spec.requiredArguments(),
+                spec.description(),
+                spec.executionClass());
+        RegisteredTool registered = new RegisteredTool(effectiveSpec, implementation);
+        byKey.put(canonical, registered);
+        for (String alias : aliases) byKey.put(normalize(alias), registered);
     }
 
     public Optional<RegisteredTool> resolve(String nameOrAlias) { return Optional.ofNullable(byKey.get(normalize(nameOrAlias))); }
