@@ -356,10 +356,12 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         primaryActionButton.setVisibility(view.primaryEnabled() ? View.VISIBLE : View.GONE);
         primaryActionButton.setEnabled(view.primaryEnabled());
         primaryActionButton.setText(view.primaryAction().name());
+        primaryActionButton.setContentDescription("JARVIS " + view.primaryAction().name() + " action");
 
         secondaryActionButton.setVisibility(view.secondaryEnabled() ? View.VISIBLE : View.GONE);
         secondaryActionButton.setEnabled(view.secondaryEnabled());
         secondaryActionButton.setText(view.secondaryAction().name());
+        secondaryActionButton.setContentDescription("JARVIS " + view.secondaryAction().name() + " action");
     }
 
     private void runDecisionAction(boolean primary) {
