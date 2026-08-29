@@ -17,8 +17,8 @@ public final class AndroidCortexSharedPlanContractTest {
                 "resolved cortex proposals must not silently discard their action plan");
         check(adapter.contains("new PlanValidator(tools).validate"),
                 "cortex bridge must validate every mapped plan against the shared tool registry");
-        check(adapter.contains("validation.valid() ? validation.plan() : null"),
-                "invalid/underspecified provider actions must fail closed instead of executing");
+        check(adapter.contains("validation.valid() ? validation.effectivePlan() : null"),
+                "invalid/underspecified provider actions must fail closed and valid actions must use the validator's effective plan");
         check(adapter.contains("case SMS, EMAIL -> null"),
                 "legacy free-form consequential communication payloads must fail closed until typed arguments exist");
 
