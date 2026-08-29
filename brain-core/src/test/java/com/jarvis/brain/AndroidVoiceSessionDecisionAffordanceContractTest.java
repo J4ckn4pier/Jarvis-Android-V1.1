@@ -18,6 +18,10 @@ public final class AndroidVoiceSessionDecisionAffordanceContractTest {
                 "assistant overlay must expose shared-runtime state evidence for real device decision verification");
         check(session.contains("state=\" + presentation.state()"),
                 "assistant overlay must trace the resulting shared runtime presentation state after decisions");
+        check(session.contains("setOnApplyWindowInsetsListener"),
+                "assistant overlay must reposition bottom decision controls using real system-bar insets");
+        check(session.contains("WindowInsets.Type.navigationBars()"),
+                "assistant overlay must account for the navigation/gesture inset instead of a hard-coded bottom margin");
 
         check(smoke.contains("JARVIS_OVERLAY_SESSION_SHOWN"),
                 "emulator smoke must distinguish a shown assistant session before decision-node lookup");
