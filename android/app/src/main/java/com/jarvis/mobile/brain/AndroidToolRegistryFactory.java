@@ -7,12 +7,12 @@ import com.jarvis.brain.ToolExecutionClass;
 import com.jarvis.brain.ToolRegistry;
 import com.jarvis.brain.ToolResult;
 import com.jarvis.brain.ToolSpec;
-import com.jarvis.mobile.actions.AndroidActionRouter;
 import com.jarvis.mobile.actions.AndroidDialerActions;
 import com.jarvis.mobile.actions.AndroidFlashlightActions;
 import com.jarvis.mobile.actions.AndroidMediaActions;
 import com.jarvis.mobile.actions.AndroidMessagingActions;
 import com.jarvis.mobile.actions.AndroidNavigationActions;
+import com.jarvis.mobile.actions.AndroidReminderActions;
 import com.jarvis.mobile.actions.AndroidTimerActions;
 import com.jarvis.mobile.calendar.AndroidCalendarReader;
 import com.jarvis.mobile.memory.JarvisDatabase;
@@ -26,12 +26,12 @@ public final class AndroidToolRegistryFactory {
 
     public static ToolRegistry create(Context context, ExternalResearchGateway research) {
         Context appContext = context.getApplicationContext();
-        AndroidActionRouter actions = new AndroidActionRouter(appContext);
         AndroidDialerActions dialer = new AndroidDialerActions(appContext);
         AndroidFlashlightActions flashlight = new AndroidFlashlightActions(appContext);
         AndroidMediaActions media = new AndroidMediaActions(appContext);
         AndroidMessagingActions messaging = new AndroidMessagingActions(appContext);
         AndroidNavigationActions navigation = new AndroidNavigationActions(appContext);
+        AndroidReminderActions reminders = new AndroidReminderActions(appContext);
         AndroidTimerActions timer = new AndroidTimerActions(appContext);
         AndroidCalendarReader calendar = new AndroidCalendarReader(appContext);
         ToolRegistry registry = ToolRegistry.standard(research);
@@ -57,7 +57,7 @@ public final class AndroidToolRegistryFactory {
         register(registry, "create_reminder", false, Set.of("reminder", "remind me"), Set.of("request"),
                 "Open the Android calendar editor with the requested reminder details for user confirmation",
                 ToolExecutionClass.DEVICE_REFLEX,
-                args -> actions.execute("schedule " + args.get("request")));
+                args -> reminders.prepareReminder(args.get("request")));
         register(registry, "notification_query", false, Set.of("notifications", "notification"), Set.of(),
                 "Read captured notifications", ToolExecutionClass.DEVICE_REFLEX,
                 args -> {
