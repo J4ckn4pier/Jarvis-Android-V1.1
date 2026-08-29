@@ -55,6 +55,11 @@ jobs:
           printf '%s\n' "$BADGING" | grep -q "package: name='com.jarvis.mobile' versionCode='2102' versionName='1.1.0-brain-first'"
           unzip -Z1 "$APK" | grep -q '^AndroidManifest.xml$'
           unzip -Z1 "$APK" | grep -q '^classes.dex$'
+          export PATH="$ANDROID_HOME/build-tools/36.0.0:$PATH"
+          aapt dump resources "$APK" > android/app/build/outputs/apk/debug/compiled-resources.txt
+          grep -q 'ic_launcher_background' android/app/build/outputs/apk/debug/compiled-resources.txt
+          grep -q 'ic_launcher_foreground' android/app/build/outputs/apk/debug/compiled-resources.txt
+          grep -q 'ic_stat_jarvis' android/app/build/outputs/apk/debug/compiled-resources.txt
           ! unzip -Z1 "$APK" | grep -Eiq 'assets/dex|pocketsphinx|adcolony|tapjoy|vungle|flurry|revmob|startapp'
 
       - name: Enable Android emulator acceleration
