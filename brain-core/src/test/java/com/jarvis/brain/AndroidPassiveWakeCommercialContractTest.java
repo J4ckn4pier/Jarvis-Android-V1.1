@@ -3,7 +3,7 @@ package com.jarvis.brain;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-/** Passive wake must be local, lifecycle-owned, and disabled unless model provenance is commercially approved. */
+/** Passive wake must be local, lifecycle-owned, and disabled unless model provenance is release-approved. */
 public final class AndroidPassiveWakeCommercialContractTest {
     public static void main(String[] args) throws Exception {
         String port = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/assistant/WakeWordDetectorPort.java"));
@@ -16,8 +16,8 @@ public final class AndroidPassiveWakeCommercialContractTest {
                 "detector port must expose local wake callback startup");
         check(port.contains("void stop()"), "detector port must be lifecycle stoppable");
 
-        check(factory.contains("CommercialWakeWordPolicy"),
-                "Android factory must evaluate wake model commercial provenance");
+        check(factory.contains("WakeWordReleaseTrustRegistry.currentPolicy()"),
+                "Android factory must evaluate wake model against release-owned commercial trust");
         check(factory.contains("return new DisabledWakeWordDetector"),
                 "unapproved or absent model must fail closed instead of enabling passive microphone capture");
         check(factory.contains("commercial wake model not configured"),
