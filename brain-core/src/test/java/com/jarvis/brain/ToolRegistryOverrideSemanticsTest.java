@@ -27,7 +27,7 @@ public final class ToolRegistryOverrideSemanticsTest {
         ToolSpec androidOverride = new ToolSpec(
                 "open_dialer",
                 false,
-                Set.of("phone", "phone app", "dialer"),
+                Set.of("phone", "phone app", "dialer", "calls"),
                 Set.of(),
                 "Android dialer implementation",
                 ToolExecutionClass.DEVICE_REFLEX);
@@ -37,7 +37,7 @@ public final class ToolRegistryOverrideSemanticsTest {
         check("android-dialer".equals(run(registry, "phone")), "new alias must resolve to replacement implementation");
         check("android-dialer".equals(run(registry, "call")), "still-owned legacy alias must migrate to replacement implementation");
         check("android-dialer".equals(run(registry, "telephone")), "all still-owned legacy aliases must migrate to replacement implementation");
-        check("history".equals(run(registry, "calls")), "replacement must not steal a legacy alias already reassigned to another canonical tool");
+        check("history".equals(run(registry, "calls")), "replacement must not steal an alias already reassigned to another canonical tool even when the replacement explicitly declares it");
 
         ToolSpec effectiveDialer = registry.specs().stream()
                 .filter(spec -> "open_dialer".equals(spec.name()))
@@ -45,7 +45,7 @@ public final class ToolRegistryOverrideSemanticsTest {
                 .orElseThrow(() -> new AssertionError("replacement canonical spec missing"));
         check(effectiveDialer.aliases().contains("call"), "effective replacement spec must retain migrated legacy alias metadata");
         check(effectiveDialer.aliases().contains("telephone"), "effective replacement spec must expose all still-owned legacy aliases");
-        check(!effectiveDialer.aliases().contains("calls"), "effective replacement spec must not advertise an alias now owned by another tool");
+        check(!effectiveDialer.aliases().contains("calls"), "effective replacement spec must not advertise an explicitly requested alias now owned by another tool");
 
         System.out.println("ToolRegistryOverrideSemanticsTest passed");
     }
