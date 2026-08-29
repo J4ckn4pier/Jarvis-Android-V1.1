@@ -12,6 +12,10 @@ public final class BrainExitGateCompositionContractTest {
                 "provider-neutral translation truthfulness must be part of the composed brain gate");
         require(gate, "OrchestrationGatewayContractTest.class",
                 "ranking/presentation/outcome truthfulness must be part of the composed brain gate");
+        require(gate, "ConversationalCallOrchestratorTest.class",
+                "provider-neutral conversational-call orchestration must be part of the composed brain gate");
+        require(gate, "ConversationalCallToolContractTest.class",
+                "conversational-call tool inputs, approval classification, and fail-closed fallback must be part of the composed brain gate");
         require(gate, "ResponseStyleContractTest.class",
                 "central beta response style must be part of the composed brain gate");
         require(gate, "CommercialWakeWordPolicyTest.class",
