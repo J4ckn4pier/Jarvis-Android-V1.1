@@ -60,7 +60,9 @@ jobs:
           grep -q 'ic_launcher_background' android/app/build/outputs/apk/debug/compiled-resources.txt
           grep -q 'ic_launcher_foreground' android/app/build/outputs/apk/debug/compiled-resources.txt
           grep -q 'ic_stat_jarvis' android/app/build/outputs/apk/debug/compiled-resources.txt
-          ! unzip -Z1 "$APK" | grep -Eiq 'assets/dex|pocketsphinx|adcolony|tapjoy|vungle|flurry|revmob|startapp'
+          echo 'DONOR_CONTAMINATION_CHECK'
+          ! grep -Eiq 'background_mk2|background_mk3|jarvis_normal|jarvis_active|ic_reactor|icon_jarvis_notes|menu_dots|legacy_network_icon' android/app/build/outputs/apk/debug/compiled-resources.txt
+          ! unzip -Z1 "$APK" | grep -Eiq '^res/raw/.*\.mp3$|assets/dex|pocketsphinx|adcolony|tapjoy|vungle|flurry|revmob|startapp'
 
       - name: Enable Android emulator acceleration
         run: |
