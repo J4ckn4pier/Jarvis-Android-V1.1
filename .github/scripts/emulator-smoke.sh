@@ -35,6 +35,12 @@ for attempt in $(seq 1 30); do
   if grep -q 'JARVIS_COMMAND_RESULT.*You can speak naturally' "$OUTPUT/emulator-command-logcat.txt" && grep -q 'JARVIS_COMMAND_RESULT.*call contacts' "$OUTPUT/emulator-command-logcat.txt"; then COMMAND_PASSED=1; break; fi
   sleep 1
 done
+if [ "$COMMAND_PASSED" -ne 1 ]; then
+  echo '--- JARVIS command trace ---'
+  grep -E 'JARVIS_RUNTIME_INPUT|JARVIS_RUNTIME_OUTPUT|JARVIS_COMMAND_RESULT' "$OUTPUT/emulator-command-logcat.txt" || true
+  echo '--- Activity launch evidence ---'
+  cat "$OUTPUT/emulator-command-launch.txt" || true
+fi
 test "$COMMAND_PASSED" -eq 1
 adb shell uiautomator dump /sdcard/jarvis-command-ui.xml
 adb pull /sdcard/jarvis-command-ui.xml "$OUTPUT/jarvis-command-ui.xml"
