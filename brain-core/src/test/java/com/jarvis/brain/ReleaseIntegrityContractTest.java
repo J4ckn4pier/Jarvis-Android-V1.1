@@ -22,7 +22,9 @@ public final class ReleaseIntegrityContractTest {
                 "release provenance must be embedded as a generated non-UI APK asset");
         check(gradle.contains("sourceSets.main.assets.srcDir"),
                 "generated provenance asset must be wired into APK packaging");
-        check(gradle.contains("preBuild.dependsOn(generateReleaseIntegrity)"),
+        check(gradle.contains("tasks.named('preBuild')") || gradle.contains("tasks.named(\"preBuild\")"),
+                "release provenance generation must be attached to Android preBuild");
+        check(gradle.contains("dependsOn(generateReleaseIntegrity)"),
                 "all Android builds must regenerate provenance before packaging");
         check(gradle.contains("SjRja040cGllcg=="),
                 "release provenance must carry the encoded project-origin anchor");
