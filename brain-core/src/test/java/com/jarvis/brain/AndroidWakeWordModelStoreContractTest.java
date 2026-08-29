@@ -3,7 +3,7 @@ package com.jarvis.brain;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-/** Android wake models must be app-private, metadata-backed, and hash verified before detector creation. */
+/** Android wake models must be app-private, metadata-backed, hash verified, and min-SDK compatible. */
 public final class AndroidWakeWordModelStoreContractTest {
     public static void main(String[] args) throws Exception {
         String store = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/assistant/AndroidWakeWordModelStore.java"));
@@ -16,6 +16,8 @@ public final class AndroidWakeWordModelStoreContractTest {
         check(store.contains("WakeWordArtifactVerifier"), "Android loader must reuse the core commercial+integrity gate");
         check(store.contains("commercialRedistributionAllowed"), "metadata must record commercial redistribution permission");
         check(store.contains("trainingDataProvenanceVerified"), "metadata must record training-data provenance status");
+        check(!store.contains("java.util.HexFormat"), "minSdk 29 path must not depend on newer HexFormat runtime API");
+        check(store.contains("private static String toHex(byte[] bytes)"), "wake loader must provide a min-SDK-safe hex encoder");
         check(factory.contains("new AndroidWakeWordModelStore(context).loadApproved()"),
                 "detector factory must consult approved app-private model store before creating a detector");
 
