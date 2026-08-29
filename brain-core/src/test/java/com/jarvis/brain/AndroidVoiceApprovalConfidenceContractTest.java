@@ -15,11 +15,13 @@ public final class AndroidVoiceApprovalConfidenceContractTest {
                 "approval conversation must define a minimum spoken approval confidence");
         check(conversation.contains("handle(String utterance, double confidence)"),
                 "approval conversation must accept confidence for spoken turns");
-        check(conversation.contains("confidence < MIN_VOICE_APPROVAL_CONFIDENCE"),
-                "low-confidence approval/retry language must be rejected before execution");
-        check(conversation.contains("AWAITING_APPROVAL") && conversation.contains("NEEDS_INPUT"),
+        check(conversation.contains("safeConfidence(confidence)"),
+                "recognizer confidence must be sanitized before approval decisions");
+        check(conversation.contains("unclearApproval()") && conversation.contains("unclearRecovery()"),
+                "low-confidence approval/retry language must preserve the pending state instead of executing");
+        check(conversation.contains("AssistantSurfaceState.AWAITING_APPROVAL") && conversation.contains("AssistantSurfaceState.NEEDS_INPUT"),
                 "low-confidence replies must preserve the pending approval/recovery state instead of cancelling it");
-        check(conversation.contains("handle(utterance, 1.0)"),
+        check(conversation.contains("handle(utterance,1.0)") || conversation.contains("handle(utterance, 1.0)"),
                 "trusted typed/direct surfaces must keep an explicit full-confidence path");
 
         System.out.println("AndroidVoiceApprovalConfidenceContractTest: PASS");
