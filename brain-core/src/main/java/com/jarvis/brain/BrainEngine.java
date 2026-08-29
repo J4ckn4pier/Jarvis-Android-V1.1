@@ -19,6 +19,9 @@ public final class BrainEngine {
     private BrainEngine(Clock clock) { this.session = new ConversationSession(clock); }
     public static BrainEngine createDefault(Clock clock) { return new BrainEngine(clock); }
 
+    /** Marks an explicitly opened assistant surface as directed conversation without fabricating a wake utterance. */
+    public void beginInvokedConversation() { session.wake(); }
+
     public BrainResponse handle(String raw) {
         String input = raw == null ? "" : raw.trim();
         Matcher wake = WAKE.matcher(input);
