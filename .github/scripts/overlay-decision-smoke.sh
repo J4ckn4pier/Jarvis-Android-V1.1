@@ -10,8 +10,7 @@ PACKAGE="com.jarvis.mobile"
 adb shell input keyevent KEYCODE_HOME
 sleep 1
 adb logcat -c
-adb shell am broadcast -a com.jarvis.mobile.DEBUG_SHOW_ASSISTANT -p "$PACKAGE" \
-  --es jarvis_test_command "Jarvis, text Mom I am on my way" \
+adb shell "am broadcast -a com.jarvis.mobile.DEBUG_SHOW_ASSISTANT -p $PACKAGE --es jarvis_test_command 'Jarvis, text Mom I am on my way'" \
   | tee "$OUTPUT/emulator-overlay-decision-trigger.txt"
 
 OVERLAY_READY=0
