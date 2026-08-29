@@ -40,6 +40,8 @@ public final class BrainExitGateCompositionContractTest {
                 "durable music queue/playback state must be part of the composed brain gate");
         require(gate, "JarvisUiMusicCompositionTest.class",
                 "frontend/runtime music source-of-truth must be part of the composed brain gate");
+        require(gate, "PendingApprovalSideQuestionTest.class",
+                "pending consequential approvals must survive safe side questions in the composed brain gate");
 
         System.out.println("BrainExitGateCompositionContractTest passed");
     }
