@@ -7,6 +7,8 @@ import java.nio.file.Path;
 public final class AndroidRecognitionServiceDelegationContractTest {
     public static void main(String[] args) throws Exception {
         String service = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/assistant/JarvisRecognitionService.java"));
+        String manifest = Files.readString(Path.of("../android/app/src/main/AndroidManifest.xml"));
+        String metadata = Files.readString(Path.of("../android/app/src/main/res/xml/recognition_service.xml"));
 
         check(!service.contains("listener.error(SpeechRecognizer.ERROR_RECOGNIZER_BUSY);"),
                 "recognition service must not unconditionally reject every request as busy");
@@ -26,6 +28,13 @@ public final class AndroidRecognitionServiceDelegationContractTest {
         check(service.contains("recognizer.stopListening()"), "framework stop must reach delegated recognizer");
         check(service.contains("recognizer.cancel()"), "framework cancel must reach delegated recognizer");
         check(service.contains("recognizer.destroy()"), "delegated recognizers must be released");
+
+        check(manifest.contains("<category android:name=\"android.intent.category.DEFAULT\" />"),
+                "recognition service intent filter must expose the conventional DEFAULT category");
+        check(manifest.contains("<meta-data android:name=\"android.speech\" android:resource=\"@xml/recognition_service\" />"),
+                "recognition service must publish RecognitionService.SERVICE_META_DATA");
+        check(metadata.contains("<recognition-service"),
+                "recognition metadata resource must use the Android recognition-service root");
 
         System.out.println("AndroidRecognitionServiceDelegationContractTest: PASS");
     }
