@@ -7,11 +7,11 @@ android {
     compileSdk 36
 
     defaultConfig {
-        applicationId 'com.itsmylab.jarvis'
+        applicationId 'com.jarvis.mobile'
         minSdk 29
         targetSdk 36
         versionCode 2102
-        versionName '2.0.1-prefrontal-transplant-v1.2'
+        versionName '1.1.0-brain-first'
     }
 
     compileOptions {
