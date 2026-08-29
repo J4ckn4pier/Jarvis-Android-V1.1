@@ -5,6 +5,7 @@ import java.util.*;
 /** Typed-enough non-secret settings state backing JARVIS surfaces. */
 public final class SettingsStore {
     public static final String PRESENCE_FOLLOWUP_OPT_IN = "presence_followup_opt_in";
+    public static final String RESEARCH_ENDPOINT = "research_endpoint";
     private final Map<String,String> values = new LinkedHashMap<>();
     private final SettingsPersistence persistence;
 
@@ -60,6 +61,7 @@ public final class SettingsStore {
         values.put("personality", "humble-butler-beta");
         values.put("proactive_enabled", "true");
         values.put(PRESENCE_FOLLOWUP_OPT_IN, "false");
+        values.put(RESEARCH_ENDPOINT, "");
         values.put("offline_enabled", "true");
         values.put("overlay_enabled", "true");
         values.put("ambient_orb_enabled", "false");
