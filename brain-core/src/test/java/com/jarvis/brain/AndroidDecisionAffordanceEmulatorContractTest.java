@@ -21,8 +21,8 @@ public final class AndroidDecisionAffordanceEmulatorContractTest {
                 "emulator smoke must prove the primary approval control is in the Android UI tree");
         check(smoke.contains("JARVIS CANCEL action"),
                 "emulator smoke must prove the cancellation control is in the Android UI tree");
-        check(smoke.contains("JARVIS_RUNTIME_OUTPUT state=IDLE"),
-                "emulator smoke must prove tapping CANCEL clears the pending decision through the shared runtime");
+        check(smoke.contains("JARVIS_SHARED_BRAIN_ACTIVE.*state=IDLE"),
+                "emulator smoke must prove tapping CANCEL clears the pending decision through the shared runtime surface");
 
         System.out.println("AndroidDecisionAffordanceEmulatorContractTest passed");
     }
