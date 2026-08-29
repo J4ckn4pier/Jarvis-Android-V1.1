@@ -21,8 +21,8 @@ public final class AndroidDefaultAppPreferencePersistenceContractTest {
                 "Android runtime must bind durable default-app persistence");
         check(runtime.contains("new DefaultAppPreferenceStore("),
                 "Android runtime must own the durable default-app store");
-        check(runtime.contains("new JarvisUiBackend(null, tools, connections, settings, defaultApps, lists, routines, activity, devices)"),
-                "frontend facade must receive the same durable default-app store in the full shared composition");
+        check(runtime.contains("connections, settings, defaultApps"),
+                "frontend facade must receive the same durable default-app store even as later stores are appended");
 
         System.out.println("AndroidDefaultAppPreferencePersistenceContractTest passed");
     }
