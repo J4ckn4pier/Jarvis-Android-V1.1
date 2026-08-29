@@ -8,6 +8,7 @@ import com.jarvis.brain.ToolRegistry;
 import com.jarvis.brain.ToolResult;
 import com.jarvis.brain.ToolSpec;
 import com.jarvis.mobile.actions.AndroidActionRouter;
+import com.jarvis.mobile.memory.JarvisDatabase;
 
 import java.util.Map;
 import java.util.Set;
@@ -17,7 +18,8 @@ public final class AndroidToolRegistryFactory {
     private AndroidToolRegistryFactory() {}
 
     public static ToolRegistry create(Context context, ExternalResearchGateway research) {
-        AndroidActionRouter actions = new AndroidActionRouter(context.getApplicationContext());
+        Context appContext = context.getApplicationContext();
+        AndroidActionRouter actions = new AndroidActionRouter(appContext);
         ToolRegistry registry = ToolRegistry.standard(research);
 
         register(registry, "open_dialer", false, Set.of("phone", "phone app", "dialer"), Set.of(),
@@ -35,6 +37,12 @@ public final class AndroidToolRegistryFactory {
         register(registry, "set_flashlight", false, Set.of("flashlight", "torch"), Set.of("state"),
                 "Set flashlight state", ToolExecutionClass.DEVICE_REFLEX,
                 args -> actions.execute("flashlight " + args.get("state")));
+        register(registry, "notification_query", false, Set.of("notifications", "notification"), Set.of(),
+                "Read captured notifications", ToolExecutionClass.DEVICE_REFLEX,
+                args -> {
+                    String notifications = JarvisDatabase.get(appContext).recentNotifications(10);
+                    return notifications.isBlank() ? "No captured notifications." : notifications;
+                });
         register(registry, "send_message", true, Set.of("text", "message"), Set.of("recipient", "message"),
                 "Prepare/send external message after approval", ToolExecutionClass.CONSEQUENTIAL,
                 args -> actions.execute("text " + args.get("recipient") + " " + args.get("message")));
