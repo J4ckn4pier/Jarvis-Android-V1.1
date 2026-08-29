@@ -21,7 +21,6 @@ import com.jarvis.mobile.brain.providers.CortexProviderFactory;
 import com.jarvis.mobile.hands.JarvisAccessibilityService;
 import com.jarvis.mobile.memory.JarvisDatabase;
 
-import java.lang.reflect.Field;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -62,7 +61,7 @@ public final class DiagnosticsActivity extends Activity {
         add(report, "Notification awareness", yes(notificationListenerEnabled()));
         add(report, "Device Control", yes(accessibilityEnabled()));
         add(report, "Reasoning mode", CortexProviderFactory.status(this));
-        add(report, "Donor response clips", String.valueOf(rawResourceCount()));
+        add(report, "Bundled donor audio", "None (clean-room)");
 
         JarvisDatabase database = JarvisDatabase.get(this);
         add(report, "Saved memories", String.valueOf(database.memoryCount()));
@@ -114,14 +113,6 @@ public final class DiagnosticsActivity extends Activity {
                 getContentResolver(), Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES);
         String component = new ComponentName(this, JarvisAccessibilityService.class).flattenToString();
         return enabled != null && enabled.contains(component);
-    }
-
-    private int rawResourceCount() {
-        int count = 0;
-        for (Field field : R.raw.class.getFields()) {
-            if (field.getName().matches("[a-z0-9_]+")) count++;
-        }
-        return count;
     }
 
     private TextView line(String text, boolean heading) {
