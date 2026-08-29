@@ -22,7 +22,7 @@ import android.widget.Toast;
 import com.jarvis.mobile.brain.providers.CortexProviderFactory;
 import com.jarvis.mobile.brain.providers.SecureSecretStore;
 
-/** Donor settings roles with a private, provider-neutral cortex configuration. */
+/** JARVIS settings surface with private, provider-neutral cortex configuration. */
 public class SettingsActivity extends Activity {
     private SharedPreferences preferences;
     private SharedPreferences cortexPreferences;
@@ -36,28 +36,23 @@ public class SettingsActivity extends Activity {
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
         body.setPadding(dp(16), dp(12), dp(16), dp(24));
-        body.setBackgroundColor(Color.rgb(244, 247, 248));
+        body.setBackgroundColor(getColor(R.color.jarvis_bg));
 
         body.addView(header("GENERAL"), fullWrap());
         body.addView(toggle("Voice responses", "voice_enabled", true), fullWrap());
-        body.addView(toggle("Legacy JARVIS audio cues", "legacy_cues", true), fullWrap());
 
         body.addView(header("PREFRONTAL CORTEX"), fullWrap());
         TextView cortexStatus = new TextView(this);
         cortexStatus.setText(CortexProviderFactory.status(this));
-        cortexStatus.setTextColor(Color.DKGRAY);
+        cortexStatus.setTextColor(getColor(R.color.jarvis_text_dim));
         cortexStatus.setPadding(dp(8), dp(4), dp(8), dp(8));
         body.addView(cortexStatus, fullWrap());
 
-        String selectedProvider = cortexPreferences.getString(
-                "mode", CortexProviderFactory.MODE_LOCAL);
+        String selectedProvider = cortexPreferences.getString("mode", CortexProviderFactory.MODE_LOCAL);
         RadioGroup providers = new RadioGroup(this);
-        RadioButton local = radio("Private local executive (default)",
-                CortexProviderFactory.MODE_LOCAL.equals(selectedProvider));
-        RadioButton openAi = radio("Optional OpenAI Responses cortex",
-                CortexProviderFactory.MODE_OPENAI.equals(selectedProvider));
-        RadioButton anthropic = radio("Optional Anthropic Messages cortex",
-                CortexProviderFactory.MODE_ANTHROPIC.equals(selectedProvider));
+        RadioButton local = radio("Private local executive (default)", CortexProviderFactory.MODE_LOCAL.equals(selectedProvider));
+        RadioButton openAi = radio("Optional OpenAI Responses cortex", CortexProviderFactory.MODE_OPENAI.equals(selectedProvider));
+        RadioButton anthropic = radio("Optional Anthropic Messages cortex", CortexProviderFactory.MODE_ANTHROPIC.equals(selectedProvider));
         providers.addView(local);
         providers.addView(openAi);
         providers.addView(anthropic);
@@ -65,8 +60,7 @@ public class SettingsActivity extends Activity {
 
         EditText model = textSetting("Model name", cortexPreferences.getString("model", ""));
         body.addView(model, fullWrap());
-        EditText endpoint = textSetting(
-                "Optional custom HTTPS endpoint", cortexPreferences.getString("endpoint", ""));
+        EditText endpoint = textSetting("Optional custom HTTPS endpoint", cortexPreferences.getString("endpoint", ""));
         body.addView(endpoint, fullWrap());
         EditText apiKey = textSetting("API key (leave blank to keep saved key)", "");
         apiKey.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
@@ -97,18 +91,7 @@ public class SettingsActivity extends Activity {
                 Toast.makeText(this, "Android Keystore could not save that key.", Toast.LENGTH_LONG).show();
             }
         }), fullWrap());
-        body.addView(action("RUN JARVIS DIAGNOSTICS", () ->
-                startActivity(new Intent(this, DiagnosticsActivity.class))), fullWrap());
-
-        body.addView(header("MARK THEME"), fullWrap());
-        RadioGroup themes = new RadioGroup(this);
-        RadioButton mark3 = radio("Mark III", "mk3".equals(preferences.getString("mark_theme", "mk3")));
-        RadioButton mark2 = radio("Mark II", "mk2".equals(preferences.getString("mark_theme", "mk3")));
-        themes.addView(mark3);
-        themes.addView(mark2);
-        themes.setOnCheckedChangeListener((group, checkedId) -> preferences.edit()
-                .putString("mark_theme", checkedId == mark2.getId() ? "mk2" : "mk3").apply());
-        body.addView(themes, fullWrap());
+        body.addView(action("RUN JARVIS DIAGNOSTICS", () -> startActivity(new Intent(this, DiagnosticsActivity.class))), fullWrap());
 
         body.addView(header("OPERATING MODE"), fullWrap());
         RadioGroup modes = new RadioGroup(this);
@@ -120,26 +103,19 @@ public class SettingsActivity extends Activity {
         modes.addView(quiet);
         modes.addView(office);
         modes.setOnCheckedChangeListener((group, checkedId) -> {
-            String mode = checkedId == quiet.getId() ? "quiet"
-                    : checkedId == office.getId() ? "office" : "normal";
+            String mode = checkedId == quiet.getId() ? "quiet" : checkedId == office.getId() ? "office" : "normal";
             preferences.edit().putString("operating_mode", mode).apply();
         });
         body.addView(modes, fullWrap());
 
         body.addView(header("ANDROID INTEGRATION"), fullWrap());
         body.addView(action("MAKE JARVIS DEFAULT ASSISTANT", this::requestAssistant), fullWrap());
-        body.addView(action("ENABLE NOTIFICATION AWARENESS", () ->
-                startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))), fullWrap());
-        body.addView(action("ENABLE DEVICE CONTROL", () ->
-                startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))), fullWrap());
+        body.addView(action("ENABLE NOTIFICATION AWARENESS", () -> startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))), fullWrap());
+        body.addView(action("ENABLE DEVICE CONTROL", () -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))), fullWrap());
 
         TextView privacy = new TextView(this);
-        privacy.setText("Private by default: memories remain in the app’s local SQLite database and the " +
-                "local executive handles recognized phone actions without a cloud model. If you explicitly " +
-                "enable an optional provider, unresolved requests and questions may be sent to that endpoint. " +
-                "No API credential is embedded in the APK. The obsolete donor advertising, analytics, " +
-                "licensing, and legacy speech payloads are not included.");
-        privacy.setTextColor(Color.DKGRAY);
+        privacy.setText("Private by default: memories remain in the app’s local database and the local executive handles recognized phone actions without a cloud model. If you explicitly enable an optional provider, unresolved requests and questions may be sent to that endpoint. No API credential is embedded in the APK. Superseded third-party advertising, analytics, licensing, visual, and speech payloads are not included.");
+        privacy.setTextColor(getColor(R.color.jarvis_text_dim));
         privacy.setPadding(0, dp(20), 0, 0);
         body.addView(privacy, fullWrap());
 
@@ -150,8 +126,7 @@ public class SettingsActivity extends Activity {
 
     private void requestAssistant() {
         RoleManager manager = getSystemService(RoleManager.class);
-        if (manager != null && manager.isRoleAvailable(RoleManager.ROLE_ASSISTANT) &&
-                !manager.isRoleHeld(RoleManager.ROLE_ASSISTANT)) {
+        if (manager != null && manager.isRoleAvailable(RoleManager.ROLE_ASSISTANT) && !manager.isRoleHeld(RoleManager.ROLE_ASSISTANT)) {
             startActivity(manager.createRequestRoleIntent(RoleManager.ROLE_ASSISTANT));
         }
     }
@@ -160,7 +135,7 @@ public class SettingsActivity extends Activity {
         TextView view = new TextView(this);
         view.setText(value);
         view.setTextSize(13);
-        view.setTextColor(Color.rgb(0, 115, 140));
+        view.setTextColor(getColor(R.color.jarvis_cyan));
         view.setPadding(0, dp(18), 0, dp(6));
         return view;
     }
@@ -168,11 +143,11 @@ public class SettingsActivity extends Activity {
     private Switch toggle(String title, String key, boolean defaultValue) {
         Switch toggle = new Switch(this);
         toggle.setText(title);
+        toggle.setTextColor(getColor(R.color.jarvis_text_dim));
         toggle.setTextSize(17);
         toggle.setPadding(dp(8), dp(10), dp(8), dp(10));
         toggle.setChecked(preferences.getBoolean(key, defaultValue));
-        toggle.setOnCheckedChangeListener((button, checked) ->
-                preferences.edit().putBoolean(key, checked).apply());
+        toggle.setOnCheckedChangeListener((button, checked) -> preferences.edit().putBoolean(key, checked).apply());
         return toggle;
     }
 
@@ -180,6 +155,7 @@ public class SettingsActivity extends Activity {
         RadioButton button = new RadioButton(this);
         button.setId(android.view.View.generateViewId());
         button.setText(title);
+        button.setTextColor(getColor(R.color.jarvis_text_dim));
         button.setTextSize(17);
         button.setChecked(checked);
         return button;
@@ -189,7 +165,7 @@ public class SettingsActivity extends Activity {
         Button button = new Button(this);
         button.setText(title);
         button.setTextColor(Color.WHITE);
-        button.setBackgroundColor(Color.rgb(0, 118, 144));
+        button.setBackgroundColor(getColor(R.color.jarvis_cyan_dim));
         button.setOnClickListener(v -> runnable.run());
         LinearLayout.LayoutParams params = fullWrap();
         params.setMargins(0, dp(4), 0, dp(4));
@@ -200,6 +176,8 @@ public class SettingsActivity extends Activity {
     private EditText textSetting(String hint, String value) {
         EditText input = new EditText(this);
         input.setHint(hint);
+        input.setHintTextColor(getColor(R.color.jarvis_text_faint));
+        input.setTextColor(getColor(R.color.jarvis_text_dim));
         input.setText(value == null ? "" : value);
         input.setSingleLine(true);
         input.setPadding(dp(8), dp(8), dp(8), dp(8));
@@ -207,8 +185,7 @@ public class SettingsActivity extends Activity {
     }
 
     private LinearLayout.LayoutParams fullWrap() {
-        return new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.WRAP_CONTENT);
+        return new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
     }
 
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
