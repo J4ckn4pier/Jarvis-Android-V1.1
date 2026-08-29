@@ -28,6 +28,16 @@ public final class OutcomeFollowupRuntime {
         coordinator.recordActedOn(episode, actedAt);
     }
 
+    /** Preferred platform boundary: callers provide only a semantic event, never raw telemetry. */
+    public Optional<ProactiveIntervention> onSignal(OutcomeFollowupSignal signal) {
+        if (signal == null) throw new IllegalArgumentException("signal required");
+        return onSignal(signal.episodeId(), signal.trigger(), signal.attentionState(), signal.observedAt());
+    }
+
+    /**
+     * Compatibility entry point retained for existing callers. Consent is still resolved internally
+     * and cannot be supplied by the platform caller.
+     */
     public Optional<ProactiveIntervention> onSignal(String episodeId,
                                                      FollowupTrigger trigger,
                                                      AttentionController.State attentionState,
