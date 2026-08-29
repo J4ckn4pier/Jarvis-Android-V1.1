@@ -11,6 +11,7 @@ public final class BrainAcceptanceTest {
     public static void main(String[] args) {
         conversationRemainsActiveWithoutRepeatingWakeWord();
         howAreYouIsConversationNotUnsupported();
+        naturalHelpIsDeterministicAndUseful();
         phoneAppResolvesToDialerTool();
         dinnerRequestBecomesResearchPlan();
         reservationCallRequiresApprovalAndDecomposes();
@@ -42,6 +43,17 @@ public final class BrainAcceptanceTest {
         BrainResponse response = engine().handle("Hey Jarvis, how are you?");
         check(response.kind() == BrainResponse.Kind.CONVERSATION, "how are you should be conversation");
         check(!response.text().toLowerCase().contains("framework"), "must never say no framework for ordinary conversation");
+    }
+
+    private static void naturalHelpIsDeterministicAndUseful() {
+        BrainEngine brain = engine();
+        brain.handle("Hey Jarvis");
+        BrainResponse response = brain.handle("help me!!!");
+        String text = response.text().toLowerCase();
+        check(response.kind() == BrainResponse.Kind.CONVERSATION, "help should be handled locally as conversation");
+        check(text.contains("speak naturally"), "help should explain natural-language interaction");
+        check(text.contains("call contacts"), "help should advertise contact calling capability");
+        check(text.contains("approval"), "help should explain consequential-action approval boundary");
     }
 
     private static void phoneAppResolvesToDialerTool() {
