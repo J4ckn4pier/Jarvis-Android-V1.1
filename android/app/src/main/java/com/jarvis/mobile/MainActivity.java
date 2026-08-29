@@ -27,6 +27,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.Window;
 import android.view.WindowManager;
+import android.widget.Button;
 import android.widget.EditText;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
@@ -36,6 +37,7 @@ import android.widget.PopupMenu;
 import android.widget.TextView;
 
 import com.jarvis.brain.FullAppRuntimeViewState;
+import com.jarvis.brain.RuntimeSurfaceAction;
 import com.jarvis.brain.RuntimeSurfacePresentation;
 import com.jarvis.mobile.assistant.JarvisVoiceInteractionService;
 import com.jarvis.mobile.assistant.JarvisVoiceSessionService;
@@ -75,6 +77,11 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private TextView status;
     private TextView modeStatus;
     private LinearLayout mediaPanel;
+    private LinearLayout decisionPanel;
+    private Button primaryActionButton;
+    private Button secondaryActionButton;
+    private RuntimeSurfaceAction currentPrimaryAction = RuntimeSurfaceAction.NONE;
+    private RuntimeSurfaceAction currentSecondaryAction = RuntimeSurfaceAction.NONE;
     private boolean active;
     private boolean pulseFrame;
     private SharedPreferences preferences;
@@ -169,6 +176,13 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         statusParams.setMargins(dp(18), 0, dp(18), dp(118));
         root.addView(status, statusParams);
 
+        decisionPanel = buildDecisionPanel();
+        decisionPanel.setVisibility(View.GONE);
+        FrameLayout.LayoutParams decisionParams = new FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, dp(54), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
+        decisionParams.setMargins(dp(18), 0, dp(18), dp(62));
+        root.addView(decisionPanel, decisionParams);
+
         mediaPanel = buildMediaPanel();
         mediaPanel.setVisibility(View.GONE);
         FrameLayout.LayoutParams mediaParams = new FrameLayout.LayoutParams(
@@ -186,6 +200,33 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         root.addView(menu, menuParams);
 
         setContentView(root);
+    }
+
+    private LinearLayout buildDecisionPanel() {
+        LinearLayout panel = new LinearLayout(this);
+        panel.setGravity(Gravity.CENTER);
+        panel.setBackgroundColor(Color.argb(220, 3, 30, 40));
+
+        primaryActionButton = decisionButton();
+        primaryActionButton.setOnClickListener(v -> runDecisionAction(true));
+        panel.addView(primaryActionButton);
+
+        secondaryActionButton = decisionButton();
+        secondaryActionButton.setOnClickListener(v -> runDecisionAction(false));
+        panel.addView(secondaryActionButton);
+        return panel;
+    }
+
+    private Button decisionButton() {
+        Button button = new Button(this);
+        button.setTextColor(Color.rgb(115, 235, 255));
+        button.setTextSize(11);
+        button.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+        button.setBackgroundColor(Color.argb(220, 3, 30, 40));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(48), 1f);
+        params.setMargins(dp(6), dp(3), dp(6), dp(3));
+        button.setLayoutParams(params);
+        return button;
     }
 
     private LinearLayout buildMediaPanel() {
@@ -282,6 +323,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         String command = raw == null ? "" : raw.trim();
         if (command.isEmpty()) { setActive(false, "I’m listening."); return; }
         setActive(true, "Processing ...");
+        if (decisionPanel != null) decisionPanel.setVisibility(View.GONE);
         status.setText("Heard you say, “" + command + "”");
         ui.postDelayed(() -> deliverPresentation(runtime.handlePresentation(command)), 120L);
     }
@@ -298,12 +340,36 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         FullAppRuntimeViewState view = FullAppRuntimeViewState.from(presentation);
         String rendered = view.text();
         if (!view.detail().isBlank() && !view.detail().equals(view.text())) rendered += "\n\n" + view.detail();
-        if (view.primaryEnabled()) rendered += "\n\n" + view.primaryAction();
-        if (view.secondaryEnabled()) rendered += " / " + view.secondaryAction();
+        applyDecisionActions(view);
         setActive(false, rendered);
         Log.i(SHARED_BRAIN_TAG, "state=" + view.state() + " primary=" + view.primaryAction());
         if (commandTestMode) Log.i(COMMAND_TEST_TAG, "JARVIS_COMMAND_RESULT " + view.text());
         if (!view.text().isBlank()) speak(view.text());
+    }
+
+    private void applyDecisionActions(FullAppRuntimeViewState view) {
+        currentPrimaryAction = view.primaryAction();
+        currentSecondaryAction = view.secondaryAction();
+        boolean visible = view.primaryEnabled() || view.secondaryEnabled();
+        decisionPanel.setVisibility(visible ? View.VISIBLE : View.GONE);
+
+        primaryActionButton.setVisibility(view.primaryEnabled() ? View.VISIBLE : View.GONE);
+        primaryActionButton.setEnabled(view.primaryEnabled());
+        primaryActionButton.setText(view.primaryAction().name());
+
+        secondaryActionButton.setVisibility(view.secondaryEnabled() ? View.VISIBLE : View.GONE);
+        secondaryActionButton.setEnabled(view.secondaryEnabled());
+        secondaryActionButton.setText(view.secondaryAction().name());
+    }
+
+    private void runDecisionAction(boolean primary) {
+        RuntimeSurfaceAction action = primary ? currentPrimaryAction : currentSecondaryAction;
+        switch (action) {
+            case APPROVE: deliverPresentation(runtime.approvePresentation()); break;
+            case RETRY: deliverPresentation(runtime.retryPresentation()); break;
+            case CANCEL: deliverPresentation(runtime.cancelPresentation()); break;
+            default: break;
+        }
     }
 
     private void runEmbeddedSelfTest() {
