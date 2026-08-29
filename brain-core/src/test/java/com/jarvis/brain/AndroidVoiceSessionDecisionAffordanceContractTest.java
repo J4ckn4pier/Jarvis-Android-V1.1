@@ -14,6 +14,10 @@ public final class AndroidVoiceSessionDecisionAffordanceContractTest {
                 "assistant overlay primary decision control must reuse the full-app accessibility identifier space");
         check(session.contains("cancelButton.setContentDescription(\"JARVIS CANCEL action\");"),
                 "assistant overlay cancel control must reuse the full-app accessibility identifier space");
+        check(session.contains("JARVIS_SHARED_BRAIN_ACTIVE"),
+                "assistant overlay must expose shared-runtime state evidence for real device decision verification");
+        check(session.contains("state=\" + presentation.state()"),
+                "assistant overlay must trace the resulting shared runtime presentation state after decisions");
 
         check(smoke.contains("JARVIS_OVERLAY_SESSION_SHOWN"),
                 "emulator smoke must distinguish a shown assistant session before decision-node lookup");
