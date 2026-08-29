@@ -6,12 +6,17 @@ import com.jarvis.brain.*;
 import com.jarvis.mobile.brain.providers.CortexProvider;
 import com.jarvis.mobile.brain.providers.CortexProviderFactory;
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Optional;
 
 /** Android composition root for the shared brain. UI/voice surfaces must use this instead of owning intent logic. */
 public final class AndroidBrainRuntime {
     private static final String TRACE_TAG = "JARVIS_COMMAND_TRACE";
     private final BrainRuntime runtime;
     private final RuntimeApprovalConversation conversation;
+    private final SettingsStore settings;
+    private final OutcomeFollowupRuntime followups;
 
     public AndroidBrainRuntime(Context context) {
         Context app = context.getApplicationContext();
@@ -23,6 +28,16 @@ public final class AndroidBrainRuntime {
         AssistantCore assistant = new AssistantCore(brain, reasoning, tools);
         runtime = new BrainRuntime(assistant, tools);
         conversation = new RuntimeApprovalConversation(runtime);
+
+        settings = new SettingsStore();
+        OutcomeFollowupStore followupStore = new EncryptedFileOutcomeFollowupStore(
+                app.getNoBackupFilesDir().toPath().resolve("jarvis").resolve("pending-outcome-followups.bin"),
+                new AndroidKeystoreMemoryCipher());
+        OutcomeFollowupCoordinator followupCoordinator = new OutcomeFollowupCoordinator(
+                new EpisodeFollowupPolicy(Duration.ofMinutes(30)),
+                new ProactiveExecutive(new AttentionGate(0.70), Duration.ZERO, true),
+                followupStore);
+        followups = new OutcomeFollowupRuntime(settings, followupCoordinator);
     }
 
     public BrainRuntime.Result handle(String utterance) { return runtime.handle(utterance); }
@@ -42,6 +57,21 @@ public final class AndroidBrainRuntime {
     public RuntimeSurfacePresentation approvePresentation() { return conversation.approvePending(); }
     public RuntimeSurfacePresentation retryPresentation() { return conversation.retryPending(); }
     public RuntimeSurfacePresentation cancelPresentation() { return conversation.cancelPending(); }
+
+    /** Platform adapters call this only after a recommendation/action has actually been acted on. */
+    public void recordActedOnEpisode(RecommendationEpisode episode, Instant actedAt) {
+        followups.recordActedOn(episode, actedAt);
+    }
+
+    /** Context/presence adapters report signals here; privacy consent remains backend-owned. */
+    public Optional<ProactiveIntervention> onOutcomeFollowupSignal(String episodeId,
+                                                                   FollowupTrigger trigger,
+                                                                   AttentionController.State attentionState,
+                                                                   Instant now) {
+        return followups.onSignal(episodeId, trigger, attentionState, now);
+    }
+
+    public SettingsStore settings() { return settings; }
 
     private static ReasoningResult reasonWithConfiguredCortex(
             Context context, ReasoningRequest request, ToolRegistry tools) {
