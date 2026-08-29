@@ -10,7 +10,8 @@ import java.nio.file.Path;
 public final class AndroidAssistantInvocationContractTest {
     public static void main(String[] args) throws Exception {
         String smoke = Files.readString(Path.of("../.github/scripts/emulator-smoke.sh"));
-        String activity = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/MainActivity.java"));
+        String receiver = Files.readString(Path.of("../android/app/src/debug/java/com/jarvis/mobile/assistant/JarvisAssistantTestReceiver.java"));
+        String debugManifest = Files.readString(Path.of("../android/app/src/debug/AndroidManifest.xml"));
         String service = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/assistant/JarvisVoiceInteractionService.java"));
 
         check(smoke.contains("cmd role add-role-holder android.app.role.ASSISTANT"),
@@ -19,10 +20,12 @@ public final class AndroidAssistantInvocationContractTest {
                 "assistant smoke must still verify Android's selected voice-interaction service");
         check(!smoke.contains("adb shell cmd voiceinteraction show"),
                 "emulator smoke must not rely on privileged shell VoiceInteractionManager commands");
-        check(smoke.contains("jarvis_test_show_assistant"),
+        check(smoke.contains("com.jarvis.mobile.DEBUG_SHOW_ASSISTANT"),
                 "emulator smoke must request the debug-only app-owned session trigger");
-        check(activity.contains("JarvisVoiceInteractionService.requestDebugTestSession(this)"),
-                "debug activity trigger must delegate to the actual system-bound voice interaction service");
+        check(receiver.contains("JarvisVoiceInteractionService.requestDebugTestSession(context)"),
+                "debug receiver must delegate to the actual system-bound voice interaction service");
+        check(debugManifest.contains("JarvisAssistantTestReceiver"),
+                "debug session receiver must live only in the debug manifest/source set");
         check(service.contains("requestDebugTestSession(Context context)"),
                 "voice interaction service must expose a debug-only session test hook");
         check(service.contains("ApplicationInfo.FLAG_DEBUGGABLE"),
