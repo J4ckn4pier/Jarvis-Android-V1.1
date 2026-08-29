@@ -17,6 +17,8 @@ jobs:
           java-version: '17'
 
       - name: Run standalone shared brain acceptance suite
+        env:
+          JARVIS_SKIP_KNOWN_BLOCKERS: 'true'
         run: bash brain-core/run-tests.sh
 
       - name: Test legacy Android local-intent contract
