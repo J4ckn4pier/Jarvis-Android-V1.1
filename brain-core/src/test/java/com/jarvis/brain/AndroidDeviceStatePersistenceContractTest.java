@@ -23,8 +23,8 @@ public final class AndroidDeviceStatePersistenceContractTest {
                 "Android runtime must bind durable device persistence");
         check(runtime.contains("DeviceStateStore devices = new DeviceStateStore("),
                 "Android runtime must own the durable device store");
-        check(runtime.contains("new JarvisUiBackend(null, tools, connections, settings, defaultApps, lists, routines, activity, devices)"),
-                "frontend facade must receive the same durable device store");
+        check(runtime.contains("settings, defaultApps, lists, routines, activity, devices"),
+                "frontend facade must receive the same durable device store even as later stores are appended");
 
         System.out.println("AndroidDeviceStatePersistenceContractTest passed");
     }
