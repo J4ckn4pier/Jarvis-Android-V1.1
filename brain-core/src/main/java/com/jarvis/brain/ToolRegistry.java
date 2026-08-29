@@ -17,13 +17,20 @@ public final class ToolRegistry {
     public void register(ToolSpec spec, Tool implementation) {
         String canonical = normalize(spec.name());
         RegisteredTool previous = byKey.get(canonical);
-        Set<String> aliases = new HashSet<>(spec.aliases());
+        Set<String> aliases = new HashSet<>();
 
         if (previous != null && normalize(previous.spec().name()).equals(canonical)) {
+            for (String requestedAlias : spec.aliases()) {
+                String key = normalize(requestedAlias);
+                RegisteredTool owner = byKey.get(key);
+                if (owner == null || owner == previous || normalize(owner.spec().name()).equals(canonical)) aliases.add(key);
+            }
             for (Map.Entry<String, RegisteredTool> entry : byKey.entrySet()) {
                 if (entry.getValue() == previous && !entry.getKey().equals(canonical)) aliases.add(entry.getKey());
             }
             byKey.entrySet().removeIf(entry -> entry.getValue() == previous);
+        } else {
+            aliases.addAll(spec.aliases());
         }
 
         ToolSpec effectiveSpec = new ToolSpec(
