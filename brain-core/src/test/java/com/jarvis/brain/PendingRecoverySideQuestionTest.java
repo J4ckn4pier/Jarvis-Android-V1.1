@@ -16,7 +16,7 @@ public final class PendingRecoverySideQuestionTest {
         int[] reads = {0};
         RuntimeApprovalConversation conversation = bridge(actionAttempts, reads);
 
-        RuntimeSurfacePresentation pending = conversation.handle("perform zeta operation");
+        RuntimeSurfacePresentation pending = conversation.handle("Jarvis, perform zeta operation");
         check(pending.state() == AssistantSurfaceState.NEEDS_INPUT, "retryable action begins as pending recovery");
         check(conversation.hasPendingRecovery(), "recovery is pending before side question");
         check(actionAttempts[0] == 2, "initial execution uses bounded automatic retry before asking user");
