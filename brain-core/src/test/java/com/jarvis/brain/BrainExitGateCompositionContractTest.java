@@ -18,6 +18,10 @@ public final class BrainExitGateCompositionContractTest {
                 "durable editable UI lists must be part of the composed brain gate");
         require(gate, "JarvisUiListCompositionTest.class",
                 "frontend/runtime UI list source-of-truth must be part of the composed brain gate");
+        require(gate, "RoutineStorePersistenceTest.class",
+                "durable user-created routines must be part of the composed brain gate");
+        require(gate, "JarvisUiRoutineCompositionTest.class",
+                "frontend/runtime routine source-of-truth must be part of the composed brain gate");
 
         System.out.println("BrainExitGateCompositionContractTest passed");
     }
