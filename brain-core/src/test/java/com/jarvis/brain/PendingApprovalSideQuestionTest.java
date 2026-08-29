@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-/** A read-only side question may be answered while a consequential decision remains pending. */
+/** A safe side question may be answered while a consequential decision remains pending. */
 public final class PendingApprovalSideQuestionTest {
     private static int checks;
 
@@ -21,9 +21,9 @@ public final class PendingApprovalSideQuestionTest {
         check(conversation.hasPendingApproval(), "approval is pending before side question");
 
         RuntimeSurfacePresentation side = conversation.handle("what is the weather outside?");
-        check(side.state() == AssistantSurfaceState.ACTION_DONE, "read-only side question can complete");
-        check(side.text().contains("72"), "side question returns its read-only result");
-        check(reads[0] == 1, "read-only side tool executes exactly once");
+        check(side.state() == AssistantSurfaceState.ACTION_DONE, "safe side question can complete");
+        check(side.text().contains("72"), "side question returns its result");
+        check(reads[0] == 1, "safe side tool executes exactly once");
         check(conversation.hasPendingApproval(), "original consequential approval survives side question");
         check(sends[0] == 0, "side question never executes pending consequential tool");
 
@@ -41,8 +41,10 @@ public final class PendingApprovalSideQuestionTest {
                     sends[0]++;
                     return ToolResult.success("Message sent");
                 });
+        // DEVICE_REFLEX is intentionally used here: it remains non-consequential but is returned to BrainRuntime
+        // as an ACTION_PLAN, which exercises preservation of the original pending approval cursor.
         tools.register(new ToolSpec("read_info", false, Set.of("weather", "read"), Set.of(),
-                "read information", ToolExecutionClass.READ_ONLY), (args, ctx) -> {
+                "read information", ToolExecutionClass.DEVICE_REFLEX), (args, ctx) -> {
                     reads[0]++;
                     return ToolResult.success("72 degrees and clear");
                 });
