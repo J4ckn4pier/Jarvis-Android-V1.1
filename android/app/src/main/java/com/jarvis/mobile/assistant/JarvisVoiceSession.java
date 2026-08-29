@@ -299,10 +299,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         cancelButton.setVisibility(approval || recovery ? View.VISIBLE : View.GONE);
 
         bargeInMonitor.stop();
-        resumeAfterSpeech = false;
-        if (!approval && !recovery) {
-            resumeAfterSpeech = conversationWindowOpen();
-        }
+        resumeAfterSpeech = conversationWindowOpen();
         if (!text.isBlank() && textToSpeech != null) {
             int result = textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "jarvis-session");
             if (result == TextToSpeech.SUCCESS) {
