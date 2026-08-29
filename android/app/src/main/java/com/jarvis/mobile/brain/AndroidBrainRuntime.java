@@ -3,6 +3,7 @@ package com.jarvis.mobile.brain;
 import android.content.Context;
 import android.util.Log;
 import com.jarvis.brain.*;
+import com.jarvis.mobile.brain.providers.CortexPlanAdapter;
 import com.jarvis.mobile.brain.providers.CortexProvider;
 import com.jarvis.mobile.brain.providers.CortexProviderFactory;
 import java.time.Clock;
@@ -17,7 +18,7 @@ public final class AndroidBrainRuntime {
         Context app = context.getApplicationContext();
         ExternalResearchGateway research = ExternalResearchGateway.unavailable();
         ToolRegistry tools = AndroidToolRegistryFactory.create(app, research);
-        ReasoningRouter reasoning = request -> reasonWithConfiguredCortex(app, request.utterance());
+        ReasoningRouter reasoning = request -> reasonWithConfiguredCortex(app, request, tools);
         BrainEngine brain = BrainEngine.createDefault(Clock.systemDefaultZone());
         brain.beginInvokedConversation();
         AssistantCore assistant = new AssistantCore(brain, reasoning, tools);
@@ -43,17 +44,15 @@ public final class AndroidBrainRuntime {
     public RuntimeSurfacePresentation retryPresentation() { return conversation.retryPending(); }
     public RuntimeSurfacePresentation cancelPresentation() { return conversation.cancelPending(); }
 
-    private static ReasoningResult reasonWithConfiguredCortex(Context context, String utterance) {
+    private static ReasoningResult reasonWithConfiguredCortex(
+            Context context, ReasoningRequest request, ToolRegistry tools) {
         CortexProvider provider = CortexProviderFactory.create(context);
         if (!provider.isConfigured() || "local".equals(provider.id())) {
             return new ReasoningResult("local", "I need a connected reasoning cortex for that request.", null);
         }
         try {
-            com.jarvis.mobile.brain.core.IntentPlan proposed = provider.propose(utterance);
-            if (proposed == null || !proposed.isResolved()) {
-                return new ReasoningResult(provider.id(), "I couldn't resolve that request safely.", null);
-            }
-            return new ReasoningResult(provider.id(), proposed.answer(), null);
+            com.jarvis.mobile.brain.core.IntentPlan proposed = provider.propose(request.utterance());
+            return CortexPlanAdapter.toReasoningResult(provider, proposed, tools);
         } catch (Exception failure) {
             return new ReasoningResult(provider.id(), "The optional reasoning cortex is unavailable right now.", null);
         }
