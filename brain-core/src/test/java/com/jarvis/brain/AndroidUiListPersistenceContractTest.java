@@ -22,8 +22,8 @@ public final class AndroidUiListPersistenceContractTest {
                 "Android runtime must bind durable UI list persistence");
         check(runtime.contains("new UiListStore("),
                 "Android runtime must own the durable UI list store");
-        check(runtime.contains("new JarvisUiBackend(null, tools, connections, settings, defaultApps, lists, routines, activity, devices)"),
-                "frontend facade must receive the same durable UI list store in the full shared composition");
+        check(runtime.contains("defaultApps, lists"),
+                "frontend facade must receive the same durable UI list store even as later stores are appended");
 
         System.out.println("AndroidUiListPersistenceContractTest passed");
     }
