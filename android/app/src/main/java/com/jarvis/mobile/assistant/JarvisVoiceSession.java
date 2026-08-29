@@ -170,7 +170,11 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
                     setActive(false);
                     return;
                 }
-                execute(matches.get(0));
+                float[] scores = results.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES);
+                double confidence = scores != null && scores.length > 0 && scores[0] >= 0.0f
+                        ? Math.min(1.0, scores[0])
+                        : 0.0;
+                execute(matches.get(0), confidence);
             }
             @Override public void onPartialResults(Bundle partialResults) {
                 ArrayList<String> partial = partialResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
@@ -194,10 +198,10 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         speechRecognizer.startListening(intent);
     }
 
-    private void execute(String command) {
+    private void execute(String command, double confidence) {
         lastCommand = command == null ? "" : command;
         output.setText("YOU: " + lastCommand + "\n\nJARVIS: Thinking…");
-        deliver(brain.handlePresentation(lastCommand));
+        deliver(brain.handlePresentation(lastCommand, confidence));
     }
 
     private void deliver(RuntimeSurfacePresentation presentation) {
