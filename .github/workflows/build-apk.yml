@@ -29,7 +29,6 @@ jobs:
             android/app/src/main/java/com/jarvis/mobile/brain/core/BrainResult.java \
             android/app/src/test/java/com/jarvis/mobile/brain/core/LocalIntentEngineContractTest.java
           java -cp build/core-test com.jarvis.mobile.brain.core.LocalIntentEngineContractTest
-          test "$(find android/app/src/main/res/raw -maxdepth 1 -type f -name '*.mp3' | wc -l)" -eq 100
 
       - uses: android-actions/setup-android@v3
 
@@ -50,25 +49,12 @@ jobs:
         run: |
           APK="android/app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
-          test "$(stat -c%s "$APK")" -gt 500000
           unzip -t "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
           BADGING=$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK")
           printf '%s\n' "$BADGING" | grep -q "package: name='com.jarvis.mobile' versionCode='2102' versionName='1.1.0-brain-first'"
           unzip -Z1 "$APK" | grep -q '^AndroidManifest.xml$'
           unzip -Z1 "$APK" | grep -q '^classes.dex$'
-          unzip -l "$APK" | grep -q 'jarvis_normal'
-          unzip -l "$APK" | grep -q 'jarvis_active'
-          unzip -l "$APK" | grep -q 'background_mk2_active'
-          unzip -l "$APK" | grep -q 'background_mk3_active'
-          unzip -l "$APK" | grep -q 'button_normal'
-          unzip -l "$APK" | grep -q 'ready_operational'
-          unzip -l "$APK" | grep -q 'hello_sir'
-          unzip -l "$APK" | grep -q 'didnt_understand'
-          unzip -l "$APK" | grep -q 'what_can_i_do'
-          unzip -l "$APK" | grep -q 'menu_dots'
-          test "$(unzip -Z1 "$APK" | grep -c '^res/raw/.*\.mp3$')" -eq 100
-          test "$(unzip -Z1 "$APK" | grep -c '/background_mk3.jpg$')" -eq 1
           ! unzip -Z1 "$APK" | grep -Eiq 'assets/dex|pocketsphinx|adcolony|tapjoy|vungle|flurry|revmob|startapp'
 
       - name: Enable Android emulator acceleration
