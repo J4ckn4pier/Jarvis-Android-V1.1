@@ -6,6 +6,7 @@ import android.util.Log;
 import com.jarvis.brain.CommercialWakeWordPolicy;
 import com.jarvis.brain.WakeWordArtifactVerifier;
 import com.jarvis.brain.WakeWordModelDescriptor;
+import com.jarvis.brain.WakeWordReleaseTrustRegistry;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -25,7 +26,7 @@ final class AndroidWakeWordModelStore {
     record ApprovedArtifact(Path modelPath, WakeWordModelDescriptor descriptor) { }
 
     private final Path directory;
-    private final WakeWordArtifactVerifier verifier = new WakeWordArtifactVerifier(new CommercialWakeWordPolicy());
+    private final WakeWordArtifactVerifier verifier = new WakeWordArtifactVerifier(WakeWordReleaseTrustRegistry.currentPolicy());
 
     AndroidWakeWordModelStore(Context context) {
         directory = context.getNoBackupFilesDir().toPath().resolve("jarvis").resolve("wake-word");
