@@ -7,9 +7,9 @@ import android.app.role.RoleManager;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.pm.ApplicationInfo;
-import android.content.SharedPreferences;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.media.AudioManager;
@@ -37,20 +37,19 @@ import android.widget.TextView;
 
 import com.jarvis.brain.FullAppRuntimeViewState;
 import com.jarvis.brain.RuntimeSurfacePresentation;
-import com.jarvis.mobile.brain.AndroidBrainRuntime;
 import com.jarvis.mobile.assistant.JarvisVoiceInteractionService;
 import com.jarvis.mobile.assistant.JarvisVoiceSessionService;
+import com.jarvis.mobile.brain.AndroidBrainRuntime;
 import com.jarvis.mobile.events.JarvisNotificationListener;
 import com.jarvis.mobile.hands.JarvisAccessibilityService;
 import com.jarvis.mobile.widgets.NotesWidget;
 import com.jarvis.mobile.widgets.QuickActivationWidget;
-import com.jarvis.mobile.voice.LegacyResponsePlayer;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
-/** Modern assistant brain inside the current Android shell. */
+/** Original Android shell backed by the shared JARVIS runtime. */
 public class MainActivity extends Activity implements TextToSpeech.OnInitListener {
     private static final int PERMISSION_REQUEST = 70;
     private static final int ASSISTANT_ROLE_REQUEST = 71;
@@ -72,7 +71,6 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private AndroidBrainRuntime runtime;
     private SpeechRecognizer speechRecognizer;
     private TextToSpeech textToSpeech;
-    private LegacyResponsePlayer legacyResponses;
     private ImageView background;
     private TextView status;
     private TextView modeStatus;
@@ -82,8 +80,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private SharedPreferences preferences;
     private boolean commandTestMode;
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
+    @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
         getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
@@ -92,15 +89,13 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
         preferences = getSharedPreferences("jarvis_shell", MODE_PRIVATE);
         runtime = new AndroidBrainRuntime(this);
-        legacyResponses = new LegacyResponsePlayer(this);
         textToSpeech = new TextToSpeech(this, this);
-        buildDonorShell();
+        buildCurrentShell();
 
         if (getIntent() != null && getIntent().getBooleanExtra("jarvis_self_test", false)) {
             ui.postDelayed(this::runEmbeddedSelfTest, 350L);
             return;
         }
-
         if ((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0 && getIntent() != null &&
                 getIntent().hasExtra("jarvis_test_command")) {
             commandTestMode = true;
@@ -108,16 +103,13 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             ui.postDelayed(() -> runCommand(testCommand), 350L);
             return;
         }
-
         if ((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
-            Log.i(UI_TEST_TAG, "JARVIS_HOME_READY Mark III Welcome Sir");
+            Log.i(UI_TEST_TAG, "JARVIS_HOME_READY Original HUD Welcome Sir");
         }
 
         requestRuntimePermissions();
-
         if (!preferences.getBoolean("introduced", false)) {
             preferences.edit().putBoolean("introduced", true).apply();
-            ui.postDelayed(this::playReadyCue, 650L);
         }
 
         String action = getIntent() == null ? null : getIntent().getAction();
@@ -126,55 +118,56 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         }
     }
 
-    @Override
-    protected void onNewIntent(Intent intent) {
+    @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
         String action = intent == null ? null : intent.getAction();
         if (Intent.ACTION_ASSIST.equals(action) || Intent.ACTION_VOICE_COMMAND.equals(action)) listen();
     }
 
-    private void buildDonorShell() {
+    private void buildCurrentShell() {
         FrameLayout root = new FrameLayout(this);
         root.setBackgroundColor(Color.BLACK);
 
         background = new ImageView(this);
-        background.setScaleType(ImageView.ScaleType.CENTER_CROP);
-        background.setContentDescription("JARVIS Mark III interface");
+        background.setContentDescription("JARVIS interface background");
         root.addView(background, matchFrame());
         applyThemeFrame(false);
 
-        modeStatus = donorText("", 10, Color.rgb(10, 35, 42));
-        modeStatus.setBackgroundColor(Color.WHITE);
-        modeStatus.setPadding(dp(6), dp(4), dp(6), dp(4));
+        TextView brand = hudText("J A R V I S", 13, Color.rgb(115, 235, 255));
+        brand.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
+        FrameLayout.LayoutParams brandParams = wrapFrame(Gravity.TOP | Gravity.START);
+        brandParams.setMargins(dp(18), dp(20), 0, 0);
+        root.addView(brand, brandParams);
+
+        modeStatus = hudText("", 10, Color.rgb(115, 235, 255));
+        modeStatus.setBackgroundColor(Color.argb(180, 3, 30, 40));
+        modeStatus.setPadding(dp(8), dp(5), dp(8), dp(5));
         modeStatus.setVisibility(View.GONE);
         FrameLayout.LayoutParams modeParams = wrapFrame(Gravity.TOP | Gravity.END);
-        modeParams.setMargins(0, dp(8), dp(8), 0);
+        modeParams.setMargins(0, dp(16), dp(16), 0);
         root.addView(modeStatus, modeParams);
 
-        status = donorText("Welcome Sir!", 16, Color.WHITE);
+        TextView core = hudText("◉", 94, Color.rgb(115, 235, 255));
+        core.setGravity(Gravity.CENTER);
+        core.setContentDescription("Speak to JARVIS");
+        core.setOnClickListener(v -> listen());
+        core.setOnLongClickListener(v -> { showTypedCommand(); return true; });
+        FrameLayout.LayoutParams coreParams = new FrameLayout.LayoutParams(
+                dp(220), dp(220), Gravity.CENTER);
+        root.addView(core, coreParams);
+
+        status = hudText("Welcome Sir!", 16, Color.WHITE);
         status.setGravity(Gravity.CENTER);
-        status.setMaxLines(6);
-        status.setShadowLayer(5f, 0f, 1f, Color.BLACK);
+        status.setMaxLines(8);
+        status.setPadding(dp(20), dp(14), dp(20), dp(14));
+        status.setBackgroundColor(Color.argb(110, 0, 15, 22));
         status.setContentDescription("JARVIS status and response");
         FrameLayout.LayoutParams statusParams = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
                 Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
-        statusParams.setMargins(dp(18), 0, dp(18), dp(218));
+        statusParams.setMargins(dp(18), 0, dp(18), dp(118));
         root.addView(status, statusParams);
-
-        View reactorTarget = new View(this);
-        reactorTarget.setContentDescription("Speak to JARVIS");
-        reactorTarget.setFocusable(true);
-        reactorTarget.setOnClickListener(v -> listen());
-        reactorTarget.setOnLongClickListener(v -> {
-            showTypedCommand();
-            return true;
-        });
-        FrameLayout.LayoutParams reactorParams = new FrameLayout.LayoutParams(
-                dp(230), dp(230), Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
-        reactorParams.bottomMargin = dp(28);
-        root.addView(reactorTarget, reactorParams);
 
         mediaPanel = buildMediaPanel();
         mediaPanel.setVisibility(View.GONE);
@@ -183,13 +176,12 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         root.addView(mediaPanel, mediaParams);
 
         ImageButton menu = new ImageButton(this);
-        menu.setImageResource(R.drawable.menu_dots);
+        menu.setImageResource(android.R.drawable.ic_menu_more);
         menu.setBackgroundColor(Color.TRANSPARENT);
         menu.setPadding(dp(8), dp(8), dp(8), dp(8));
         menu.setContentDescription("JARVIS menu");
         menu.setOnClickListener(this::showMenu);
-        FrameLayout.LayoutParams menuParams = new FrameLayout.LayoutParams(
-                dp(54), dp(54), Gravity.BOTTOM | Gravity.END);
+        FrameLayout.LayoutParams menuParams = new FrameLayout.LayoutParams(dp(54), dp(54), Gravity.BOTTOM | Gravity.END);
         menuParams.setMargins(0, 0, dp(5), dp(5));
         root.addView(menu, menuParams);
 
@@ -200,22 +192,18 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setGravity(Gravity.CENTER);
-        panel.setBackgroundColor(Color.argb(230, 255, 255, 255));
+        panel.setBackgroundColor(Color.argb(235, 3, 30, 40));
 
-        TextView title = donorText("Now playing ...", 12, Color.rgb(15, 25, 30));
+        TextView title = hudText("Now playing ...", 12, Color.WHITE);
         title.setSingleLine(true);
         title.setGravity(Gravity.CENTER);
-        panel.addView(title, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        panel.addView(title, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         LinearLayout controls = new LinearLayout(this);
         controls.setGravity(Gravity.CENTER);
-        controls.addView(mediaButton(android.R.drawable.ic_media_previous,
-                KeyEvent.KEYCODE_MEDIA_PREVIOUS, "Previous"));
-        controls.addView(mediaButton(android.R.drawable.ic_media_play,
-                KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, "Play or pause"));
-        controls.addView(mediaButton(android.R.drawable.ic_media_next,
-                KeyEvent.KEYCODE_MEDIA_NEXT, "Next"));
+        controls.addView(mediaButton(android.R.drawable.ic_media_previous, KeyEvent.KEYCODE_MEDIA_PREVIOUS, "Previous"));
+        controls.addView(mediaButton(android.R.drawable.ic_media_play, KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE, "Play or pause"));
+        controls.addView(mediaButton(android.R.drawable.ic_media_next, KeyEvent.KEYCODE_MEDIA_NEXT, "Next"));
         panel.addView(controls);
         return panel;
     }
@@ -279,13 +267,12 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Run", null)
                 .create();
-        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE)
-                .setOnClickListener(v -> {
-                    String command = input.getText().toString().trim();
-                    if (command.isEmpty()) return;
-                    dialog.dismiss();
-                    runCommand(command);
-                }));
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(v -> {
+            String command = input.getText().toString().trim();
+            if (command.isEmpty()) return;
+            dialog.dismiss();
+            runCommand(command);
+        }));
         dialog.show();
         input.requestFocus();
         dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
@@ -293,10 +280,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
     private void runCommand(String raw) {
         String command = raw == null ? "" : raw.trim();
-        if (command.isEmpty()) {
-            setActive(false, "I’m listening.");
-            return;
-        }
+        if (command.isEmpty()) { setActive(false, "I’m listening."); return; }
         setActive(true, "Processing ...");
         status.setText("Heard you say, “" + command + "”");
         ui.postDelayed(() -> deliverPresentation(runtime.handlePresentation(command)), 120L);
@@ -304,7 +288,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
     private void runCandidates(ArrayList<String> candidates) {
         if (candidates == null || candidates.isEmpty()) {
-            setActive(false, "I didn’t catch that. Tap the reactor to try again.");
+            setActive(false, "I didn’t catch that. Tap the core to try again.");
             return;
         }
         runCommand(candidates.get(0));
@@ -313,9 +297,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private void deliverPresentation(RuntimeSurfacePresentation presentation) {
         FullAppRuntimeViewState view = FullAppRuntimeViewState.from(presentation);
         String rendered = view.text();
-        if (!view.detail().isBlank() && !view.detail().equals(view.text())) {
-            rendered += "\n\n" + view.detail();
-        }
+        if (!view.detail().isBlank() && !view.detail().equals(view.text())) rendered += "\n\n" + view.detail();
         if (view.primaryEnabled()) rendered += "\n\n" + view.primaryAction();
         if (view.secondaryEnabled()) rendered += " / " + view.secondaryAction();
         setActive(false, rendered);
@@ -327,25 +309,10 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private void runEmbeddedSelfTest() {
         setActive(true, "RUNNING JARVIS SELF TEST ...");
         try {
-            requireSelfTest("com.jarvis.mobile".equals(getPackageName()),
-                    "Unexpected application identity");
-
+            requireSelfTest("com.jarvis.mobile".equals(getPackageName()), "Unexpected application identity");
             PackageInfo packageInfo = getPackageManager().getPackageInfo(getPackageName(), 0);
-            long versionCode = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P
-                    ? packageInfo.getLongVersionCode() : packageInfo.versionCode;
+            long versionCode = Build.VERSION.SDK_INT >= Build.VERSION_CODES.P ? packageInfo.getLongVersionCode() : packageInfo.versionCode;
             requireSelfTest(versionCode >= 2102L, "Unexpected version code " + versionCode);
-
-            requireSelfTest(getDrawable(R.drawable.background_mk2) != null, "MKII shell missing");
-            requireSelfTest(getDrawable(R.drawable.background_mk2_active) != null,
-                    "MKII active shell missing");
-            requireSelfTest(getDrawable(R.drawable.background_mk3) != null, "MKIII shell missing");
-            requireSelfTest(getDrawable(R.drawable.background_mk3_active) != null,
-                    "MKIII active shell missing");
-            requireSelfTest(getDrawable(R.drawable.menu_dots) != null, "Current menu missing");
-            requireSelfTest(getDrawable(R.drawable.jarvis_normal) != null,
-                    "Current normal reactor missing");
-            requireSelfTest(getDrawable(R.drawable.jarvis_active) != null,
-                    "Current active reactor missing");
 
             PackageManager packages = getPackageManager();
             packages.getServiceInfo(new ComponentName(this, JarvisVoiceInteractionService.class), 0);
@@ -354,11 +321,10 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             packages.getServiceInfo(new ComponentName(this, JarvisAccessibilityService.class), 0);
             packages.getReceiverInfo(new ComponentName(this, NotesWidget.class), 0);
             packages.getReceiverInfo(new ComponentName(this, QuickActivationWidget.class), 0);
-
             requireSelfTest(runtime != null, "Shared brain runtime missing");
+
             setActive(false, "SELF TEST PASSED");
-            Log.i(SELF_TEST_TAG, "JARVIS_SELF_TEST_PASS package=" + getPackageName() +
-                    " versionCode=" + versionCode);
+            Log.i(SELF_TEST_TAG, "JARVIS_SELF_TEST_PASS package=" + getPackageName() + " versionCode=" + versionCode);
         } catch (Throwable failure) {
             setActive(false, "SELF TEST FAILED");
             Log.e(SELF_TEST_TAG, "JARVIS_SELF_TEST_FAIL", failure);
@@ -380,8 +346,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             return;
         }
         if (speechRecognizer != null) speechRecognizer.destroy();
-        speechRecognizer = Build.VERSION.SDK_INT >= 31 &&
-                SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
+        speechRecognizer = Build.VERSION.SDK_INT >= 31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
                 ? SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
                 : SpeechRecognizer.createSpeechRecognizer(this);
         speechRecognizer.setRecognitionListener(new RecognitionListener() {
@@ -393,13 +358,11 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             @Override public void onRmsChanged(float rmsdB) { }
             @Override public void onBufferReceived(byte[] buffer) { }
             @Override public void onEndOfSpeech() { setActive(true, "Processing ..."); }
-            @Override public void onError(int error) {
-                setActive(false, "Listening stopped: " + speechError(error));
-            }
+            @Override public void onError(int error) { setActive(false, "Listening stopped: " + speechError(error)); }
             @Override public void onResults(Bundle results) {
                 ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
                 if (matches == null || matches.isEmpty()) {
-                    setActive(false, "I didn’t catch that. Tap the reactor to try again.");
+                    setActive(false, "I didn’t catch that. Tap the core to try again.");
                     return;
                 }
                 runCandidates(matches);
@@ -422,22 +385,16 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         active = value;
         ui.removeCallbacks(pulse);
         if (message != null) status.setText(message);
-        if (value) {
-            pulseFrame = false;
-            applyThemeFrame(true);
-            ui.postDelayed(pulse, PULSE_MS);
-        } else {
-            pulseFrame = false;
-            applyThemeFrame(false);
-        }
+        pulseFrame = false;
+        applyThemeFrame(value);
+        if (value) ui.postDelayed(pulse, PULSE_MS);
     }
 
     private void applyThemeFrame(boolean activated) {
-        boolean mark2 = "mk2".equals(preferences.getString("mark_theme", "mk3"));
-        int image;
-        if (mark2) image = activated ? R.drawable.background_mk2_active : R.drawable.background_mk2;
-        else image = activated ? R.drawable.background_mk3_active : R.drawable.background_mk3;
-        if (background != null) background.setImageResource(image);
+        if (background == null) return;
+        background.setImageDrawable(null);
+        background.setBackgroundColor(activated ? Color.rgb(3, 39, 52) : Color.rgb(1, 18, 27));
+        background.setAlpha(activated ? 1.0f : 0.96f);
     }
 
     private void requestRuntimePermissions() {
@@ -464,22 +421,17 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             status.setText("JARVIS is already your default Android Assistant.");
             return;
         }
-        startActivityForResult(roleManager.createRequestRoleIntent(RoleManager.ROLE_ASSISTANT),
-                ASSISTANT_ROLE_REQUEST);
+        startActivityForResult(roleManager.createRequestRoleIntent(RoleManager.ROLE_ASSISTANT), ASSISTANT_ROLE_REQUEST);
     }
 
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+    @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == ASSISTANT_ROLE_REQUEST) {
-            status.setText(resultCode == RESULT_OK
-                    ? "JARVIS is now your default Android Assistant."
-                    : "Assistant selection was not completed.");
+            status.setText(resultCode == RESULT_OK ? "JARVIS is now your default Android Assistant." : "Assistant selection was not completed.");
         }
     }
 
-    @Override
-    protected void onResume() {
+    @Override protected void onResume() {
         super.onResume();
         applyThemeFrame(false);
         String mode = preferences.getString("operating_mode", "normal");
@@ -491,8 +443,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         }
     }
 
-    @Override
-    public void onInit(int statusCode) {
+    @Override public void onInit(int statusCode) {
         if (statusCode == TextToSpeech.SUCCESS && textToSpeech != null) {
             textToSpeech.setLanguage(Locale.getDefault());
             textToSpeech.setSpeechRate(0.92f);
@@ -503,10 +454,6 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         if (preferences.getBoolean("voice_enabled", true) && textToSpeech != null) {
             textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "jarvis-response");
         }
-    }
-
-    private void playReadyCue() {
-        if (legacyResponses != null) legacyResponses.play("ready_operational");
     }
 
     private String speechError(int code) {
@@ -522,7 +469,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         }
     }
 
-    private TextView donorText(String value, float size, int color) {
+    private TextView hudText(String value, float size, int color) {
         TextView view = new TextView(this);
         view.setText(value);
         view.setTextSize(size);
@@ -532,26 +479,20 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     }
 
     private FrameLayout.LayoutParams matchFrame() {
-        return new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
+        return new FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT);
     }
 
     private FrameLayout.LayoutParams wrapFrame(int gravity) {
-        return new FrameLayout.LayoutParams(
-                ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, gravity);
+        return new FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, gravity);
     }
 
-    private int dp(int value) {
-        return Math.round(value * getResources().getDisplayMetrics().density);
-    }
+    private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
 
-    @Override
-    protected void onDestroy() {
+    @Override protected void onDestroy() {
         active = false;
         ui.removeCallbacksAndMessages(null);
         if (speechRecognizer != null) speechRecognizer.destroy();
         if (textToSpeech != null) textToSpeech.shutdown();
-        if (legacyResponses != null) legacyResponses.release();
         super.onDestroy();
     }
 }
