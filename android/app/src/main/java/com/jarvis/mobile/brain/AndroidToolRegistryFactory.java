@@ -11,6 +11,7 @@ import com.jarvis.mobile.actions.AndroidActionRouter;
 import com.jarvis.mobile.actions.AndroidDialerActions;
 import com.jarvis.mobile.actions.AndroidFlashlightActions;
 import com.jarvis.mobile.actions.AndroidMediaActions;
+import com.jarvis.mobile.actions.AndroidMessagingActions;
 import com.jarvis.mobile.actions.AndroidNavigationActions;
 import com.jarvis.mobile.actions.AndroidTimerActions;
 import com.jarvis.mobile.calendar.AndroidCalendarReader;
@@ -29,6 +30,7 @@ public final class AndroidToolRegistryFactory {
         AndroidDialerActions dialer = new AndroidDialerActions(appContext);
         AndroidFlashlightActions flashlight = new AndroidFlashlightActions(appContext);
         AndroidMediaActions media = new AndroidMediaActions(appContext);
+        AndroidMessagingActions messaging = new AndroidMessagingActions(appContext);
         AndroidNavigationActions navigation = new AndroidNavigationActions(appContext);
         AndroidTimerActions timer = new AndroidTimerActions(appContext);
         AndroidCalendarReader calendar = new AndroidCalendarReader(appContext);
@@ -63,8 +65,8 @@ public final class AndroidToolRegistryFactory {
                     return notifications.isBlank() ? "No captured notifications." : notifications;
                 });
         register(registry, "send_message", true, Set.of("text", "message"), Set.of("recipient", "message"),
-                "Prepare/send external message after approval", ToolExecutionClass.CONSEQUENTIAL,
-                args -> actions.execute("text " + args.get("recipient") + " " + args.get("message")));
+                "Prepare external message after approval", ToolExecutionClass.CONSEQUENTIAL,
+                args -> messaging.prepareMessage(args.get("recipient"), args.get("message")));
         return registry;
     }
 
