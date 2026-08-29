@@ -18,7 +18,9 @@ public final class AndroidBrainRuntime {
         ExternalResearchGateway research = ExternalResearchGateway.unavailable();
         ToolRegistry tools = AndroidToolRegistryFactory.create(app, research);
         ReasoningRouter reasoning = request -> reasonWithConfiguredCortex(app, request.utterance());
-        AssistantCore assistant = new AssistantCore(BrainEngine.createDefault(Clock.systemDefaultZone()), reasoning, tools);
+        BrainEngine brain = BrainEngine.createDefault(Clock.systemDefaultZone());
+        brain.beginInvokedConversation();
+        AssistantCore assistant = new AssistantCore(brain, reasoning, tools);
         runtime = new BrainRuntime(assistant, tools);
         conversation = new RuntimeApprovalConversation(runtime);
     }
