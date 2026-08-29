@@ -27,7 +27,7 @@ adb exec-out screencap -p > "$OUTPUT/jarvis-self-test.png"
 
 adb shell am force-stop "$PACKAGE"
 adb logcat -c
-adb shell am start -W -n "$ACTIVITY" --es jarvis_test_command "'help me!!!'" | tee "$OUTPUT/emulator-command-launch.txt"
+adb shell am start -W -n "$ACTIVITY" --es jarvis_test_command "help me!!!" | tee "$OUTPUT/emulator-command-launch.txt"
 grep -q 'Status: ok' "$OUTPUT/emulator-command-launch.txt"
 COMMAND_PASSED=0
 for attempt in $(seq 1 30); do
@@ -42,7 +42,7 @@ adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-command.png"
 
 adb shell am force-stop "$PACKAGE"
 adb logcat -c
-adb shell am start -W -n "$ACTIVITY" --es jarvis_test_command "'how are you'" | tee "$OUTPUT/emulator-shared-brain-launch.txt"
+adb shell am start -W -n "$ACTIVITY" --es jarvis_test_command "how are you" | tee "$OUTPUT/emulator-shared-brain-launch.txt"
 grep -q 'Status: ok' "$OUTPUT/emulator-shared-brain-launch.txt"
 SHARED_BRAIN_PASSED=0
 for attempt in $(seq 1 30); do
