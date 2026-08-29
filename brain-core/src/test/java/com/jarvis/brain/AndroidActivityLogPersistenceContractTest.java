@@ -23,8 +23,8 @@ public final class AndroidActivityLogPersistenceContractTest {
                 "Android runtime must bind durable activity persistence");
         check(runtime.contains("ActivityLog activity = new ActivityLog("),
                 "Android runtime must own the durable activity log");
-        check(runtime.contains("new JarvisUiBackend(null, tools, connections, settings, defaultApps, lists, routines, activity, devices)"),
-                "frontend facade must receive the same durable activity log in the full shared composition");
+        check(runtime.contains("lists, routines, activity"),
+                "frontend facade must receive the same durable activity log even as later stores are appended");
 
         System.out.println("AndroidActivityLogPersistenceContractTest passed");
     }
