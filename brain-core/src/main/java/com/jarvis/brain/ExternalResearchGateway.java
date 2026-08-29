@@ -17,6 +17,11 @@ public interface ExternalResearchGateway {
         return ToolResult.failure("menu adapter not attached");
     }
 
+    /** Translation is provider-neutral and must fail closed when no language adapter is attached. */
+    default ToolResult translate(Map<String, String> arguments, ExecutionContext context) {
+        return ToolResult.failure("translation adapter not attached");
+    }
+
     /**
      * Best-effort online reservation flow. Implementations must report the actual outcome:
      * confirmed time, real available alternatives, or a failure reason. Never infer success.
