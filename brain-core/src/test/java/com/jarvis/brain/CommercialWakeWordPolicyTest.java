@@ -1,5 +1,6 @@
 package com.jarvis.brain;
 
+import java.util.Map;
 import java.util.Set;
 
 public final class CommercialWakeWordPolicyTest {
@@ -15,6 +16,28 @@ public final class CommercialWakeWordPolicyTest {
                 CommercialWakeWordPolicy.provenanceFingerprint(owned)));
         check(approvedPolicy.approve(owned).approved(),
                 "legally reviewed, hash-pinned, code-approved model should pass");
+
+        WakeWordModelDescriptor revision1 = new WakeWordModelDescriptor(
+                "jarvis-owned", 1, "oldhash", "JARVIS-PROPRIETARY", true, true);
+        WakeWordModelDescriptor revision2 = new WakeWordModelDescriptor(
+                "jarvis-owned", 2, "newhash", "JARVIS-PROPRIETARY", true, true);
+        CommercialWakeWordPolicy antiRollback = new CommercialWakeWordPolicy(
+                Set.of(
+                        CommercialWakeWordPolicy.provenanceFingerprint(revision1),
+                        CommercialWakeWordPolicy.provenanceFingerprint(revision2)),
+                Map.of("jarvis-owned", 2L));
+        check(!antiRollback.approve(revision1).approved(),
+                "previously trusted older model must not be replayable after minimum approved revision advances");
+        check(antiRollback.approve(revision2).approved(),
+                "current trusted revision should remain approved");
+
+        CommercialWakeWordPolicy explicitRollbackRelease = new CommercialWakeWordPolicy(
+                Set.of(
+                        CommercialWakeWordPolicy.provenanceFingerprint(revision1),
+                        CommercialWakeWordPolicy.provenanceFingerprint(revision2)),
+                Map.of("jarvis-owned", 1L));
+        check(explicitRollbackRelease.approve(revision1).approved(),
+                "rollback is allowed only when a new release trust policy explicitly lowers the minimum revision");
 
         WakeWordModelDescriptor nonCommercial = new WakeWordModelDescriptor(
                 "stock-hey-jarvis", "abc123", "CC BY-NC-SA 4.0", false, true);
