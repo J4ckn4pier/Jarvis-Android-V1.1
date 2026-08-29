@@ -38,7 +38,8 @@ public final class AndroidBrainRuntime {
         RoutineStore routines = new RoutineStore(new AndroidRoutineStorePersistence(app));
         ActivityLog activity = new ActivityLog(new AndroidActivityLogPersistence(app));
         DeviceStateStore devices = new DeviceStateStore(new AndroidDeviceStateStorePersistence(app));
-        uiBackend = new JarvisUiBackend(null, tools, connections, settings, defaultApps, lists, routines, activity, devices);
+        MusicQueueStore music = new MusicQueueStore(new AndroidMusicQueueStorePersistence(app));
+        uiBackend = new JarvisUiBackend(null, tools, connections, settings, defaultApps, lists, routines, activity, devices, music);
         OutcomeFollowupStore followupStore = new EncryptedFileOutcomeFollowupStore(
                 app.getNoBackupFilesDir().toPath().resolve("jarvis").resolve("pending-outcome-followups.bin"),
                 new AndroidKeystoreMemoryCipher());
