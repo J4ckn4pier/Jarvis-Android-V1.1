@@ -100,10 +100,10 @@ async def test_command_maps_request_id_collision_to_http_409(monkeypatch):
 
 class RecordingHistoryBus:
     def __init__(self) -> None:
-        self.history_calls: list[tuple[str, int]] = []
+        self.history_calls: list[tuple[str, int, str | None]] = []
 
-    async def history(self, session_id: str, limit: int):
-        self.history_calls.append((session_id, limit))
+    async def history(self, session_id: str, limit: int, after_event_id: str | None = None):
+        self.history_calls.append((session_id, limit, after_event_id))
         return [BrainEvent(session_id, "t1", "LANGUAGE", 20, "ready", 1, 1.0)]
 
 
@@ -117,13 +117,34 @@ async def test_event_history_is_principal_scoped_and_returns_public_session_id(m
     result = await app_module.event_history(
         "primary",
         limit=25,
+        after_event_id=None,
         authorization="Bearer token-a",
     )
 
     scoped = scope_session_id("alice", "primary")
-    assert bus.history_calls == [(scoped, 25)]
+    assert bus.history_calls == [(scoped, 26, None)]
     assert result["session_id"] == "primary"
     assert result["events"][0]["session_id"] == "primary"
+    assert result["next_event_id"] == "t1:1"
+    assert result["has_more"] is False
+
+
+@pytest.mark.asyncio
+async def test_event_history_forwards_last_seen_event_cursor(monkeypatch):
+    monkeypatch.delenv("JARVIS_API_TOKEN", raising=False)
+    monkeypatch.delenv("JARVIS_API_KEYS_JSON", raising=False)
+    bus = RecordingHistoryBus()
+    monkeypatch.setattr(app_module.app.state, "bus", bus, raising=False)
+
+    result = await app_module.event_history(
+        "primary",
+        limit=10,
+        after_event_id="previous-task:4",
+        authorization=None,
+    )
+
+    assert bus.history_calls[0][1:] == (11, "previous-task:4")
+    assert result["next_event_id"] == "t1:1"
 
 
 class LifecycleRuntime:
