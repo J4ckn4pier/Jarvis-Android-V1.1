@@ -105,7 +105,7 @@ public final class LongTermMemoryStore {
         return scored.stream().limit(Math.max(0,limit)).map(Scored::memory).toList();
     }
 
-    public synchronized String memoryPack(String query,Instant when,int limit){StringBuilder out=new StringBuilder();for(RichMemory m:retrieve(query,when,limit)){if(out.length()>0)out.append('\n');out.append('[').append(m.type()).append("; confidence=").append(String.format(Locale.ROOT,"%.2f",m.confidence())).append("] ").append(m.content());}return out.toString();}
+    public synchronized String memoryPack(String query,Instant when,int limit){StringBuilder out=new StringBuilder();for(RichMemory m:retrieve(query,when,limit)){if(out.length()>0)out.append('\n');out.append('[').append(m.type()).append("; source=").append(m.source()).append("; confidence=").append(String.format(Locale.ROOT,"%.2f",m.confidence())).append("] ").append(m.content());}return out.toString();}
 
     private void restore() {
         List<RichMemory> restored;
