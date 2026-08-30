@@ -1,5 +1,6 @@
 package com.jarvis.mobile.brain.providers;
 
+import com.jarvis.brain.EndpointTransportPolicy;
 import com.jarvis.brain.ReasoningRequest;
 import com.jarvis.brain.ReasoningResult;
 import com.jarvis.brain.ToolRegistry;
@@ -26,7 +27,7 @@ public final class OpenAiCompatibleChatProvider implements CortexProvider {
     @Override public String id() { return "openai_compatible"; }
 
     @Override public boolean isConfigured() {
-        return !model.isEmpty();
+        return !model.isEmpty() && EndpointTransportPolicy.allows(endpoint);
     }
 
     @Override
