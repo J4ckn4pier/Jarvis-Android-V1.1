@@ -53,6 +53,7 @@ public final class AndroidToolRegistryFactory {
         ToolRegistry registry = ToolRegistry.standard(research, callTransport);
 
         register(registry, "open_dialer", false, Set.of("phone", "phone app", "dialer"), Set.of(), "Open Android phone dialer", ToolExecutionClass.DEVICE_REFLEX, args -> dialer.openDialer());
+        register(registry, "call_contact", true, Set.of("call contact", "phone contact"), Set.of("recipient"), "Place an approved phone call to one exact contact or explicit phone number", ToolExecutionClass.CONSEQUENTIAL, args -> dialer.call(args.get("recipient")));
         register(registry, "open_app", false, Set.of("launch app", "open application"), Set.of("app"), "Open an installed app by exact visible app name", ToolExecutionClass.DEVICE_REFLEX, args -> apps.open(args.get("app")));
         register(registry, "web_search", false, Set.of("search web", "web search", "search online", "look up online"), Set.of("query"), "Search the web", ToolExecutionClass.DEVICE_REFLEX, args -> web.search(args.get("query")));
         register(registry, "set_timer", false, Set.of("timer"), Set.of("amount", "unit"), "Set Android timer", ToolExecutionClass.DEVICE_REFLEX, args -> timer.setTimer(args.get("amount"), args.get("unit")));
