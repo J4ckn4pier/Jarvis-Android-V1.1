@@ -56,6 +56,11 @@ jobs:
           PY
       - name: Boot standalone prototype
         run: docker compose up -d --build valkey orchestrator
+      - name: Verify orchestrator runs without root privileges
+        run: |
+          uid="$(docker compose exec -T orchestrator id -u)"
+          echo "orchestrator uid=$uid"
+          test "$uid" != "0"
       - name: Wait for ready orchestrator
         run: |
           for attempt in $(seq 1 60); do
