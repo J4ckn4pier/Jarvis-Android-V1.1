@@ -38,25 +38,37 @@ jobs:
       - uses: actions/checkout@v4
       - name: Validate Docker Compose
         run: docker compose config --quiet
+      - name: Verify multi-principal auth reaches the container
+        env:
+          JARVIS_API_KEYS_JSON: '{"ci-user":"ci-token"}'
+        run: |
+          docker compose config --format json > /tmp/compose.json
+          python3 - <<'PY'
+          import json
+          with open('/tmp/compose.json') as handle:
+              config = json.load(handle)
+          environment = config['services']['orchestrator']['environment']
+          assert environment['JARVIS_API_KEYS_JSON'] == '{"ci-user":"ci-token"}', environment
+          PY
       - name: Boot standalone prototype
         run: docker compose up -d --build valkey orchestrator
-      - name: Wait for healthy orchestrator
+      - name: Wait for ready orchestrator
         run: |
           for attempt in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:8000/health -o /tmp/health.json; then
-              cat /tmp/health.json
+            if curl -fsS http://127.0.0.1:8000/ready -o /tmp/ready.json; then
+              cat /tmp/ready.json
               python3 - <<'PY'
           import json
-          with open('/tmp/health.json') as handle:
-              health = json.load(handle)
-          assert health['status'] == 'ok', health
-          assert health['state_backend'] == 'valkey', health
+          with open('/tmp/ready.json') as handle:
+              ready = json.load(handle)
+          assert ready['status'] == 'ready', ready
+          assert ready['state_backend'] == 'valkey', ready
           PY
               exit 0
             fi
             sleep 1
           done
-          echo 'orchestrator did not become healthy'
+          echo 'orchestrator did not become ready'
           exit 1
       - name: Send prototype command
         run: |
