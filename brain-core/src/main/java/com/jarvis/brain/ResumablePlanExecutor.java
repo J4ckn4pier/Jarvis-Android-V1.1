@@ -48,6 +48,12 @@ public final class ResumablePlanExecutor {
                         append(cursor.outputs(), detail), tool.name(), detail);
             }
 
+            if (result.status() == ToolResult.Status.SUCCESS && result.output() == null) {
+                String detail = "Successful tool result returned no output";
+                return new ExecutionReport(ExecutionReport.Status.FAILED,
+                        cursor.outputs(), tool.name(), detail);
+            }
+
             if (result.status() != ToolResult.Status.SUCCESS) {
                 return new ExecutionReport(ExecutionReport.Status.FAILED,
                         append(cursor.outputs(), result.output()), tool.name(), result.output());
