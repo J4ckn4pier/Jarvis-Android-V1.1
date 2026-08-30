@@ -15,6 +15,7 @@ public final class PendingClarificationTest {
         consequentialFlagSurvivesClarificationResume();
         approvalAndClarificationRemainDistinctResumeCapabilities();
         harmlessResearchContinuesAfterClarification();
+        clarificationResumePreservesWakeAcceptanceProvenance();
         System.out.println("PendingClarificationTest: " + checks + " assertions passed");
     }
 
@@ -118,6 +119,24 @@ public final class PendingClarificationTest {
                 "harmless research should execute once after the missing input is supplied");
         check(providerCalls[0] == 2,
                 "clarification should continue the bounded research loop without replanning before execution");
+    }
+
+    private static void clarificationResumePreservesWakeAcceptanceProvenance() {
+        Clock clock = Clock.fixed(Instant.parse("2026-08-27T23:30:00Z"), ZoneOffset.UTC);
+        ReasoningRouter router = request -> new ReasoningResult("planner", "Where should I send you?",
+                new Plan("Navigate", List.of(new PlanStep("navigate", Map.of(), false))));
+        AssistantCore core = new AssistantCore(BrainEngine.createDefault(clock), router, ToolRegistry.standard());
+
+        BrainResponse first = core.handle("Jarvis take me somewhere");
+        check(first.kind() == BrainResponse.Kind.CONVERSATION, "explicit-wake request with a missing argument should ask for clarification");
+        check(first.sessionActive(), "clarification should retain the active conversation session");
+        check(!first.acceptedWithoutWakeWord(), "explicit wake provenance should be recorded on the clarification request");
+
+        BrainResponse resumed = core.handle("Castle Cafe");
+        check(resumed.sessionActive() == first.sessionActive(),
+                "clarification resume must preserve the original session-active provenance");
+        check(resumed.acceptedWithoutWakeWord() == first.acceptedWithoutWakeWord(),
+                "clarification resume must not silently upgrade an explicit-wake request into a wake-free acceptance");
     }
 
     private static void check(boolean condition, String message) {
