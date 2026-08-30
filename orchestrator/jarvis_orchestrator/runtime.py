@@ -59,6 +59,7 @@ class AgentZeroRuntime:
     MESSAGE_PATH = "/api/api_message"
     RESET_PATH = "/api/api_reset_chat"
     TERMINATE_PATH = "/api/api_terminate_chat"
+    HEALTH_PATH = "/api/health"
 
     def __init__(
         self,
@@ -108,6 +109,11 @@ class AgentZeroRuntime:
             return response.json().get("error") == "Context not found"
         except (ValueError, AttributeError):
             return False
+
+    async def check_ready(self) -> bool:
+        response = await self.client.get(self.HEALTH_PATH)
+        response.raise_for_status()
+        return True
 
     async def execute(self, text: str, session_id: str) -> str:
         context_id = await self.context_store.get(session_id)
