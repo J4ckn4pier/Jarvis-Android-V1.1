@@ -109,6 +109,10 @@ class ProjectStore(Protocol):
     async def list_tasks(self, owner_id: str, project_id: str) -> list[Task]: ...
     async def save_task_output(self, owner_id: str, project_id: str, task_id: str, output: str) -> None: ...
     async def task_outputs(self, owner_id: str, project_id: str) -> dict[str, str]: ...
+    async def save_verification_evidence(
+        self, owner_id: str, project_id: str, evidence_id: str, payload: str
+    ) -> None: ...
+    async def verification_evidence(self, owner_id: str, project_id: str) -> dict[str, str]: ...
     async def events(self, owner_id: str, project_id: str) -> list[ProjectEvent]: ...
 
 
@@ -119,6 +123,7 @@ class InMemoryProjectStore:
         self._projects: dict[tuple[str, str], Project] = {}
         self._tasks: dict[tuple[str, str, str], Task] = {}
         self._outputs: dict[tuple[str, str, str], str] = {}
+        self._verification_evidence: dict[tuple[str, str, str], str] = {}
         self._events: dict[tuple[str, str], list[ProjectEvent]] = {}
 
     async def save_project(self, project: Project, event: str = "project.saved") -> None:
@@ -151,6 +156,18 @@ class InMemoryProjectStore:
         return {
             task_id: output
             for (owner, project, task_id), output in self._outputs.items()
+            if owner == owner_id and project == project_id
+        }
+
+    async def save_verification_evidence(
+        self, owner_id: str, project_id: str, evidence_id: str, payload: str
+    ) -> None:
+        self._verification_evidence[(owner_id, project_id, evidence_id)] = payload
+
+    async def verification_evidence(self, owner_id: str, project_id: str) -> dict[str, str]:
+        return {
+            evidence_id: payload
+            for (owner, project, evidence_id), payload in self._verification_evidence.items()
             if owner == owner_id and project == project_id
         }
 
@@ -188,6 +205,12 @@ class ValkeyProjectStore:
 
     def _output_index(self, owner_id: str, project_id: str) -> str:
         return f"{self._scope(owner_id, project_id)}:outputs"
+
+    def _evidence_key(self, owner_id: str, project_id: str, evidence_id: str) -> str:
+        return f"{self._scope(owner_id, project_id)}:evidence:{_hash(evidence_id)}"
+
+    def _evidence_index(self, owner_id: str, project_id: str) -> str:
+        return f"{self._scope(owner_id, project_id)}:evidence"
 
     def _event_stream(self, owner_id: str, project_id: str) -> str:
         return f"{self._scope(owner_id, project_id)}:events"
@@ -242,6 +265,24 @@ class ValkeyProjectStore:
             if raw is not None:
                 outputs[task_id] = _decode(raw)
         return outputs
+
+    async def save_verification_evidence(
+        self, owner_id: str, project_id: str, evidence_id: str, payload: str
+    ) -> None:
+        await self.client.set(self._evidence_key(owner_id, project_id, evidence_id), payload)
+        await self.client.sadd(self._evidence_index(owner_id, project_id), evidence_id)
+
+    async def verification_evidence(self, owner_id: str, project_id: str) -> dict[str, str]:
+        evidence_ids = sorted(
+            _decode(value)
+            for value in await self.client.smembers(self._evidence_index(owner_id, project_id))
+        )
+        evidence: dict[str, str] = {}
+        for evidence_id in evidence_ids:
+            raw = await self.client.get(self._evidence_key(owner_id, project_id, evidence_id))
+            if raw is not None:
+                evidence[evidence_id] = _decode(raw)
+        return evidence
 
     async def events(self, owner_id: str, project_id: str) -> list[ProjectEvent]:
         rows = await self.client.xrange(self._event_stream(owner_id, project_id))
