@@ -19,7 +19,12 @@ from .core import (
     brain_event_id,
 )
 from .identity import Authenticator, Principal, scope_session_id
-from .runtime import InMemoryAgentContextStore, ValkeyAgentContextStore, build_runtime
+from .runtime import (
+    InMemoryAgentContextStore,
+    ValkeyAgentContextStore,
+    WorkerUnavailableError,
+    build_runtime,
+)
 
 
 def _authenticator() -> Authenticator:
@@ -168,6 +173,8 @@ async def _submit(
         )
     except IdempotencyConflict as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    except WorkerUnavailableError as exc:
+        raise HTTPException(status_code=503, detail="Worker runtime unavailable") from exc
 
 
 async def _run_lifecycle_operation(operation: str, session_id: str) -> bool:
@@ -407,6 +414,17 @@ async def input_socket(ws: WebSocket):
                 )
             except IdempotencyConflict as exc:
                 await ws.send_json({"error": str(exc), "code": "request_id_conflict"})
+                continue
+            except WorkerUnavailableError:
+                await ws.send_json(
+                    {
+                        "error": "Worker runtime unavailable",
+                        "code": "worker_unavailable",
+                        "request_id": request_id,
+                        "session_id": public_session_id,
+                        "retryable": True,
+                    }
+                )
                 continue
             result["session_id"] = public_session_id
             await ws.send_json(result)
