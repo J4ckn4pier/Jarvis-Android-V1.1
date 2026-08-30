@@ -3,7 +3,6 @@ package com.jarvis.mobile.brain.providers;
 import com.jarvis.brain.ReasoningRequest;
 import com.jarvis.brain.ReasoningResult;
 import com.jarvis.brain.ToolRegistry;
-import com.jarvis.mobile.brain.core.IntentPlan;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.util.Map;
@@ -16,16 +15,6 @@ public final class OpenAIResponsesProvider implements CortexProvider {
     }
     public String id() { return "openai_responses"; }
     public boolean isConfigured() { return !model.isEmpty() && !apiKey.isEmpty(); }
-
-    /** Legacy compatibility path for callers not yet migrated to shared typed plans. */
-    public IntentPlan propose(String utterance) throws Exception {
-        if (!isConfigured()) return IntentPlan.unknown();
-        JSONObject format = new JSONObject().put("type", "json_schema").put("name", "jarvis_plan")
-                .put("strict", true).put("schema", ProviderSchema.jsonSchema());
-        JSONObject response = post(utterance, ProviderSchema.systemPrompt(), format);
-        String json = outputText(response);
-        return json.isEmpty() ? IntentPlan.unknown() : ProviderPlanFactory.fromJson(new JSONObject(json));
-    }
 
     @Override
     public ReasoningResult proposeReasoning(ReasoningRequest request, ToolRegistry tools) throws Exception {
