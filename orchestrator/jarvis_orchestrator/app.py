@@ -13,21 +13,37 @@ from .core import (
     ValkeyEventBus,
     ValkeySessionLockManager,
 )
+from .identity import Authenticator, Principal, scope_session_id
 from .runtime import InMemoryAgentContextStore, ValkeyAgentContextStore, build_runtime
 
 
+def _authenticator() -> Authenticator:
+    return Authenticator.from_env()
+
+
 def _authorized(token: str | None) -> bool:
-    expected = os.getenv("JARVIS_API_TOKEN")
-    return not expected or token == expected
+    # Retained temporarily for websocket compatibility; HTTP paths resolve the
+    # principal so their session ids can be namespaced safely.
+    if not os.getenv("JARVIS_API_KEYS_JSON") and not os.getenv("JARVIS_API_TOKEN"):
+        return True
+    return _authenticator().authenticate(token) is not None
 
 
 def _bearer_token(authorization: str | None) -> str | None:
     return authorization.removeprefix("Bearer ") if authorization else None
 
 
-def _require_http_auth(authorization: str | None) -> None:
-    if not _authorized(_bearer_token(authorization)):
+def _principal_for_token(token: str | None) -> Principal | None:
+    if not os.getenv("JARVIS_API_KEYS_JSON") and not os.getenv("JARVIS_API_TOKEN"):
+        return Principal(principal_id="owner")
+    return _authenticator().authenticate(token)
+
+
+def _require_http_auth(authorization: str | None) -> Principal:
+    principal = _principal_for_token(_bearer_token(authorization))
+    if principal is None:
         raise HTTPException(status_code=401, detail="Unauthorized")
+    return principal
 
 
 async def _run_lifecycle_operation(operation: str, session_id: str) -> bool:
@@ -81,7 +97,7 @@ async def lifespan(app: FastAPI):
         await app.state.valkey.aclose()
 
 
-app = FastAPI(title="JARVIS Orchestrator", version="0.5.0", lifespan=lifespan)
+app = FastAPI(title="JARVIS Orchestrator", version="0.6.0", lifespan=lifespan)
 
 
 @app.get("/health")
@@ -96,8 +112,13 @@ async def health():
 
 @app.post("/v1/command")
 async def command(body: Command, authorization: str | None = Header(default=None)):
-    _require_http_auth(authorization)
-    return await app.state.orchestrator.submit(body.text, body.session_id)
+    principal = _require_http_auth(authorization)
+    internal_session_id = scope_session_id(principal.principal_id, body.session_id)
+    result = await app.state.orchestrator.submit(body.text, internal_session_id)
+    # Internal namespacing is an implementation detail; clients keep using the
+    # stable public session id they supplied.
+    result["session_id"] = body.session_id
+    return result
 
 
 @app.get("/v1/sessions/{session_id}/events")
