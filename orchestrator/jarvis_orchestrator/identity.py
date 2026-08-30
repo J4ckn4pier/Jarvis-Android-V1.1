@@ -26,11 +26,15 @@ class Authenticator:
             if not isinstance(parsed, dict):
                 raise ValueError("JARVIS_API_KEYS_JSON must be a JSON object")
             credentials: dict[str, str] = {}
+            seen_tokens: set[str] = set()
             for principal_id, token in parsed.items():
                 if not isinstance(principal_id, str) or not principal_id.strip():
                     raise ValueError("principal ids must be non-empty strings")
                 if not isinstance(token, str) or not token:
                     raise ValueError("API tokens must be non-empty strings")
+                if token in seen_tokens:
+                    raise ValueError("API tokens must be unique across principals")
+                seen_tokens.add(token)
                 credentials[principal_id] = token
             return cls(credentials)
 
