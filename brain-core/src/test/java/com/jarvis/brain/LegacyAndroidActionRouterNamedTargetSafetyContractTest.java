@@ -20,6 +20,12 @@ public final class LegacyAndroidActionRouterNamedTargetSafetyContractTest {
 
         check(router.contains("private String contactValue(String name, Uri uri, String valueColumn)"),
                 "legacy contact lookup must remain explicitly identifiable until the retired router is removed");
+        check(!router.contains("new String[]{\"%\" + name + \"%\"}"),
+                "even quarantined compatibility code must not use first partial contact-name matching");
+        check(router.contains("displayName + \" = ? COLLATE NOCASE\""),
+                "legacy contact lookup must require an exact case-insensitive display-name match");
+        check(router.contains("if (!value.equals(candidate)) return null;"),
+                "legacy contact lookup must fail closed when one exact name maps to conflicting values");
         check(retiredBrain.contains("new AndroidActionRouter(context)"),
                 "retired JarvisBrain must remain the only quarantined owner of the raw-command router until both are removed together");
         check(!factory.contains("AndroidActionRouter") && !factory.contains("JarvisBrain"),
