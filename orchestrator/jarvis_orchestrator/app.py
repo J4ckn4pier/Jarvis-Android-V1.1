@@ -165,6 +165,24 @@ def _validated_request_id(request_id: object | None) -> str | None:
     return value
 
 
+def _validated_after_event_id(after_event_id: object | None) -> str | None:
+    # FastAPI resolves Query(None) before HTTP invocation, but direct unit callers
+    # see the Query metadata object. Treat non-strings as the omitted cursor path.
+    if not isinstance(after_event_id, str):
+        return None
+    if not after_event_id or len(after_event_id) > 128:
+        raise HTTPException(
+            status_code=422,
+            detail="after_event_id must be between 1 and 128 characters",
+        )
+    if after_event_id != after_event_id.strip():
+        raise HTTPException(
+            status_code=422,
+            detail="after_event_id must not have leading or trailing whitespace",
+        )
+    return after_event_id
+
+
 def _validated_command_text(text: object) -> str:
     value = str(text)
     if not value or len(value) > 100_000:
@@ -361,10 +379,7 @@ async def event_history(
     internal_session_id = _scoped_session(principal, public_session_id)
 
     try:
-        # FastAPI resolves Query(None) before HTTP invocation, but direct unit callers
-        # see the Query metadata object. Normalize that path and preserve compatibility
-        # with EventBus implementations that predate cursor support when no cursor is used.
-        cursor = after_event_id if isinstance(after_event_id, str) else None
+        cursor = _validated_after_event_id(after_event_id)
         if cursor is None:
             events = await app.state.bus.history(internal_session_id, limit)
             return {
