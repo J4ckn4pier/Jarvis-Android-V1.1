@@ -99,7 +99,17 @@ docker compose --profile agent-zero --profile local-ai up -d --build
 docker compose --profile agent-zero --profile local-ai ps
 ```
 
-Agent Zero's Web UI is available only on host loopback `http://127.0.0.1:5080`. Ollama is available only on host loopback `http://127.0.0.1:11434`. JARVIS is available only on host loopback `http://127.0.0.1:8000`.
+Agent Zero's Web UI is available only on host loopback `http://127.0.0.1:5080`. Ollama is available only on host loopback `http://127.0.0.1:11434`. JARVIS is available only on host loopback `http://127.0.0.1:8000` unless the operator explicitly opts into a remote bind.
+
+### Remote phone-primary handoff
+
+Loopback remains the safe default. To make only the JARVIS API listen on all host interfaces for a controlled prototype handoff, set:
+
+```dotenv
+JARVIS_BIND_ADDRESS=0.0.0.0
+```
+
+The APK then connects to the operator-provided HTTPS base URL and sends `Authorization: Bearer <token>` on every management request. Do not expose port 8000 directly to the public internet without a TLS-terminating reverse proxy or a private authenticated network such as a VPN/tunnel. Valkey, Agent Zero, and Ollama remain private; only the authenticated JARVIS HTTP/WebSocket surface is intended for remote clients.
 
 ## Session behavior
 
@@ -189,4 +199,4 @@ Back up the stateful volumes before destructive upgrades or moving a deployment.
 
 The development package intentionally exposes JARVIS, Agent Zero, and Ollama only on `127.0.0.1`; Valkey is internal-only. Do not expose Valkey, Agent Zero's UI/API, or Ollama directly to the public internet.
 
-For a later phone-primary deployment, keep those services private and expose only the authenticated JARVIS HTTP/WebSocket interface behind TLS or a private network layer. That is a deployment concern, not an Android/application code change.
+For a phone-primary deployment, keep those services private and expose only the authenticated JARVIS HTTP/WebSocket interface behind TLS or a private network layer. Set `JARVIS_BIND_ADDRESS=0.0.0.0` only when that protected entry point is ready. This is a deployment concern, not an Android/application code change.
