@@ -20,10 +20,12 @@ public final class AndroidEmailCompositionBindingContractTest {
         check(adapter.contains("Intent.EXTRA_TEXT"), "email adapter must preserve structured body");
         check(adapter.contains("ContactsContract.CommonDataKinds.Email"),
                 "email adapter must resolve a named contact's email when Contacts permission is available");
-        check(adapter.contains("Set<String> exactMatches"),
-                "contact email lookup must collect exact-name matches instead of selecting the first partial match");
-        check(adapter.contains("return exactMatches.size() == 1 ? exactMatches.iterator().next() : null;"),
-                "contact email lookup must fail closed unless exactly one unique address is resolved");
+        check(adapter.contains("UniqueNamedTargetResolver.Candidate"),
+                "contact email lookup must delegate exact-name ambiguity handling to the shared resolver");
+        check(adapter.contains("UniqueNamedTargetResolver.resolve(name, candidates)"),
+                "contact email lookup must use the shared fail-closed resolver instead of duplicating selection logic");
+        check(!adapter.contains("Set<String> exactMatches"),
+                "contact email lookup must not keep a second independent ambiguity implementation");
         check(!adapter.contains("String fallback = null"),
                 "contact email lookup must not retain first-match fallback behavior");
         check(adapter.contains("couldn’t uniquely resolve an email address"),
