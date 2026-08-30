@@ -15,6 +15,9 @@ public final class PlanValidator {
         if (plan.steps() == null) {
             return new PlanValidation(false, new Plan(plan.goal(), List.of()), List.of("Plan step list is missing"));
         }
+        if (plan.steps().isEmpty()) {
+            return new PlanValidation(false, new Plan(plan.goal(), List.of()), List.of("Plan contains no executable steps"));
+        }
 
         List<String> errors = new ArrayList<>();
         List<PlanStep> effective = new ArrayList<>();
