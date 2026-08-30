@@ -34,25 +34,43 @@ if [ "$SETTINGS_OPENED" -ne 1 ]; then
 fi
 test "$SETTINGS_OPENED" -eq 1
 
-# The visible destination itself must now be the canonical user Settings surface, not the old
-# provider/developer panel. Capture both top and lower settings regions from this compiled APK.
+# The visible destination itself must be the canonical user Settings surface, not the old
+# provider/developer panel. Capture top/middle/lower regions and prove every required user group
+# exists somewhere in the scrollable compiled screen.
 adb shell uiautomator dump /sdcard/jarvis-apk-sprint-settings.xml >/dev/null
 adb pull /sdcard/jarvis-apk-sprint-settings.xml "$OUTPUT/jarvis-apk-sprint-settings.xml" >/dev/null
-grep -q 'SETTINGS' "$OUTPUT/jarvis-apk-sprint-settings.xml"
-grep -q 'Wake Word' "$OUTPUT/jarvis-apk-sprint-settings.xml"
-grep -q 'Voice Model' "$OUTPUT/jarvis-apk-sprint-settings.xml"
-grep -q 'Language' "$OUTPUT/jarvis-apk-sprint-settings.xml"
-! grep -Eiq 'PREFRONTAL CORTEX|API key|research endpoint|127\.0\.0\.1' "$OUTPUT/jarvis-apk-sprint-settings.xml"
 adb exec-out screencap -p > "$OUTPUT/jarvis-apk-sprint-settings-command.png"
 
-adb shell input swipe 540 1700 540 520 350 || true
+adb shell input swipe 540 1700 540 650 350 || true
+sleep 1
+adb shell uiautomator dump /sdcard/jarvis-apk-sprint-settings-middle.xml >/dev/null
+adb pull /sdcard/jarvis-apk-sprint-settings-middle.xml "$OUTPUT/jarvis-apk-sprint-settings-middle.xml" >/dev/null
+adb exec-out screencap -p > "$OUTPUT/jarvis-apk-sprint-settings-middle.png"
+
 adb shell input swipe 540 1700 540 520 350 || true
 sleep 1
 adb shell uiautomator dump /sdcard/jarvis-apk-sprint-settings-lower.xml >/dev/null
 adb pull /sdcard/jarvis-apk-sprint-settings-lower.xml "$OUTPUT/jarvis-apk-sprint-settings-lower.xml" >/dev/null
-grep -Eq 'AI Providers|Backup &amp; Sync|Profile|Default Apps|Personality|Widgets &amp; Lock Screen' "$OUTPUT/jarvis-apk-sprint-settings-lower.xml"
-! grep -Eiq 'PREFRONTAL CORTEX|API key|research endpoint|127\.0\.0\.1' "$OUTPUT/jarvis-apk-sprint-settings-lower.xml"
 adb exec-out screencap -p > "$OUTPUT/jarvis-apk-sprint-settings-lower.png"
+
+cat "$OUTPUT/jarvis-apk-sprint-settings.xml" \
+    "$OUTPUT/jarvis-apk-sprint-settings-middle.xml" \
+    "$OUTPUT/jarvis-apk-sprint-settings-lower.xml" \
+    > "$OUTPUT/jarvis-apk-sprint-settings-all.xml"
+
+grep -q 'SETTINGS' "$OUTPUT/jarvis-apk-sprint-settings-all.xml"
+grep -q 'Voice' "$OUTPUT/jarvis-apk-sprint-settings-all.xml"
+grep -q 'Wake Word' "$OUTPUT/jarvis-apk-sprint-settings-all.xml"
+grep -q 'Voice Model' "$OUTPUT/jarvis-apk-sprint-settings-all.xml"
+grep -q 'Language' "$OUTPUT/jarvis-apk-sprint-settings-all.xml"
+grep -q 'App Permissions' "$OUTPUT/jarvis-apk-sprint-settings-all.xml"
+grep -q 'AI Providers' "$OUTPUT/jarvis-apk-sprint-settings-all.xml"
+grep -q 'Backup &amp; Sync' "$OUTPUT/jarvis-apk-sprint-settings-all.xml"
+grep -q 'Profile' "$OUTPUT/jarvis-apk-sprint-settings-all.xml"
+grep -q 'Default Apps' "$OUTPUT/jarvis-apk-sprint-settings-all.xml"
+grep -q 'Personality' "$OUTPUT/jarvis-apk-sprint-settings-all.xml"
+grep -q 'Widgets &amp; Lock Screen' "$OUTPUT/jarvis-apk-sprint-settings-all.xml"
+! grep -Eiq 'PREFRONTAL CORTEX|API key|research endpoint|127\.0\.0\.1' "$OUTPUT/jarvis-apk-sprint-settings-all.xml"
 
 # Shipped UI must not expose developer/demo scenario controls.
 adb shell am force-stop "$PACKAGE" || true
