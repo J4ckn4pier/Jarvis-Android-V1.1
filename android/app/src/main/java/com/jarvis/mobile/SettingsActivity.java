@@ -5,170 +5,173 @@ import android.app.role.RoleManager;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
+import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
-import android.text.InputType;
+import android.view.Gravity;
+import android.view.View;
 import android.view.ViewGroup;
-import android.widget.Button;
-import android.widget.EditText;
 import android.widget.LinearLayout;
-import android.widget.RadioButton;
-import android.widget.RadioGroup;
 import android.widget.ScrollView;
 import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import com.jarvis.brain.EndpointTransportPolicy;
-import com.jarvis.brain.SettingsStore;
-import com.jarvis.mobile.brain.AndroidSharedPreferencesSettingsPersistence;
 import com.jarvis.mobile.brain.providers.CortexProviderFactory;
-import com.jarvis.mobile.brain.providers.SecureSecretStore;
 
-/** JARVIS settings surface with private, provider-neutral cortex configuration. */
+/** Canonical user-facing JARVIS Settings. Raw endpoint/provider fields live in DeveloperSettingsActivity. */
 public class SettingsActivity extends Activity {
     private SharedPreferences preferences;
-    private SharedPreferences cortexPreferences;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
-        setTitle("JARVIS Settings");
         preferences = getSharedPreferences("jarvis_shell", MODE_PRIVATE);
-        cortexPreferences = getSharedPreferences("jarvis_cortex", MODE_PRIVATE);
-        SettingsStore researchSettings = new SettingsStore(new AndroidSharedPreferencesSettingsPersistence(this));
+        getWindow().setStatusBarColor(getColor(R.color.jarvis_bg));
+        getWindow().setNavigationBarColor(getColor(R.color.jarvis_bg));
+
+        LinearLayout page = new LinearLayout(this);
+        page.setOrientation(LinearLayout.VERTICAL);
+        page.setBackgroundColor(getColor(R.color.jarvis_bg));
+        page.addView(toolbar(), new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, dp(68)));
 
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
-        body.setPadding(dp(16), dp(12), dp(16), dp(24));
+        body.setPadding(dp(18), dp(8), dp(18), dp(40));
         body.setBackgroundColor(getColor(R.color.jarvis_bg));
 
-        body.addView(header("GENERAL"), fullWrap());
-        body.addView(toggle("Voice responses", "voice_enabled", true), fullWrap());
+        body.addView(section("VOICE & INVOCATION"));
+        body.addView(toggleRow("Voice", "Speak responses aloud", "voice_enabled", true));
+        body.addView(toggleRow("Wake Word", "Listen for “Jarvis” or “Hey Jarvis”", "wake_enabled", true));
+        body.addView(row("Voice Model", "Android system voice", () -> launch(Settings.ACTION_TTS_SETTINGS)));
+        body.addView(row("Language", getResources().getConfiguration().getLocales().get(0).getDisplayLanguage(), () -> launch(Settings.ACTION_LOCALE_SETTINGS)));
 
-        body.addView(header("PREFRONTAL CORTEX"), fullWrap());
-        TextView cortexStatus = new TextView(this);
-        cortexStatus.setText(CortexProviderFactory.status(this));
-        cortexStatus.setTextColor(getColor(R.color.jarvis_text_dim));
-        cortexStatus.setPadding(dp(8), dp(4), dp(8), dp(8));
-        body.addView(cortexStatus, fullWrap());
+        body.addView(section("JARVIS & APPS"));
+        body.addView(row("App Permissions", "Microphone, contacts, calendar and device access", () -> launchAppDetails()));
+        body.addView(row("AI Providers", providerSummary(), () -> Toast.makeText(this, "Provider connections are managed privately. Advanced endpoint controls are under Developer Options.", Toast.LENGTH_LONG).show()));
+        body.addView(row("Backup & Sync", "Local-first memory backup", () -> Toast.makeText(this, "JARVIS currently keeps memory local on this device.", Toast.LENGTH_SHORT).show()));
+        body.addView(row("Profile", preferences.getString("profile_name", "Sir"), () -> Toast.makeText(this, "Profile personalization is active.", Toast.LENGTH_SHORT).show()));
+        body.addView(row("Default Apps", "Choose Android defaults", () -> launch(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)));
+        body.addView(row("Personality", preferences.getString("personality_label", "Humble Butler"), () -> Toast.makeText(this, "JARVIS personality: " + preferences.getString("personality_label", "Humble Butler"), Toast.LENGTH_SHORT).show()));
+        body.addView(row("Widgets & Lock Screen", "Assistant access and display options", () -> launch(Settings.ACTION_DISPLAY_SETTINGS)));
 
-        String selectedProvider = cortexPreferences.getString("mode", CortexProviderFactory.MODE_LOCAL);
-        RadioGroup providers = new RadioGroup(this);
-        RadioButton local = radio("Private deterministic executive (default)", CortexProviderFactory.MODE_LOCAL.equals(selectedProvider));
-        RadioButton compatible = radio("OpenAI-compatible local endpoint (free/self-hosted)", CortexProviderFactory.MODE_OPENAI_COMPATIBLE.equals(selectedProvider));
-        RadioButton openAi = radio("Optional OpenAI Responses cortex", CortexProviderFactory.MODE_OPENAI.equals(selectedProvider));
-        RadioButton anthropic = radio("Optional Anthropic Messages cortex", CortexProviderFactory.MODE_ANTHROPIC.equals(selectedProvider));
-        providers.addView(local);
-        providers.addView(compatible);
-        providers.addView(openAi);
-        providers.addView(anthropic);
-        body.addView(providers, fullWrap());
+        body.addView(section("ANDROID INTEGRATION"));
+        body.addView(row("Default Assistant", assistantSummary(), this::requestAssistant));
+        body.addView(row("Notifications", "Allow JARVIS to understand notification context", () -> launch(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)));
+        body.addView(row("Screen Controls", "Accessibility-powered screen reading and navigation", () -> launch(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
 
-        EditText model = textSetting("Model name", cortexPreferences.getString("model", ""));
-        body.addView(model, fullWrap());
-        EditText endpoint = textSetting("Optional endpoint (HTTPS, loopback HTTP, or user-owned .local HTTP)", cortexPreferences.getString("endpoint", ""));
-        body.addView(endpoint, fullWrap());
-        EditText apiKey = textSetting("API key (optional for local endpoint; blank keeps saved key)", "");
-        apiKey.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
-        SecureSecretStore secrets = new SecureSecretStore(this);
-        if (!secrets.get("provider_api_key").isEmpty()) apiKey.setHint("API key saved securely");
-        body.addView(apiKey, fullWrap());
-
-        body.addView(action("SAVE CORTEX SETTINGS", () -> {
-            String provider = providers.getCheckedRadioButtonId() == compatible.getId()
-                    ? CortexProviderFactory.MODE_OPENAI_COMPATIBLE
-                    : providers.getCheckedRadioButtonId() == openAi.getId()
-                    ? CortexProviderFactory.MODE_OPENAI
-                    : providers.getCheckedRadioButtonId() == anthropic.getId()
-                    ? CortexProviderFactory.MODE_ANTHROPIC
-                    : CortexProviderFactory.MODE_LOCAL;
-            String cortexEndpointValue = endpoint.getText().toString().trim();
-            if (!cortexEndpointValue.isEmpty() && !EndpointTransportPolicy.allows(cortexEndpointValue)) {
-                Toast.makeText(this,
-                        "Use HTTPS, loopback HTTP, or a user-owned .local HTTP endpoint.",
-                        Toast.LENGTH_LONG).show();
-                return;
-            }
-            cortexPreferences.edit()
-                    .putString("mode", provider)
-                    .putString("model", model.getText().toString().trim())
-                    .putString("endpoint", cortexEndpointValue)
-                    .apply();
-            try {
-                if (!apiKey.getText().toString().trim().isEmpty()) {
-                    secrets.put("provider_api_key", apiKey.getText().toString());
-                    apiKey.setText("");
-                    apiKey.setHint("API key saved securely");
-                }
-                cortexStatus.setText(CortexProviderFactory.status(this));
-                Toast.makeText(this, "Cortex settings saved.", Toast.LENGTH_SHORT).show();
-            } catch (Exception error) {
-                Toast.makeText(this, "Android Keystore could not save that key.", Toast.LENGTH_LONG).show();
-            }
-        }), fullWrap());
-        body.addView(action("CLEAR SAVED API KEY", () -> {
-            secrets.remove("provider_api_key");
-            apiKey.setText("");
-            apiKey.setHint("API key cleared; optional for local endpoint");
-            cortexStatus.setText(CortexProviderFactory.status(this));
-            Toast.makeText(this, "Saved cortex API key removed.", Toast.LENGTH_SHORT).show();
-        }), fullWrap());
-        body.addView(action("RUN JARVIS DIAGNOSTICS", () -> startActivity(new Intent(this, DiagnosticsActivity.class))), fullWrap());
-
-        body.addView(header("LIVE RESEARCH"), fullWrap());
-        TextView researchHelp = new TextView(this);
-        researchHelp.setText("Research endpoint: optional user-owned service JARVIS can query for fresh information. Use HTTPS, loopback HTTP, or a trusted device on your own network such as http://jarvis-research.local. Leave blank to keep live research disabled rather than silently using a paid provider.");
-        researchHelp.setTextColor(getColor(R.color.jarvis_text_dim));
-        researchHelp.setPadding(dp(8), dp(4), dp(8), dp(8));
-        body.addView(researchHelp, fullWrap());
-        EditText researchEndpoint = textSetting("Research endpoint", researchSettings.get(SettingsStore.RESEARCH_ENDPOINT));
-        researchEndpoint.setContentDescription("JARVIS research endpoint");
-        body.addView(researchEndpoint, fullWrap());
-        Button saveResearchEndpoint = action("SAVE RESEARCH ENDPOINT", () -> {
-            String researchEndpointValue = researchEndpoint.getText().toString().trim();
-            if (!researchEndpointValue.isEmpty() && !EndpointTransportPolicy.allows(researchEndpointValue)) {
-                Toast.makeText(this,
-                        "Use HTTPS, loopback HTTP, or a user-owned .local HTTP endpoint.",
-                        Toast.LENGTH_LONG).show();
-                return;
-            }
-            researchSettings.put(SettingsStore.RESEARCH_ENDPOINT, researchEndpointValue);
-            Toast.makeText(this, researchEndpointValue.isEmpty()
-                    ? "Live research endpoint cleared."
-                    : "Live research endpoint saved.", Toast.LENGTH_SHORT).show();
-        });
-        saveResearchEndpoint.setContentDescription("JARVIS save research endpoint");
-        body.addView(saveResearchEndpoint, fullWrap());
-
-        body.addView(header("OPERATING MODE"), fullWrap());
-        RadioGroup modes = new RadioGroup(this);
-        String currentMode = preferences.getString("operating_mode", "normal");
-        RadioButton normal = radio("Normal", "normal".equals(currentMode));
-        RadioButton quiet = radio("Quiet mode", "quiet".equals(currentMode));
-        RadioButton office = radio("Office mode", "office".equals(currentMode));
-        modes.addView(normal);
-        modes.addView(quiet);
-        modes.addView(office);
-        modes.setOnCheckedChangeListener((group, checkedId) -> {
-            String mode = checkedId == quiet.getId() ? "quiet" : checkedId == office.getId() ? "office" : "normal";
-            preferences.edit().putString("operating_mode", mode).apply();
-        });
-        body.addView(modes, fullWrap());
-
-        body.addView(header("ANDROID INTEGRATION"), fullWrap());
-        body.addView(action("MAKE JARVIS DEFAULT ASSISTANT", this::requestAssistant), fullWrap());
-        body.addView(action("ENABLE NOTIFICATION AWARENESS", () -> startActivity(new Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS))), fullWrap());
-        body.addView(action("ENABLE DEVICE CONTROL", () -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))), fullWrap());
-
-        TextView privacy = new TextView(this);
-        privacy.setText("Private by default: memories remain in the app’s local database and the deterministic executive handles recognized phone actions without a cloud model. You can optionally connect a self-hosted OpenAI-compatible endpoint (for example a local model server) without a paid-provider key. If you explicitly enable any external provider, unresolved requests and questions may be sent to that endpoint. No API credential is embedded in the APK. Superseded third-party advertising, analytics, licensing, visual, and speech payloads are not included.");
-        privacy.setTextColor(getColor(R.color.jarvis_text_dim));
-        privacy.setPadding(0, dp(20), 0, 0);
-        body.addView(privacy, fullWrap());
+        body.addView(section("ADVANCED"));
+        body.addView(row("Developer Options", "Provider endpoints, models and diagnostics", () -> startActivity(new Intent(this, DeveloperSettingsActivity.class))));
 
         ScrollView scroll = new ScrollView(this);
+        scroll.setFillViewport(true);
+        scroll.setBackgroundColor(getColor(R.color.jarvis_bg));
         scroll.addView(body);
-        setContentView(scroll);
+        page.addView(scroll, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f));
+        setContentView(page);
+    }
+
+    private View toolbar() {
+        LinearLayout bar = new LinearLayout(this);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        bar.setPadding(dp(8), 0, dp(18), 0);
+        bar.setBackgroundColor(getColor(R.color.jarvis_bg));
+
+        TextView back = new TextView(this);
+        back.setText("‹");
+        back.setTextColor(getColor(R.color.jarvis_cyan));
+        back.setTextSize(38);
+        back.setGravity(Gravity.CENTER);
+        back.setContentDescription("Back");
+        back.setOnClickListener(v -> finish());
+        bar.addView(back, new LinearLayout.LayoutParams(dp(48), ViewGroup.LayoutParams.MATCH_PARENT));
+
+        TextView title = new TextView(this);
+        title.setText("SETTINGS");
+        title.setTextColor(Color.WHITE);
+        title.setTextSize(20);
+        title.setLetterSpacing(0.16f);
+        title.setGravity(Gravity.CENTER_VERTICAL);
+        bar.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
+        return bar;
+    }
+
+    private TextView section(String title) {
+        TextView v = new TextView(this);
+        v.setText(title);
+        v.setTextColor(getColor(R.color.jarvis_cyan));
+        v.setTextSize(12);
+        v.setLetterSpacing(0.12f);
+        v.setPadding(dp(6), dp(22), dp(6), dp(8));
+        return v;
+    }
+
+    private View row(String title, String subtitle, Runnable action) {
+        LinearLayout card = card();
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        TextView name = new TextView(this);
+        name.setText(title);
+        name.setTextColor(Color.WHITE);
+        name.setTextSize(17);
+        TextView detail = new TextView(this);
+        detail.setText(subtitle);
+        detail.setTextColor(getColor(R.color.jarvis_text_dim));
+        detail.setTextSize(13);
+        detail.setPadding(0, dp(3), 0, 0);
+        copy.addView(name);
+        copy.addView(detail);
+        card.addView(copy, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        TextView arrow = new TextView(this);
+        arrow.setText("›");
+        arrow.setTextColor(getColor(R.color.jarvis_cyan));
+        arrow.setTextSize(28);
+        arrow.setGravity(Gravity.CENTER);
+        card.addView(arrow, new LinearLayout.LayoutParams(dp(32), ViewGroup.LayoutParams.MATCH_PARENT));
+        card.setContentDescription(title + ". " + subtitle);
+        card.setOnClickListener(v -> action.run());
+        return card;
+    }
+
+    private View toggleRow(String title, String subtitle, String key, boolean defaultValue) {
+        LinearLayout card = card();
+        LinearLayout copy = new LinearLayout(this);
+        copy.setOrientation(LinearLayout.VERTICAL);
+        TextView name = new TextView(this); name.setText(title); name.setTextColor(Color.WHITE); name.setTextSize(17);
+        TextView detail = new TextView(this); detail.setText(subtitle); detail.setTextColor(getColor(R.color.jarvis_text_dim)); detail.setTextSize(13); detail.setPadding(0,dp(3),0,0);
+        copy.addView(name); copy.addView(detail);
+        card.addView(copy, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        Switch toggle = new Switch(this);
+        toggle.setChecked(preferences.getBoolean(key, defaultValue));
+        toggle.setContentDescription(title + " toggle");
+        toggle.setOnCheckedChangeListener((button, checked) -> preferences.edit().putBoolean(key, checked).apply());
+        card.addView(toggle, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        return card;
+    }
+
+    private LinearLayout card() {
+        LinearLayout card = new LinearLayout(this);
+        card.setOrientation(LinearLayout.HORIZONTAL);
+        card.setGravity(Gravity.CENTER_VERTICAL);
+        card.setPadding(dp(16), dp(13), dp(12), dp(13));
+        card.setBackgroundColor(getColor(R.color.jarvis_bg_panel));
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        p.setMargins(0, 0, 0, dp(2));
+        card.setLayoutParams(p);
+        card.setMinimumHeight(dp(68));
+        return card;
+    }
+
+    private String providerSummary() {
+        String status = CortexProviderFactory.status(this).toLowerCase(java.util.Locale.ROOT);
+        if (status.contains("anthropic")) return "Anthropic connected";
+        if (status.contains("openai")) return "OpenAI-compatible provider connected";
+        return "Private local mode";
+    }
+
+    private String assistantSummary() {
+        RoleManager manager = getSystemService(RoleManager.class);
+        return manager != null && manager.isRoleHeld(RoleManager.ROLE_ASSISTANT) ? "JARVIS is the default assistant" : "Set JARVIS as the default assistant";
     }
 
     private void requestAssistant() {
@@ -178,62 +181,12 @@ public class SettingsActivity extends Activity {
         }
     }
 
-    private TextView header(String value) {
-        TextView view = new TextView(this);
-        view.setText(value);
-        view.setTextSize(13);
-        view.setTextColor(getColor(R.color.jarvis_cyan));
-        view.setPadding(0, dp(18), 0, dp(6));
-        return view;
+    private void launchAppDetails() {
+        startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName())));
     }
-
-    private Switch toggle(String title, String key, boolean defaultValue) {
-        Switch toggle = new Switch(this);
-        toggle.setText(title);
-        toggle.setTextColor(getColor(R.color.jarvis_text_dim));
-        toggle.setTextSize(17);
-        toggle.setPadding(dp(8), dp(10), dp(8), dp(10));
-        toggle.setChecked(preferences.getBoolean(key, defaultValue));
-        toggle.setOnCheckedChangeListener((button, checked) -> preferences.edit().putBoolean(key, checked).apply());
-        return toggle;
+    private void launch(String action) {
+        try { startActivity(new Intent(action)); }
+        catch (Exception ignored) { Toast.makeText(this, "That Android settings page is not available on this device.", Toast.LENGTH_SHORT).show(); }
     }
-
-    private RadioButton radio(String title, boolean checked) {
-        RadioButton button = new RadioButton(this);
-        button.setId(android.view.View.generateViewId());
-        button.setText(title);
-        button.setTextColor(getColor(R.color.jarvis_text_dim));
-        button.setTextSize(17);
-        button.setChecked(checked);
-        return button;
-    }
-
-    private Button action(String title, Runnable runnable) {
-        Button button = new Button(this);
-        button.setText(title);
-        button.setTextColor(Color.WHITE);
-        button.setBackgroundColor(getColor(R.color.jarvis_cyan_dim));
-        button.setOnClickListener(v -> runnable.run());
-        LinearLayout.LayoutParams params = fullWrap();
-        params.setMargins(0, dp(4), 0, dp(4));
-        button.setLayoutParams(params);
-        return button;
-    }
-
-    private EditText textSetting(String hint, String value) {
-        EditText input = new EditText(this);
-        input.setHint(hint);
-        input.setHintTextColor(getColor(R.color.jarvis_text_faint));
-        input.setTextColor(getColor(R.color.jarvis_text_dim));
-        input.setText(value == null ? "" : value);
-        input.setSingleLine(true);
-        input.setPadding(dp(8), dp(8), dp(8), dp(8));
-        return input;
-    }
-
-    private LinearLayout.LayoutParams fullWrap() {
-        return new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-    }
-
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
 }
