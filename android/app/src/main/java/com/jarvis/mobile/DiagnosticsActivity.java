@@ -10,22 +10,26 @@ import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.speech.SpeechRecognizer;
-import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
-import com.jarvis.mobile.brain.core.IntentPlan;
-import com.jarvis.mobile.brain.core.LocalIntentEngine;
+import com.jarvis.brain.ExternalResearchGateway;
+import com.jarvis.brain.ToolRegistry;
+import com.jarvis.mobile.brain.AndroidToolRegistryFactory;
 import com.jarvis.mobile.brain.providers.CortexProviderFactory;
 import com.jarvis.mobile.hands.JarvisAccessibilityService;
 import com.jarvis.mobile.memory.JarvisDatabase;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
-
 /** User-visible evidence of what the installed APK can actually see and run. */
 public final class DiagnosticsActivity extends Activity {
+    private static final String[] ANDROID_TYPED_TOOLS = {
+            "open_dialer", "call_contact", "open_app", "web_search", "set_timer", "set_alarm",
+            "navigate", "device_navigation", "screen_read", "ui_click", "ui_type", "media_play",
+            "media_control", "volume_control", "set_flashlight", "calendar_query", "create_reminder",
+            "compose_calendar_event", "notification_query", "compose_email", "send_message"
+    };
+
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         setTitle("JARVIS Diagnostics");
@@ -67,25 +71,15 @@ public final class DiagnosticsActivity extends Activity {
         add(report, "Saved memories", String.valueOf(database.memoryCount()));
         add(report, "Open tasks", String.valueOf(database.openTaskCount()));
 
-        Map<String, IntentPlan.Intent> tests = new LinkedHashMap<>();
-        tests.put("help me", IntentPlan.Intent.HELP);
-        tests.put("could you call Mom please", IntentPlan.Intent.CALL);
-        tests.put("send a text to Alex saying hello", IntentPlan.Intent.SMS);
-        tests.put("schedule lunch tomorrow at 1 pm", IntentPlan.Intent.CALENDAR);
-        tests.put("I need some light", IntentPlan.Intent.FLASHLIGHT_ON);
-        tests.put("unmute the phone", IntentPlan.Intent.UNMUTE);
-        tests.put("what did I miss", IntentPlan.Intent.NOTIFICATIONS);
-        tests.put("what can you do", IntentPlan.Intent.HELP);
-        tests.put("what is the capital of France", IntentPlan.Intent.KNOWLEDGE_QUERY);
-        tests.put("read the screen", IntentPlan.Intent.ACCESSIBILITY);
-
-        LocalIntentEngine engine = new LocalIntentEngine();
-        int passed = 0;
-        for (Map.Entry<String, IntentPlan.Intent> test : tests.entrySet()) {
-            if (engine.plan(test.getKey()).intent() == test.getValue()) passed++;
+        ToolRegistry registry = AndroidToolRegistryFactory.create(this, ExternalResearchGateway.unavailable());
+        int registered = 0;
+        for (String tool : ANDROID_TYPED_TOOLS) {
+            if (registry.resolve(tool).isPresent()) registered++;
         }
-        add(report, "Installed language self-test", passed + "/" + tests.size() + " passed");
-        report.append("\n\nDiagnostics do not place calls, send messages, or change the device.");
+        add(report, "Production typed-tool self-test", registered + "/" + ANDROID_TYPED_TOOLS.length + " registered");
+        add(report, "Total shared capabilities", String.valueOf(registry.specs().size()));
+        add(report, "Autonomous conversational calls", "External duplex phone-audio transport required");
+        report.append("\n\nDiagnostics inspect capability registration only. They do not place calls, send messages, click controls, or change the device.");
         return report.toString();
     }
 
