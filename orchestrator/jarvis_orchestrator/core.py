@@ -5,7 +5,7 @@ import json
 import time
 import uuid
 from dataclasses import asdict, dataclass
-from typing import AsyncIterator, Protocol
+from typing import AsyncContextManager, AsyncIterator, Protocol
 
 
 @dataclass(slots=True)
@@ -63,7 +63,6 @@ class ValkeyEventBus:
     async def publish(self, event: BrainEvent) -> None:
         payload = json.dumps(asdict(event), separators=(",", ":"))
         stream = f"{self.STREAM_PREFIX}{event.session_id}"
-        # XADD makes reconnect recovery durable; Pub/Sub remains the low-latency live path.
         await self.client.xadd(stream, {"event": payload}, maxlen=10_000, approximate=True)
         await self.client.expire(stream, 604800)
         await self.client.set(f"brain:session:{event.session_id}:latest", payload, ex=86400)
@@ -107,17 +106,50 @@ class EchoRuntime:
         return f"JARVIS received: {text}"
 
 
+class SessionLockManager(Protocol):
+    def lock(self, session_id: str) -> AsyncContextManager[object]: ...
+
+
+class InMemorySessionLockManager:
+    """Single-process fallback used when Valkey is not configured."""
+    def __init__(self) -> None:
+        self._locks: dict[str, asyncio.Lock] = {}
+
+    def lock(self, session_id: str) -> asyncio.Lock:
+        return self._locks.setdefault(session_id, asyncio.Lock())
+
+
+class ValkeySessionLockManager:
+    """Cross-process per-session serialization using redis-py's async Lock."""
+    KEY_PREFIX = "brain:session-lock:"
+
+    def __init__(self, client, timeout_seconds: int = 300) -> None:
+        self.client = client
+        self.timeout_seconds = timeout_seconds
+
+    def lock(self, session_id: str):
+        return self.client.lock(
+            f"{self.KEY_PREFIX}{session_id}",
+            timeout=self.timeout_seconds,
+            blocking_timeout=self.timeout_seconds,
+        )
+
+
 class Orchestrator:
     """The one authoritative execution path used by phone, desktop, CLI, and future clients."""
-    def __init__(self, bus: EventBus, runtime: AgentRuntime) -> None:
+    def __init__(
+        self,
+        bus: EventBus,
+        runtime: AgentRuntime,
+        session_locks: SessionLockManager | None = None,
+    ) -> None:
         self.bus = bus
         self.runtime = runtime
-        self._session_locks: dict[str, asyncio.Lock] = {}
+        self.session_locks = session_locks or InMemorySessionLockManager()
 
     async def submit(self, text: str, session_id: str) -> dict[str, str]:
         task_id = str(uuid.uuid4())
-        lock = self._session_locks.setdefault(session_id, asyncio.Lock())
-        async with lock:
+        async with self.session_locks.lock(session_id):
             await self._emit(session_id, task_id, "PREFRONTAL", 32, "Routing request", 1)
             await self._emit(session_id, task_id, "AGENT_OPS", 96, "Dispatching worker", 2)
             try:
