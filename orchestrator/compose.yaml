@@ -15,6 +15,15 @@ services:
     volumes:
       - agent-zero-data:/a0/usr
 
+  ollama:
+    image: ollama/ollama:latest
+    restart: unless-stopped
+    profiles: ["local-ai"]
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama-data:/root/.ollama
+
   orchestrator:
     build: .
     restart: unless-stopped
@@ -34,3 +43,4 @@ services:
 volumes:
   valkey-data:
   agent-zero-data:
+  ollama-data:
