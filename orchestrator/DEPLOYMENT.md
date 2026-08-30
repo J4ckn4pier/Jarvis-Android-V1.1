@@ -115,12 +115,35 @@ curl -X DELETE http://127.0.0.1:8000/v1/sessions/primary \
   -H "Authorization: Bearer $JARVIS_API_TOKEN"
 ```
 
-Reconnect recovery:
+### Reconnect and telemetry recovery contract
+
+Every history event and live telemetry event carries the same stable `event_id`, formatted internally from the task and event sequence. Clients should treat `event_id` as opaque and persist the most recently processed value for each public JARVIS session.
+
+The existing no-cursor history call remains backward compatible and returns the most recent page:
 
 ```bash
 curl http://127.0.0.1:8000/v1/sessions/primary/events \
   -H "Authorization: Bearer $JARVIS_API_TOKEN"
 ```
+
+A reconnecting phone or desktop that already has a last-seen event should recover **forward** from that event instead of asking only for the latest page:
+
+```bash
+curl 'http://127.0.0.1:8000/v1/sessions/primary/events?after_event_id=LAST_EVENT_ID&limit=100' \
+  -H "Authorization: Bearer $JARVIS_API_TOKEN"
+```
+
+Cursor recovery returns events in chronological order plus `next_event_id` and `has_more`. The client should process/dedupe each event by `event_id`, persist `next_event_id`, and repeat the request with that value while `has_more` is true. The backend reads from the bounded durable Valkey event window, so this catches up through more than one API page after a longer mobile disconnect without replaying the AI command itself.
+
+A safe reconnect sequence for a future application client is:
+
+1. Re-establish the authenticated live telemetry WebSocket.
+2. Request history with `after_event_id` equal to the last event the client had durably processed before disconnecting.
+3. Merge replayed and live events by stable `event_id`; duplicates are harmless and should be discarded client-side.
+4. Continue paging with `next_event_id` while `has_more` is true.
+5. Keep the latest processed `event_id` as the next reconnect cursor.
+
+This is deliberately an application-side contract only; this workstream does not edit Android/application/frontend code.
 
 Live telemetry requires an explicit session subscription:
 
