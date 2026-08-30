@@ -36,7 +36,7 @@ public final class CortexProviderFactory {
         if ("local".equals(provider.id())) return "Deterministic brain active; no general local cortex configured";
         if (MODE_OPENAI_COMPATIBLE.equals(provider.id())) {
             return provider.isConfigured() ? "OpenAI-compatible local cortex configured"
-                    : "OpenAI-compatible local cortex needs a model";
+                    : "OpenAI-compatible local cortex needs a model and allowed endpoint";
         }
         return provider.isConfigured() ? provider.id() + " configured"
                 : provider.id() + " needs a model and API key";
