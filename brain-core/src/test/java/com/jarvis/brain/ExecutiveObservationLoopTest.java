@@ -15,6 +15,7 @@ public final class ExecutiveObservationLoopTest {
         failedSafeToolBecomesObservationForRecoveryReasoning();
         nullSafeToolResultBecomesFailureObservationForRecoveryReasoning();
         successfulSafeToolWithoutOutputBecomesFailureObservation();
+        blankReasoningAnswerFailsTruthfully();
         System.out.println("ExecutiveObservationLoopTest: " + checks + " assertions passed");
     }
 
@@ -179,6 +180,16 @@ public final class ExecutiveObservationLoopTest {
                 "a tool must not tell the executive loop SUCCESS when it returned no usable output");
         check(recoveryContext[0].toLowerCase().contains("output"),
                 "recovery observation should explain that the successful tool returned no output");
+    }
+
+    private static void blankReasoningAnswerFailsTruthfully() {
+        ReasoningRouter router = request -> new ReasoningResult("custom", "   ", null);
+        ExecutiveOutcome outcome = new ExecutiveObservationLoop(router, new ToolRegistry(), new ApprovalGate(), 2)
+                .run("answer this", "");
+        check(outcome.status() == ExecutiveOutcome.Status.FAILED,
+                "an empty provider answer is not a successful answered outcome");
+        check(outcome.text() != null && !outcome.text().isBlank() && outcome.text().toLowerCase().contains("safely"),
+                "empty provider answer should become a truthful controlled failure message");
     }
 
     private static void check(boolean condition, String message) { checks++; if (!condition) throw new AssertionError(message); }
