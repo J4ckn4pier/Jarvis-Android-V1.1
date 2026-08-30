@@ -3,6 +3,7 @@ package com.jarvis.mobile.remote;
 import com.jarvis.brain.EndpointTransportPolicy;
 
 import org.json.JSONArray;
+import org.json.JSONException;
 import org.json.JSONObject;
 
 import java.io.ByteArrayOutputStream;
@@ -42,11 +43,11 @@ public final class RemoteGoalClient {
             List<String> acceptanceCriteria,
             String deadline) throws RemoteGoalException {
         JSONObject body = new JSONObject();
-        body.put("goal", requireText(goal, "goal"));
-        body.put("session_id", sessionId == null ? "primary" : sessionId);
-        body.put("constraints", stringArray(constraints));
-        body.put("acceptance_criteria", stringArray(acceptanceCriteria));
-        body.put("deadline", deadline == null ? JSONObject.NULL : deadline);
+        put(body, "goal", requireText(goal, "goal"));
+        put(body, "session_id", sessionId == null ? "primary" : sessionId);
+        put(body, "constraints", stringArray(constraints));
+        put(body, "acceptance_criteria", stringArray(acceptanceCriteria));
+        put(body, "deadline", deadline == null ? JSONObject.NULL : deadline);
         JSONObject json = request("POST", GOALS_PATH, null, body);
         requireNoImplementationExposure(json);
         return new GoalSubmission(
@@ -88,7 +89,10 @@ public final class RemoteGoalClient {
         List<ProjectEvent> events = new ArrayList<>();
         if (values != null) {
             for (int i = 0; i < values.length(); i++) {
-                JSONObject event = values.getJSONObject(i);
+                JSONObject event = values.optJSONObject(i);
+                if (event == null) {
+                    throw new RemoteGoalException(-1, "Remote JARVIS returned an invalid event response.");
+                }
                 events.add(new ProjectEvent(
                         requiredString(event, "event_id"),
                         requiredString(event, "project_id"),
@@ -108,8 +112,8 @@ public final class RemoteGoalClient {
     public ApprovalDecision respondToApproval(
             String projectId, String approvalId, boolean approved, String response) throws RemoteGoalException {
         JSONObject body = new JSONObject();
-        body.put("approved", approved);
-        body.put("response", response == null ? JSONObject.NULL : response);
+        put(body, "approved", approved);
+        put(body, "response", response == null ? JSONObject.NULL : response);
         JSONObject json = request(
                 "POST",
                 projectPath(projectId) + "/approvals/" + pathSegment(approvalId, "approval_id"),
@@ -168,6 +172,14 @@ public final class RemoteGoalClient {
             throw new RemoteGoalException(-1, "Remote JARVIS is unavailable right now.", failure);
         } finally {
             if (connection != null) connection.disconnect();
+        }
+    }
+
+    private static void put(JSONObject json, String key, Object value) throws RemoteGoalException {
+        try {
+            json.put(key, value);
+        } catch (JSONException failure) {
+            throw new RemoteGoalException(-1, "Unable to encode the remote JARVIS request.", failure);
         }
     }
 
