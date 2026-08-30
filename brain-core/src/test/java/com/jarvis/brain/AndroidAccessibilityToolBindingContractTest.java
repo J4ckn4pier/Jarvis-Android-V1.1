@@ -27,8 +27,8 @@ public final class AndroidAccessibilityToolBindingContractTest {
                 "typed adapter must expose current-screen text without routing through legacy parsing");
         check(action.contains("Unsupported device navigation action"),
                 "unknown navigation actions must fail closed");
-        check(factory.contains("AndroidAccessibilityActions accessibility = new AndroidAccessibilityActions(appContext)"),
-                "Android factory must instantiate the typed accessibility adapter");
+        check(factory.contains("AndroidAccessibilityActions accessibility = new AndroidAccessibilityActions()"),
+                "Android factory must instantiate the stateless typed accessibility adapter");
         check(factory.contains("args -> accessibility.navigate(args.get(\"action\"))"),
                 "Android factory must bind device_navigation to the typed adapter");
         check(factory.contains("args -> accessibility.readScreen()"),
