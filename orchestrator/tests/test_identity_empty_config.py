@@ -21,3 +21,12 @@ def test_multi_principal_configuration_rejects_whitespace_padded_principal(monke
 
     with pytest.raises(ValueError, match="leading or trailing whitespace"):
         Authenticator.from_env()
+
+
+def test_multi_principal_configuration_rejects_malformed_json_cleanly(monkeypatch):
+    """Deployment errors should identify the bad setting rather than leak JSON parser detail."""
+    monkeypatch.setenv("JARVIS_API_KEYS_JSON", "{broken")
+    monkeypatch.delenv("JARVIS_API_TOKEN", raising=False)
+
+    with pytest.raises(ValueError, match="JARVIS_API_KEYS_JSON must be valid JSON"):
+        Authenticator.from_env()
