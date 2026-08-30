@@ -64,5 +64,9 @@ def ensure_env(path: Path = Path(".env")) -> dict[str, str]:
         appended = "".join(f"{key}={value}\n" for key, value in generated.items())
         path.write_text(previous + separator + appended)
 
+    # This file contains live JARVIS and worker credentials. Do not rely on the
+    # caller's umask: make it owner-readable/writable only on POSIX hosts.
+    path.chmod(0o600)
+
     final = {**existing, **generated}
     return {key: final[key] for key in _REQUIRED_KEYS}
