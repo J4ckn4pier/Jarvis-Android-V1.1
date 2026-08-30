@@ -28,12 +28,18 @@ require 'RemoteGoalClient.Cancellation cancelled = client.cancel(projectId)'
 require '"cancelled".equalsIgnoreCase(cancelled.state())'
 require 'state.clearProject()'
 
-# Approval remains intentionally unwired until the public contract exposes a real approval_id.
-if grep -F 'respondToApproval' "$COORD" >/dev/null || grep -F '/approvals/' "$COORD" >/dev/null; then
-  echo "Approval was guessed before a public approval_id handoff" >&2
+# Post-handoff approval must discover exactly one server-issued approval and return its opaque ID; never infer from task_id.
+require 'respondToActiveApproval'
+require 'client.getProject(projectId)'
+require 'project.pendingApprovals().size() != 1'
+require 'RemoteGoalClient.PendingApproval pending = project.pendingApprovals().get(0)'
+require 'pending.approvalId()'
+require 'client.respondToApproval(projectId, pending.approvalId(), approved, response)'
+
+if grep -Eiq 'taskId\(\).*respondToApproval|respondToApproval\([^,]+,[[:space:]]*[^,]*task' "$COORD"; then
+  echo "task_id was substituted for approval_id" >&2
   exit 1
 fi
-
 if grep -Eiq 'agent[ _-]?zero|valkey|ollama|anthropic|openai|claude|chatgpt' "$COORD"; then
   echo "Provider/worker implementation name leaked into remote continuity" >&2
   exit 1
