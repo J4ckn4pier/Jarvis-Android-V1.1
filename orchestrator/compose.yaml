@@ -10,6 +10,8 @@ services:
     image: busybox:1.37
     restart: "no"
     profiles: ["agent-zero"]
+    environment:
+      AGENT_ZERO_RUNTIME_ID: ${AGENT_ZERO_RUNTIME_ID:-}
     volumes:
       - agent-zero-data:/a0/usr
       - ./agent-zero/model-presets.yaml:/bootstrap/model-presets.yaml:ro
@@ -18,6 +20,13 @@ services:
       - -c
       - |
         set -eu
+        test -n "$AGENT_ZERO_RUNTIME_ID"
+        touch /a0/usr/.env
+        if grep -q '^A0_PERSISTENT_RUNTIME_ID=' /a0/usr/.env; then
+          sed -i "s|^A0_PERSISTENT_RUNTIME_ID=.*$|A0_PERSISTENT_RUNTIME_ID=$AGENT_ZERO_RUNTIME_ID|" /a0/usr/.env
+        else
+          printf '\nA0_PERSISTENT_RUNTIME_ID=%s\n' "$AGENT_ZERO_RUNTIME_ID" >> /a0/usr/.env
+        fi
         if [ ! -f /a0/usr/plugins/_model_config/presets.yaml ]; then
           mkdir -p /a0/usr/plugins/_model_config
           cp /bootstrap/model-presets.yaml /a0/usr/plugins/_model_config/presets.yaml
