@@ -40,15 +40,19 @@ jobs:
       - uses: actions/checkout@v4
       - name: Validate Docker Compose
         run: docker compose config --quiet
-      - name: Verify multi-principal auth reaches the container
+      - name: Verify packaged security defaults
         run: |
-          docker compose config --format json > /tmp/compose.json
+          docker compose --profile agent-zero --profile local-ai config --format json > /tmp/compose.json
           python3 - <<'PY'
           import json
           with open('/tmp/compose.json') as handle:
               config = json.load(handle)
           environment = config['services']['orchestrator']['environment']
           assert environment['JARVIS_API_KEYS_JSON'] == '{"ci-user":"ci-token","other-user":"other-token"}', environment
+          for service_name in ('agent-zero', 'ollama'):
+              ports = config['services'][service_name]['ports']
+              assert ports, (service_name, ports)
+              assert all(port.get('host_ip') == '127.0.0.1' for port in ports), (service_name, ports)
           PY
       - name: Boot standalone prototype
         run: docker compose up -d --build valkey orchestrator
