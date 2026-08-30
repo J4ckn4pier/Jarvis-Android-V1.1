@@ -15,10 +15,14 @@ public final class RemoteGoalStateTestReceiver extends BroadcastReceiver {
             String baseUrl = intent.getStringExtra("base_url");
             String token = intent.getStringExtra("token");
             String projectId = intent.getStringExtra("project_id");
+            String eventId = intent.getStringExtra("event_id");
             RemoteGoalStateStore state = new RemoteGoalStateStore(context);
             state.clear();
             state.saveConnection(baseUrl, token);
-            if (projectId != null && !projectId.isBlank()) state.saveProject(projectId);
+            if (projectId != null && !projectId.isBlank()) {
+                state.saveProject(projectId);
+                if (eventId != null && !eventId.isBlank()) state.saveCursor(projectId, eventId);
+            }
             setResultCode(1);
         } catch (RuntimeException failure) {
             setResultCode(0);
