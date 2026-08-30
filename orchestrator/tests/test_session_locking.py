@@ -36,6 +36,44 @@ async def test_shared_lock_manager_serializes_same_session_across_orchestrators(
     assert runtime.max_active == 1
 
 
+async def test_session_operation_waits_for_inflight_command_on_same_session():
+    started = asyncio.Event()
+    release = asyncio.Event()
+    operation_started = asyncio.Event()
+
+    class Runtime:
+        async def execute(self, text, session_id):
+            started.set()
+            await release.wait()
+            return text
+
+    orchestrator = Orchestrator(
+        InMemoryEventBus(),
+        Runtime(),
+        session_locks=InMemorySessionLockManager(),
+    )
+
+    command_task = asyncio.create_task(orchestrator.submit("one", "primary"))
+    await started.wait()
+
+    async def operation():
+        operation_started.set()
+        return True
+
+    lifecycle_task = asyncio.create_task(
+        orchestrator.run_session_operation("primary", operation)
+    )
+    await asyncio.sleep(0)
+
+    assert operation_started.is_set() is False
+    assert lifecycle_task.done() is False
+
+    release.set()
+    await command_task
+    assert await lifecycle_task is True
+    assert operation_started.is_set() is True
+
+
 async def test_valkey_lock_manager_uses_stable_per_session_lock_key():
     calls = []
 
