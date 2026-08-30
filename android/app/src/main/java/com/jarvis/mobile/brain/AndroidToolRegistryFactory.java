@@ -10,6 +10,7 @@ import com.jarvis.brain.ToolResult;
 import com.jarvis.brain.ToolSpec;
 import com.jarvis.mobile.actions.AndroidAlarmActions;
 import com.jarvis.mobile.actions.AndroidAppActions;
+import com.jarvis.mobile.actions.AndroidCalendarEventActions;
 import com.jarvis.mobile.actions.AndroidDialerActions;
 import com.jarvis.mobile.actions.AndroidEmailActions;
 import com.jarvis.mobile.actions.AndroidFlashlightActions;
@@ -35,6 +36,7 @@ public final class AndroidToolRegistryFactory {
         Context appContext = context.getApplicationContext();
         AndroidAlarmActions alarm = new AndroidAlarmActions(appContext);
         AndroidAppActions apps = new AndroidAppActions(appContext);
+        AndroidCalendarEventActions calendarEvents = new AndroidCalendarEventActions(appContext);
         AndroidDialerActions dialer = new AndroidDialerActions(appContext);
         AndroidEmailActions email = new AndroidEmailActions(appContext);
         AndroidFlashlightActions flashlight = new AndroidFlashlightActions(appContext);
@@ -60,6 +62,7 @@ public final class AndroidToolRegistryFactory {
         register(registry, "set_flashlight", false, Set.of("flashlight", "torch"), Set.of("state"), "Set flashlight state", ToolExecutionClass.DEVICE_REFLEX, args -> flashlight.setState(args.get("state")));
         register(registry, "calendar_query", false, Set.of("calendar", "schedule"), Set.of("when"), "Read calendar commitments", ToolExecutionClass.DEVICE_REFLEX, args -> calendar.commitments(args.get("when")));
         register(registry, "create_reminder", false, Set.of("reminder", "remind me"), Set.of("request"), "Open the Android calendar editor with the requested reminder details for user confirmation", ToolExecutionClass.DEVICE_REFLEX, args -> reminders.prepareReminder(args.get("request")));
+        register(registry, "compose_calendar_event", false, Set.of("create calendar event", "add calendar event", "schedule event", "invite attendees"), Set.of("title", "start_millis", "end_millis"), "Open a structured calendar event draft for user confirmation, optionally including location and attendee emails", ToolExecutionClass.DEVICE_REFLEX, args -> calendarEvents.prepare(args.get("title"), args.get("start_millis"), args.get("end_millis"), args.get("location"), args.get("attendees")));
         register(registry, "notification_query", false, Set.of("notifications", "notification"), Set.of(), "Read captured notifications", ToolExecutionClass.DEVICE_REFLEX, args -> { String notifications = JarvisDatabase.get(appContext).recentNotifications(10); return notifications.isBlank() ? "No captured notifications." : notifications; });
         register(registry, "compose_email", false, Set.of("email", "compose email", "draft email"), Set.of("recipient", "subject", "body"), "Open an Android email draft for user review without sending it", ToolExecutionClass.DEVICE_REFLEX, args -> email.prepareEmail(args.get("recipient"), args.get("subject"), args.get("body")));
         register(registry, "send_message", true, Set.of("text", "message"), Set.of("recipient", "message"), "Prepare external message after approval", ToolExecutionClass.CONSEQUENTIAL, args -> messaging.prepareMessage(args.get("recipient"), args.get("message")));
