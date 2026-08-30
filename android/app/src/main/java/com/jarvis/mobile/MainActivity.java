@@ -50,6 +50,9 @@ import com.jarvis.mobile.widgets.QuickActivationWidget;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.function.Supplier;
 
 /** Original Android shell backed by the shared JARVIS runtime. */
 public class MainActivity extends Activity implements TextToSpeech.OnInitListener {
@@ -62,6 +65,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private static final String SHARED_BRAIN_TAG = "JARVIS_SHARED_BRAIN_ACTIVE";
 
     private final android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
+    private final ExecutorService brainExecutor = Executors.newSingleThreadExecutor();
     private final Runnable pulse = new Runnable() {
         @Override public void run() {
             pulseFrame = !pulseFrame;
@@ -325,7 +329,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         setActive(true, "Processing ...");
         if (decisionPanel != null) decisionPanel.setVisibility(View.GONE);
         status.setText("Heard you say, “" + command + "”");
-        ui.postDelayed(() -> deliverPresentation(runtime.handlePresentation(command)), 120L);
+        ui.postDelayed(() -> submitBrainWork(() -> runtime.handlePresentation(command)), 120L);
     }
 
     private void runCandidates(ArrayList<String> candidates) {
@@ -334,6 +338,13 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             return;
         }
         runCommand(candidates.get(0));
+    }
+
+    private void submitBrainWork(Supplier<RuntimeSurfacePresentation> work) {
+        brainExecutor.execute(() -> {
+            RuntimeSurfacePresentation presentation = work.get();
+            ui.post(() -> deliverPresentation(presentation));
+        });
     }
 
     private void deliverPresentation(RuntimeSurfacePresentation presentation) {
@@ -367,9 +378,9 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private void runDecisionAction(boolean primary) {
         RuntimeSurfaceAction action = primary ? currentPrimaryAction : currentSecondaryAction;
         switch (action) {
-            case APPROVE: deliverPresentation(runtime.approvePresentation()); break;
-            case RETRY: deliverPresentation(runtime.retryPresentation()); break;
-            case CANCEL: deliverPresentation(runtime.cancelPresentation()); break;
+            case APPROVE: submitBrainWork(runtime::approvePresentation); break;
+            case RETRY: submitBrainWork(runtime::retryPresentation); break;
+            case CANCEL: submitBrainWork(runtime::cancelPresentation); break;
             default: break;
         }
     }
@@ -559,6 +570,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     @Override protected void onDestroy() {
         active = false;
         ui.removeCallbacksAndMessages(null);
+        brainExecutor.shutdownNow();
         if (speechRecognizer != null) speechRecognizer.destroy();
         if (textToSpeech != null) textToSpeech.shutdown();
         super.onDestroy();
