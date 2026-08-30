@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any
 
 from fastapi import Header, HTTPException, Query
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class GoalSubmission(BaseModel):
@@ -15,6 +15,13 @@ class GoalSubmission(BaseModel):
     constraints: tuple[str, ...] = ()
     acceptance_criteria: tuple[str, ...] = ()
     deadline: datetime | None = None
+
+    @field_validator("goal")
+    @classmethod
+    def _meaningful_goal(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("goal must contain non-whitespace text")
+        return value
 
 
 class ApprovalResponse(BaseModel):
