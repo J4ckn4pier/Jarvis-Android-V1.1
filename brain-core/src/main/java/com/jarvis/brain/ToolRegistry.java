@@ -87,6 +87,7 @@ public final class ToolRegistry {
         r.register(spec("report_outcome", false, Set.of(), Set.of(), "Report an evidence-backed completed multi-step action", ToolExecutionClass.AUTONOMOUS_RESEARCH), gateway::reportOutcome);
         r.register(spec("weather_lookup", false, Set.of("weather", "forecast"), Set.of("when"), "Look up weather/forecast", ToolExecutionClass.AUTONOMOUS_RESEARCH), gateway::weatherLookup);
         r.register(spec("set_timer", false, Set.of("timer"), Set.of("amount", "unit"), "Set a device timer", ToolExecutionClass.DEVICE_REFLEX), ready("timer-ready"));
+        r.register(spec("set_alarm", false, Set.of("alarm", "set alarm"), Set.of("hour", "minute"), "Set a local device alarm using 24-hour clock values", ToolExecutionClass.DEVICE_REFLEX), ready("alarm-ready"));
         r.register(spec("create_reminder", false, Set.of("reminder", "remind me"), Set.of("request"), "Create a personal reminder", ToolExecutionClass.DEVICE_REFLEX), ready("reminder-ready"));
         r.register(spec("navigate", false, Set.of("directions", "navigation"), Set.of("destination"), "Navigate to a destination", ToolExecutionClass.DEVICE_REFLEX), ready("navigation-ready"));
         r.register(spec("media_play", false, Set.of("play music", "play media"), Set.of("query"), "Play requested media", ToolExecutionClass.DEVICE_REFLEX), ready("media-ready"));
