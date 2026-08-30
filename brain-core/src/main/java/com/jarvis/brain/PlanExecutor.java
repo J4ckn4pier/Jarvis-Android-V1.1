@@ -28,6 +28,11 @@ public final class PlanExecutor {
             try {
                 result = normalizeToolResult(tool.implementation().execute(step.arguments(), context));
                 if (result.status() == ToolResult.Status.RETRYABLE_FAILURE) {
+                    if (consequential) {
+                        outputs.add(result.output());
+                        return new ExecutionReport(ExecutionReport.Status.APPROVAL_REQUIRED, outputs, tool.name(),
+                                "Fresh approval required before retrying consequential execution");
+                    }
                     result = normalizeToolResult(tool.implementation().execute(step.arguments(), context));
                 }
             } catch (RuntimeException failure) {
