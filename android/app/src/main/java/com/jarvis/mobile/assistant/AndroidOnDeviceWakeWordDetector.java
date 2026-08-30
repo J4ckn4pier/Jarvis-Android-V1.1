@@ -1,5 +1,6 @@
 package com.jarvis.mobile.assistant;
 
+import android.annotation.TargetApi;
 import android.content.Context;
 import android.content.Intent;
 import android.os.Build;
@@ -64,11 +65,14 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
                 true);
     }
 
+    @TargetApi(Build.VERSION_CODES.S)
     @Override public boolean start(Runnable wakeCallback) {
         if (wakeCallback == null) {
             status = "wake callback missing";
             return false;
         }
+        // Factory/start callers always probe this before entering the API-31-only path. Keep the
+        // guard here too so a future direct caller cannot invoke the newer API on Android 10/11.
         if (!isAvailable(context)) {
             status = "Android on-device recognition unavailable";
             return false;
