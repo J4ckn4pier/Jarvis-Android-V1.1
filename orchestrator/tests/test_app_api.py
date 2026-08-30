@@ -177,6 +177,18 @@ async def test_events_requires_session_subscription(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_events_rejects_oversized_session_id(monkeypatch):
+    monkeypatch.delenv("JARVIS_API_TOKEN", raising=False)
+    monkeypatch.delenv("JARVIS_API_KEYS_JSON", raising=False)
+    ws = FakeWebSocket({"session_id": "x" * 129})
+
+    await app_module.events(ws)
+
+    assert ws.accepted is False
+    assert ws.closed_code == 4400
+
+
+@pytest.mark.asyncio
 async def test_events_scopes_subscription_to_authenticated_principal(monkeypatch):
     monkeypatch.setenv("JARVIS_API_KEYS_JSON", '{"alice":"token-a","bob":"token-b"}')
     monkeypatch.delenv("JARVIS_API_TOKEN", raising=False)
@@ -207,3 +219,31 @@ async def test_input_socket_scopes_session_and_returns_public_id(monkeypatch):
     assert orchestrator.calls == [("hello", scope_session_id("alice", "primary"))]
     assert ws.sent[0]["session_id"] == "primary"
     assert ws.sent[0]["response"] == "ok"
+
+
+@pytest.mark.asyncio
+async def test_input_socket_rejects_oversized_text_without_dispatch(monkeypatch):
+    monkeypatch.delenv("JARVIS_API_TOKEN", raising=False)
+    monkeypatch.delenv("JARVIS_API_KEYS_JSON", raising=False)
+    orchestrator = RecordingOrchestrator()
+    monkeypatch.setattr(app_module.app.state, "orchestrator", orchestrator, raising=False)
+    ws = FakeWebSocket({}, incoming=[{"text": "x" * 100_001, "session_id": "primary"}])
+
+    await app_module.input_socket(ws)
+
+    assert orchestrator.calls == []
+    assert ws.sent == [{"error": "text must be between 1 and 100000 characters"}]
+
+
+@pytest.mark.asyncio
+async def test_input_socket_rejects_oversized_session_without_dispatch(monkeypatch):
+    monkeypatch.delenv("JARVIS_API_TOKEN", raising=False)
+    monkeypatch.delenv("JARVIS_API_KEYS_JSON", raising=False)
+    orchestrator = RecordingOrchestrator()
+    monkeypatch.setattr(app_module.app.state, "orchestrator", orchestrator, raising=False)
+    ws = FakeWebSocket({}, incoming=[{"text": "hello", "session_id": "s" * 129}])
+
+    await app_module.input_socket(ws)
+
+    assert orchestrator.calls == []
+    assert ws.sent == [{"error": "session_id must be between 1 and 128 characters"}]
