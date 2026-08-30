@@ -62,12 +62,24 @@ public final class DeveloperSettingsActivity extends Activity {
                     : providers.getCheckedRadioButtonId() == openai.getId() ? CortexProviderFactory.MODE_OPENAI
                     : providers.getCheckedRadioButtonId() == anthropic.getId() ? CortexProviderFactory.MODE_ANTHROPIC
                     : CortexProviderFactory.MODE_LOCAL;
+            String keyValue = key.getText().toString().trim();
+            if (!keyValue.isEmpty()) {
+                try {
+                    secrets.put("provider_api_key", keyValue);
+                    key.setText("");
+                } catch (Exception error) {
+                    Toast.makeText(this, "Could not save that provider credential securely. Nothing was changed.", Toast.LENGTH_LONG).show();
+                    return;
+                }
+            }
             cortex.edit().putString("mode", mode).putString("model", model.getText().toString().trim()).putString("endpoint", endpointValue).apply();
-            if (!key.getText().toString().trim().isEmpty()) { secrets.put("provider_api_key", key.getText().toString()); key.setText(""); }
             status.setText(CortexProviderFactory.status(this));
             Toast.makeText(this, "Provider configuration saved.", Toast.LENGTH_SHORT).show();
         }));
-        body.addView(button("CLEAR SAVED API KEY", () -> { secrets.remove("provider_api_key"); Toast.makeText(this, "Saved API key removed.", Toast.LENGTH_SHORT).show(); }));
+        body.addView(button("CLEAR SAVED API KEY", () -> {
+            secrets.remove("provider_api_key");
+            Toast.makeText(this, "Saved API key removed.", Toast.LENGTH_SHORT).show();
+        }));
 
         EditText researchEndpoint = input("Research endpoint", research.get(SettingsStore.RESEARCH_ENDPOINT));
         researchEndpoint.setContentDescription("JARVIS research endpoint");
