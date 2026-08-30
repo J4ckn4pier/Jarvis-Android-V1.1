@@ -22,6 +22,10 @@ public final class BrainExitGateCompositionContractTest {
                 "successful shared-plan execution must automatically feed the predictive follow-up system");
         require(gate, "AndroidExecutedPlanFollowupCompositionContractTest.class",
                 "Android production must wire completed shared plans into its durable privacy-gated follow-up runtime");
+        require(gate, "EmailCompositionToolContractTest.class",
+                "provider-neutral email composition semantics must be part of the composed brain gate");
+        require(gate, "AndroidEmailCompositionBindingContractTest.class",
+                "Android email compose/review binding must be part of the composed brain gate");
         require(gate, "ResponseStyleContractTest.class",
                 "central beta response style must be part of the composed brain gate");
         require(gate, "CommercialWakeWordPolicyTest.class",
