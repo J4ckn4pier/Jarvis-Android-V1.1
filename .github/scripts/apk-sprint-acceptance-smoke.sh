@@ -17,14 +17,18 @@ SETTINGS_OPENED=0
 for attempt in $(seq 1 30); do
   adb shell dumpsys activity activities > "$OUTPUT/apk-sprint-settings-activity.txt" || true
   adb logcat -d > "$OUTPUT/apk-sprint-settings-logcat.txt" || true
-  if grep -Eq 'com\.jarvis\.mobile/\.SettingsActivity|com\.jarvis\.mobile\.SettingsActivity' "$OUTPUT/apk-sprint-settings-activity.txt"; then
-    SETTINGS_OPENED=1
-    break
+  if grep -Eq 'topResumedActivity=.*com\.jarvis\.mobile/\.SettingsActivity' "$OUTPUT/apk-sprint-settings-activity.txt"; then
+    sleep 1
+    adb shell dumpsys activity activities > "$OUTPUT/apk-sprint-settings-activity-stable.txt" || true
+    if grep -Eq 'topResumedActivity=.*com\.jarvis\.mobile/\.SettingsActivity' "$OUTPUT/apk-sprint-settings-activity-stable.txt"; then
+      SETTINGS_OPENED=1
+      break
+    fi
   fi
   sleep 1
 done
 if [ "$SETTINGS_OPENED" -ne 1 ]; then
-  echo 'Exact natural settings regression did not open SettingsActivity.'
+  echo 'Exact natural settings regression did not leave SettingsActivity visibly open.'
   grep -E 'JARVIS_RUNTIME_INPUT|JARVIS_RUNTIME_OUTPUT|JARVIS_COMMAND_RESULT' "$OUTPUT/apk-sprint-settings-logcat.txt" || true
   cat "$OUTPUT/apk-sprint-settings-activity.txt" || true
 fi
