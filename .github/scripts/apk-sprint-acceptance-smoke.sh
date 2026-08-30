@@ -151,29 +151,32 @@ fi
 test "$DIALER_OPENED" -eq 1
 adb exec-out screencap -p > "$OUTPUT/jarvis-apk-sprint-dialer.png"
 
-# Truthfulness regression: when media volume is already at zero, "volume down" must not claim
-# that Android lowered it. Modern Android exposes this through the media_session shell service.
-adb shell cmd media_session volume --stream 3 --set 0 > "$OUTPUT/apk-sprint-volume-before.txt"
+# Real-device effect proof: choose a known media-stream level, ask JARVIS to lower volume, and
+# require both its success statement and an actual lower STREAM_MUSIC value afterward.
+adb shell cmd media_session volume --stream 3 --set 10 > "$OUTPUT/apk-sprint-volume-set.txt"
+adb shell cmd media_session volume --stream 3 --get > "$OUTPUT/apk-sprint-volume-before.txt"
+BEFORE_VOLUME=$(sed -n 's/.*volume is \([0-9][0-9]*\) in range.*/\1/p' "$OUTPUT/apk-sprint-volume-before.txt" | tail -1)
+test -n "$BEFORE_VOLUME"
 adb shell am force-stop "$PACKAGE" || true
 adb logcat -c
 start_test_command 'volume down' | tee "$OUTPUT/apk-sprint-volume-launch.txt"
 grep -q 'Status: ok' "$OUTPUT/apk-sprint-volume-launch.txt"
-VOLUME_TRUTHFUL=0
+VOLUME_PROVEN=0
 for attempt in $(seq 1 20); do
   adb logcat -d > "$OUTPUT/apk-sprint-volume-logcat.txt" || true
   adb shell cmd media_session volume --stream 3 --get > "$OUTPUT/apk-sprint-volume-after.txt" || true
-  if grep -Eq 'JARVIS_RUNTIME_INPUT utterance=volume down$' "$OUTPUT/apk-sprint-volume-logcat.txt"; then
-    if grep -q 'JARVIS_COMMAND_RESULT Volume lowered.' "$OUTPUT/apk-sprint-volume-logcat.txt"; then
-      VOLUME_TRUTHFUL=0
-    else
-      VOLUME_TRUTHFUL=1
-    fi
+  AFTER_VOLUME=$(sed -n 's/.*volume is \([0-9][0-9]*\) in range.*/\1/p' "$OUTPUT/apk-sprint-volume-after.txt" | tail -1)
+  if grep -Eq 'JARVIS_RUNTIME_INPUT utterance=volume down$' "$OUTPUT/apk-sprint-volume-logcat.txt" \
+      && grep -q 'JARVIS_COMMAND_RESULT Volume lowered.' "$OUTPUT/apk-sprint-volume-logcat.txt" \
+      && [ -n "$AFTER_VOLUME" ] \
+      && [ "$AFTER_VOLUME" -lt "$BEFORE_VOLUME" ]; then
+    VOLUME_PROVEN=1
     break
   fi
   sleep 1
 done
-if [ "$VOLUME_TRUTHFUL" -ne 1 ]; then
+if [ "$VOLUME_PROVEN" -ne 1 ]; then
   grep -E 'JARVIS_RUNTIME_INPUT|JARVIS_RUNTIME_OUTPUT|JARVIS_COMMAND_RESULT' "$OUTPUT/apk-sprint-volume-logcat.txt" || true
   cat "$OUTPUT/apk-sprint-volume-before.txt" "$OUTPUT/apk-sprint-volume-after.txt" || true
 fi
-test "$VOLUME_TRUTHFUL" -eq 1
+test "$VOLUME_PROVEN" -eq 1
