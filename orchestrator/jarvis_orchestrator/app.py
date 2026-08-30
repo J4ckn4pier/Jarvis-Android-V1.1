@@ -79,6 +79,8 @@ def _session_lock_timeout_seconds() -> int:
             inference_timeout = float(timeout_raw)
         except ValueError as exc:
             raise RuntimeError("AGENT_ZERO_TIMEOUT_SECONDS must be a number") from exc
+        if not math.isfinite(inference_timeout):
+            raise RuntimeError("AGENT_ZERO_TIMEOUT_SECONDS must be a finite number")
         if inference_timeout <= 0:
             raise RuntimeError("AGENT_ZERO_TIMEOUT_SECONDS must be greater than zero")
         minimum = math.ceil(inference_timeout) + 60
