@@ -14,8 +14,11 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
+import com.jarvis.brain.EndpointTransportPolicy;
 import com.jarvis.brain.ExternalResearchGateway;
+import com.jarvis.brain.SettingsStore;
 import com.jarvis.brain.ToolRegistry;
+import com.jarvis.mobile.brain.AndroidSharedPreferencesSettingsPersistence;
 import com.jarvis.mobile.brain.AndroidToolRegistryFactory;
 import com.jarvis.mobile.brain.providers.CortexProviderFactory;
 import com.jarvis.mobile.hands.JarvisAccessibilityService;
@@ -69,6 +72,13 @@ public final class DiagnosticsActivity extends Activity {
         add(report, "Notification awareness", yes(notificationListenerEnabled()));
         add(report, "Device Control", yes(accessibilityEnabled()));
         add(report, "Reasoning mode", CortexProviderFactory.status(this));
+
+        SettingsStore settings = new SettingsStore(new AndroidSharedPreferencesSettingsPersistence(this));
+        String researchEndpoint = settings.get(SettingsStore.RESEARCH_ENDPOINT).trim();
+        String researchStatus = researchEndpoint.isEmpty()
+                ? "Not configured"
+                : EndpointTransportPolicy.allows(researchEndpoint) ? "Configured" : "Blocked by transport policy";
+        add(report, "Live research", researchStatus);
         add(report, "Bundled donor audio", "None (clean-room)");
 
         JarvisDatabase database = JarvisDatabase.get(this);
