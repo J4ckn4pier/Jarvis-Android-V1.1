@@ -155,6 +155,41 @@ jobs:
           assert len(history['events']) == 4, history
           assert {event['task_id'] for event in history['events']} == {first['task_id']}, history
           PY
+      - name: Prove startup and readiness recover after Valkey outage
+        run: |
+          docker compose stop valkey
+          docker compose restart orchestrator
+
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8000/health -o /tmp/outage-health.json; then
+              break
+            fi
+            sleep 1
+          done
+          cat /tmp/outage-health.json
+          python3 - <<'PY'
+          import json
+          with open('/tmp/outage-health.json') as handle:
+              health = json.load(handle)
+          assert health['status'] == 'ok', health
+          assert health['state_backend'] == 'valkey', health
+          assert health['checks_dependencies'] is False, health
+          PY
+
+          status="$(curl -sS -o /tmp/outage-ready.json -w '%{http_code}' http://127.0.0.1:8000/ready)"
+          cat /tmp/outage-ready.json
+          test "$status" = "503"
+
+          docker compose start valkey
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8000/ready -o /tmp/recovered-ready.json; then
+              cat /tmp/recovered-ready.json
+              exit 0
+            fi
+            sleep 1
+          done
+          echo 'orchestrator did not recover readiness after Valkey returned'
+          exit 1
       - name: Prove same public session is isolated between users
         run: |
           curl -fsS http://127.0.0.1:8000/v1/sessions/primary/events \
