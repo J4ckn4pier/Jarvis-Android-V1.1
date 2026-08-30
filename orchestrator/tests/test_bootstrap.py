@@ -52,6 +52,14 @@ def test_bootstrap_rejects_existing_secret_with_edge_whitespace(tmp_path: Path):
         ensure_env(env_path)
 
 
+def test_bootstrap_rejects_duplicate_owner_secret(tmp_path: Path):
+    env_path = tmp_path / ".env"
+    env_path.write_text("JARVIS_API_TOKEN=first-token\nJARVIS_API_TOKEN=second-token\n")
+
+    with pytest.raises(ValueError, match="JARVIS_API_TOKEN must be configured only once"):
+        ensure_env(env_path)
+
+
 def test_bootstrap_locks_env_file_to_owner_only(tmp_path: Path):
     env_path = tmp_path / ".env"
     ensure_env(env_path)
