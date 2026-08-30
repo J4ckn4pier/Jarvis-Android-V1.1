@@ -54,7 +54,7 @@ async def test_worker_done_assertion_alone_cannot_complete_project():
     outcome = await gate.try_complete("owner-a", project.project_id)
 
     assert outcome.accepted is False
-    assert "machine-verifiable or verifier evidence" in outcome.reasons
+    assert any("machine-verifiable or verifier evidence" in reason for reason in outcome.reasons)
     assert (await store.get_project("owner-a", project.project_id)).state is ProjectState.VERIFYING
 
 
