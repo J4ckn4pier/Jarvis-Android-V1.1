@@ -102,6 +102,8 @@ public final class PendingClarificationTest {
                 return new ReasoningResult("planner", "What should I research?",
                         new Plan("Research", List.of(new PlanStep("research_topic", Map.of(), false))));
             }
+            check(request.goal().equals("investigate something for me"),
+                    "research synthesis after clarification must retain the user's original goal");
             check(request.context().contains("evidence for orbital mechanics"),
                     "research observation should be returned to reasoning after clarification");
             return new ReasoningResult("planner", "I found the answer.", null);
