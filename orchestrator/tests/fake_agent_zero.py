@@ -28,11 +28,13 @@ class AgentZeroStubHandler(BaseHTTPRequestHandler):
             self._send_json(401, {"error": "unauthorized"})
             return
         if self.path == "/api/api_message":
+            continuing = bool(body.get("context_id"))
             context_id = str(body.get("context_id") or "ctx-ci")
+            mode = "continued" if continuing else "new"
             self._send_json(
                 200,
                 {
-                    "response": f"Agent Zero stub received: {body.get('message', '')}",
+                    "response": f"Agent Zero stub {mode}: {body.get('message', '')}",
                     "context_id": context_id,
                 },
             )
