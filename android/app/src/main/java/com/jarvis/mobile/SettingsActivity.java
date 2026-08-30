@@ -17,6 +17,7 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.jarvis.mobile.assistant.JarvisVoiceInteractionService;
 import com.jarvis.mobile.brain.providers.CortexProviderFactory;
 
 /** Canonical user-facing JARVIS Settings. Raw endpoint/provider fields live in DeveloperSettingsActivity. */
@@ -144,7 +145,10 @@ public class SettingsActivity extends Activity {
         Switch toggle = new Switch(this);
         toggle.setChecked(preferences.getBoolean(key, defaultValue));
         toggle.setContentDescription(title + " toggle");
-        toggle.setOnCheckedChangeListener((button, checked) -> preferences.edit().putBoolean(key, checked).apply());
+        toggle.setOnCheckedChangeListener((button, checked) -> {
+            preferences.edit().putBoolean(key, checked).apply();
+            if ("wake_enabled".equals(key)) JarvisVoiceInteractionService.refreshPassiveWakePreference();
+        });
         card.addView(toggle, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         return card;
     }
