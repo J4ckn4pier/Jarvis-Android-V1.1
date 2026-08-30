@@ -3,14 +3,25 @@ package com.jarvis.brain;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-/** Spoken approval must remain fail-closed when ASR confidence is too low. */
+/** Spoken approval must remain fail-closed when ASR confidence is too low on every Android voice surface. */
 public final class AndroidVoiceApprovalConfidenceContractTest {
     public static void main(String[] args) throws Exception {
         String runtime = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/AndroidBrainRuntime.java"));
+        String activity = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/MainActivity.java"));
         String conversation = Files.readString(Path.of("src/main/java/com/jarvis/brain/RuntimeApprovalConversation.java"));
 
         check(runtime.contains("conversation.handle(utterance, speechConfidence)"),
                 "Android speech confidence must reach the approval conversation boundary");
+        check(activity.contains("SpeechRecognizer.CONFIDENCE_SCORES"),
+                "full-app speech results must preserve Android recognizer confidence");
+        check(activity.contains("runCandidates(matches, scores)"),
+                "full-app speech candidates must carry recognizer confidence into command handling");
+        check(activity.contains("runCommand(candidates.get(0), confidence)"),
+                "the selected full-app speech hypothesis must retain measured confidence");
+        check(activity.contains("runtime.handlePresentation(command, speechConfidence)"),
+                "full-app microphone input must pass measured confidence to the shared approval/memory runtime");
+        check(activity.contains("runCommand(command, 1.0)"),
+                "explicit typed/debug command surfaces must remain explicitly trusted text input");
         check(conversation.contains("MIN_VOICE_APPROVAL_CONFIDENCE"),
                 "approval conversation must define a minimum spoken approval confidence");
         check(conversation.contains("handle(String utterance, double confidence)"),
