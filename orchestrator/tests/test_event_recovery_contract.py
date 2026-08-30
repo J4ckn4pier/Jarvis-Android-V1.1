@@ -79,6 +79,25 @@ async def test_reconnect_rejects_cursor_outside_retained_history(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_reconnect_rejects_cursor_with_edge_whitespace_as_invalid_input(monkeypatch):
+    monkeypatch.delenv("JARVIS_API_KEYS_JSON", raising=False)
+    monkeypatch.delenv("JARVIS_API_TOKEN", raising=False)
+    monkeypatch.delenv("JARVIS_REQUIRE_AUTH", raising=False)
+    monkeypatch.setattr(app_module.app.state, "bus", MissingCursorBus(), raising=False)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await app_module.event_history(
+            "primary",
+            limit=100,
+            after_event_id=" task-123:4 ",
+            authorization=None,
+        )
+
+    assert exc_info.value.status_code == 422
+    assert exc_info.value.detail == "after_event_id must not have leading or trailing whitespace"
+
+
+@pytest.mark.asyncio
 async def test_live_events_use_same_stable_event_id_as_history(monkeypatch):
     monkeypatch.delenv("JARVIS_API_KEYS_JSON", raising=False)
     monkeypatch.delenv("JARVIS_API_TOKEN", raising=False)
