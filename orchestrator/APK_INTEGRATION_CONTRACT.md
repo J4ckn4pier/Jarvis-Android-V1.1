@@ -4,7 +4,7 @@ This document is the stable provider-neutral boundary between the Android APK an
 
 ## Public schema vocabulary
 
-The stable public fields used below are `project_id`, `session_id`, `state`, `goal`, `task_count`, `task_states`, `last_progress_at`, `event_id`, `kind`, `task_id`, `timestamp`, `next_event_id`, `has_more`, and `result`. Provider-specific fields are deliberately absent.
+The stable public fields used below are `project_id`, `session_id`, `state`, `goal`, `task_count`, `task_states`, `pending_approvals`, `approval_id`, `last_progress_at`, `event_id`, `kind`, `task_id`, `timestamp`, `next_event_id`, `has_more`, and `result`. Provider-specific fields are deliberately absent.
 
 ## Authentication
 
@@ -71,12 +71,20 @@ Success response JSON:
     "running": 1,
     "pending": 1
   },
+  "pending_approvals": [
+    {
+      "approval_id": "approval-9",
+      "task_id": "task-3"
+    }
+  ],
   "last_progress_at": "2026-08-30T20:00:00+00:00",
   "provider_details_exposed": false
 }
 ```
 
 `state` is a JARVIS project lifecycle value: `pending`, `active`, `blocked`, `verifying`, `complete`, `failed`, or `cancelled`.
+
+`pending_approvals` is the reconnect-safe discovery surface for approvals currently awaiting the user. `approval_id` is an opaque server-issued identifier. `task_id` gives optional task context only; the APK must never derive `approval_id` from `task_id` or manufacture an approval ID locally.
 
 ## 3. Read/reconnect project events
 
@@ -95,8 +103,9 @@ Response JSON:
     {
       "event_id": "000000000007",
       "project_id": "project-123",
-      "kind": "task.complete",
-      "task_id": "task-2",
+      "kind": "approval.requested",
+      "task_id": "task-3",
+      "approval_id": "approval-9",
       "timestamp": "2026-08-30T20:00:00+00:00"
     }
   ],
@@ -107,11 +116,15 @@ Response JSON:
 
 APK reconnect rule: store `next_event_id` after successfully consuming a page and send it back as `after_event_id` on the next request. Event IDs are opaque cursors to the APK; do not parse or generate them client-side.
 
-Current management event `kind` values include project compilation/activation, task compilation/running/completion/reassignment/blocking/cancellation, project verification/completion, approval decisions, and project cancellation. The APK must tolerate additional `kind` values so the brain graph can grow without replacing the client contract.
+For an `approval.requested` event, the APK uses that event's optional `approval_id` to present/respond to the approval. Approval decision events (`approval.approved` or `approval.rejected`) carry the same `approval_id`. Non-approval events do not need an `approval_id`. The status endpoint also publishes all still-pending approvals, so reconnecting clients do not have to reconstruct current approval state from old event pages.
+
+Current management event `kind` values include project compilation/activation, task compilation/running/completion/reassignment/blocking/cancellation, project verification/completion, approval requests/decisions, and project cancellation. The APK must tolerate additional `kind` values so the brain graph can grow without replacing the client contract.
 
 ## 4. Respond to an approval request
 
 `POST /v1/projects/{project_id}/approvals/{approval_id}`
+
+The `{approval_id}` path value must be copied exactly from `pending_approvals` or an `approval.requested` event. It is not interchangeable with `task_id`.
 
 Request JSON:
 
@@ -173,9 +186,10 @@ The APK displays/speaks `result` as JARVIS output. It must not depend on which w
 - A phone and desktop may use the same `session_id`, but authentication ownership still isolates different users.
 - Long-running work is server-owned after submission. Client disconnect does not cancel the project.
 - On reconnect, query status and resume events from the last persisted `after_event_id`; fetch `/result` when `state` is `complete`.
+- Discover current approvals from `pending_approvals`; process live/replayed approval transitions by `approval_id`.
 - Treat `blocked` as a JARVIS-managed state that may later recover or require an approval/user response; do not infer a provider failure.
 - Never surface or require provider/worker IDs. `provider_details_exposed` must remain `false` on public management responses that include it.
 
 ## Proven contract boundary
 
-M9 proved the authenticated APK-facing endpoint boundary without provider leakage. M10 proved the deterministic management path across at least three logical worker roles, parallel and dependent work, induced stall/reassignment, independent verification, persisted completion, backend restart, and event-cursor reconnect. This contract is the handoff boundary for APK integration; Android/application implementation remains a separate workstream.
+M9 proved the authenticated APK-facing endpoint boundary without provider leakage. M10 proved the deterministic management path across at least three logical worker roles, parallel and dependent work, induced stall/reassignment, independent verification, persisted completion, backend restart, and event-cursor reconnect. The approval-discovery extension preserves the same six-route topology and makes the existing approval route actionable without guessing identifiers. This contract is the handoff boundary for APK integration; Android/application implementation remains a separate workstream.
