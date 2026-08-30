@@ -21,6 +21,14 @@ def _authenticator() -> Authenticator:
     return Authenticator.from_env()
 
 
+def _auth_mode() -> str:
+    if os.getenv("JARVIS_API_KEYS_JSON", "").strip():
+        return "multi-principal"
+    if os.getenv("JARVIS_API_TOKEN", "").strip():
+        return "single-token"
+    return "open-development"
+
+
 def _bearer_token(authorization: str | None) -> str | None:
     return authorization.removeprefix("Bearer ") if authorization else None
 
@@ -64,6 +72,11 @@ class Command(BaseModel):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Validate credential configuration at process start instead of waiting for
+    # the first authenticated request to reveal malformed JSON or empty keys.
+    if _auth_mode() != "open-development":
+        _authenticator()
+
     url = os.getenv("VALKEY_URL")
     if url:
         from redis.asyncio import Redis
@@ -95,16 +108,37 @@ async def lifespan(app: FastAPI):
         await app.state.valkey.aclose()
 
 
-app = FastAPI(title="JARVIS Orchestrator", version="0.7.0", lifespan=lifespan)
+app = FastAPI(title="JARVIS Orchestrator", version="0.8.0", lifespan=lifespan)
 
 
 @app.get("/health")
 async def health():
+    """Cheap liveness check: the API process is running."""
     return {
         "status": "ok",
         "state_backend": "valkey" if app.state.valkey else "memory",
         "runtime": os.getenv("JARVIS_RUNTIME", "echo"),
         "session_locking": "valkey" if app.state.valkey else "memory",
+    }
+
+
+@app.get("/ready")
+async def ready():
+    """Readiness check: required shared state is reachable right now."""
+    valkey = getattr(app.state, "valkey", None)
+    if valkey is not None:
+        try:
+            await valkey.ping()
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail="State backend unavailable") from exc
+
+    using_valkey = valkey is not None
+    return {
+        "status": "ready",
+        "state_backend": "valkey" if using_valkey else "memory",
+        "runtime": os.getenv("JARVIS_RUNTIME", "echo"),
+        "session_locking": "valkey" if using_valkey else "memory",
+        "auth_mode": _auth_mode(),
     }
 
 
