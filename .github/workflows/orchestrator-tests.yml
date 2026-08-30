@@ -142,3 +142,65 @@ jobs:
       - name: Stop prototype
         if: always()
         run: docker compose down -v
+
+  agent-zero-adapter-smoke:
+    runs-on: ubuntu-latest
+    env:
+      JARVIS_API_TOKEN: ci-token
+    defaults:
+      run:
+        working-directory: orchestrator
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate Agent Zero adapter harness
+        run: docker compose -f compose.yaml -f compose.ci-agent-zero.yaml config --quiet
+      - name: Boot Agent Zero adapter path
+        run: docker compose -f compose.yaml -f compose.ci-agent-zero.yaml up -d --build valkey fake-agent-zero orchestrator
+      - name: Wait for worker-aware readiness
+        run: |
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8000/ready -o /tmp/ready-agent.json; then
+              cat /tmp/ready-agent.json
+              python3 - <<'PY'
+          import json
+          with open('/tmp/ready-agent.json') as handle:
+              ready = json.load(handle)
+          assert ready['status'] == 'ready', ready
+          assert ready['runtime'] == 'agent-zero', ready
+          PY
+              exit 0
+            fi
+            sleep 1
+          done
+          echo 'Agent Zero adapter path did not become ready'
+          exit 1
+      - name: Prove Agent Zero dispatch and persisted context reuse
+        run: |
+          curl -fsS -X POST http://127.0.0.1:8000/v1/command \
+            -H 'Authorization: Bearer ci-token' \
+            -H 'Content-Type: application/json' \
+            -d '{"text":"first worker turn","session_id":"primary"}' \
+            -o /tmp/agent-first.json
+          curl -fsS -X POST http://127.0.0.1:8000/v1/command \
+            -H 'Authorization: Bearer ci-token' \
+            -H 'Content-Type: application/json' \
+            -d '{"text":"second worker turn","session_id":"primary"}' \
+            -o /tmp/agent-second.json
+          cat /tmp/agent-first.json
+          cat /tmp/agent-second.json
+          python3 - <<'PY'
+          import json
+          with open('/tmp/agent-first.json') as handle:
+              first = json.load(handle)
+          with open('/tmp/agent-second.json') as handle:
+              second = json.load(handle)
+          assert first['response'] == 'Agent Zero stub new: first worker turn', first
+          assert second['response'] == 'Agent Zero stub continued: second worker turn', second
+          assert first['session_id'] == second['session_id'] == 'primary'
+          PY
+      - name: Show adapter logs on failure
+        if: failure()
+        run: docker compose -f compose.yaml -f compose.ci-agent-zero.yaml logs --no-color
+      - name: Stop adapter harness
+        if: always()
+        run: docker compose -f compose.yaml -f compose.ci-agent-zero.yaml down -v
