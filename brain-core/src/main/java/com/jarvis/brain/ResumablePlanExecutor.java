@@ -33,8 +33,7 @@ public final class ResumablePlanExecutor {
                 if (result.status() == ToolResult.Status.RETRYABLE_FAILURE) {
                     if (consequential) {
                         return new ExecutionReport(ExecutionReport.Status.APPROVAL_REQUIRED,
-                                append(cursor.outputs(), result.output()), tool.name(),
-                                "Fresh approval required before retrying consequential execution");
+                                append(cursor.outputs(), result.output()), tool.name(), result.output());
                     }
                     result = normalizeToolResult(tool.implementation().execute(step.arguments(), context));
                     if (result.status() == ToolResult.Status.RETRYABLE_FAILURE) {
