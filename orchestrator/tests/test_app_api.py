@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
@@ -8,6 +9,28 @@ from fastapi import HTTPException, WebSocketDisconnect
 from jarvis_orchestrator import app as app_module
 from jarvis_orchestrator.core import BrainEvent
 from jarvis_orchestrator.identity import scope_session_id
+
+
+def test_required_auth_rejects_open_development_configuration(monkeypatch):
+    monkeypatch.setenv("JARVIS_REQUIRE_AUTH", "1")
+    monkeypatch.delenv("JARVIS_API_TOKEN", raising=False)
+    monkeypatch.delenv("JARVIS_API_KEYS_JSON", raising=False)
+
+    with pytest.raises(RuntimeError, match="authentication is required"):
+        app_module._validate_auth_configuration()
+
+
+def test_required_auth_accepts_configured_token(monkeypatch):
+    monkeypatch.setenv("JARVIS_REQUIRE_AUTH", "1")
+    monkeypatch.setenv("JARVIS_API_TOKEN", "secret")
+    monkeypatch.delenv("JARVIS_API_KEYS_JSON", raising=False)
+
+    app_module._validate_auth_configuration()
+
+
+def test_packaged_compose_requires_authentication_by_default():
+    compose = Path("compose.yaml").read_text()
+    assert "JARVIS_REQUIRE_AUTH: ${JARVIS_REQUIRE_AUTH:-1}" in compose
 
 
 class RecordingOrchestrator:
