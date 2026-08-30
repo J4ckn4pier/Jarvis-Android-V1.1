@@ -12,6 +12,7 @@ public final class PolicyProviderRouterTest {
         availabilityProbeFailureFallsThroughToNextProvider();
         identityProbeFailureFallsThroughToNextProvider();
         emptyProviderResultFallsThroughToNextProvider();
+        planOnlyProviderResultIsUsable();
         System.out.println("PolicyProviderRouterTest: " + checks + " assertions passed");
     }
 
@@ -105,6 +106,22 @@ public final class PolicyProviderRouterTest {
         check(empty.calls == 1, "empty provider should be attempted once");
         check(fallback.calls == 1, "fallback should serve after unusable empty response");
         check(router.failureCount("empty") == 1, "unusable empty response should count toward circuit breaking");
+    }
+
+    private static void planOnlyProviderResultIsUsable() {
+        Plan plan = new Plan("open settings", List.of(new PlanStep("open_app")));
+        StubProvider planner = new StubProvider("planner", new ReasoningResult("planner", null, plan), false);
+        StubProvider fallback = new StubProvider("fallback", new ReasoningResult("fallback", "fallback answer", null), false);
+        PolicyProviderRouter router = new PolicyProviderRouter(List.of(
+                new ProviderRoute(planner, ProviderTier.FREE_LOCAL, 1),
+                new ProviderRoute(fallback, ProviderTier.FREE_LOCAL, 2)
+        ), false, 2);
+        ReasoningResult out = router.reason(new ReasoningRequest("open settings", "", List.of()));
+        check("planner".equals(out.providerId()),
+                "a provider plan is usable even when that provider has no conversational text to attach");
+        check(out.plan() == plan, "router should preserve the valid provider plan unchanged");
+        check(fallback.calls == 0, "a valid plan-only result must not waste an attempt on fallback reasoning");
+        check(router.failureCount("planner") == 0, "valid plan-only output must not count as a provider failure");
     }
 
     private static void check(boolean condition, String message) {
