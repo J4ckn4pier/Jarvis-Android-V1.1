@@ -7,17 +7,21 @@ from jarvis_orchestrator.management_service import ManagementService
 from jarvis_orchestrator.project_store import InMemoryProjectStore
 
 
-@pytest.mark.asyncio
-async def test_pending_approval_id_is_public_durable_and_clears_after_response():
-    store = InMemoryProjectStore()
-    project = Project("project-1", "owner-a", "primary", "Goal requiring approval")
-    await store.save_project(project, event="project.created")
-    service = ManagementService(
+def _service(store):
+    return ManagementService(
         store=store,
         registry=object(),
         planning_hook=object(),
         workers={},
     )
+
+
+@pytest.mark.asyncio
+async def test_pending_approval_id_is_public_durable_and_clears_after_response():
+    store = InMemoryProjectStore()
+    project = Project("project-1", "owner-a", "primary", "Goal requiring approval")
+    await store.save_project(project, event="project.created")
+    service = _service(store)
 
     requested = await service.request_approval(
         "owner-a",
@@ -58,3 +62,37 @@ async def test_pending_approval_id_is_public_durable_and_clears_after_response()
     assert final_status["pending_approvals"] == []
     assert final_page["events"][-1]["approval_id"] == "approval-7"
     assert final_page["events"][-1]["kind"] == "approval.approved"
+
+
+@pytest.mark.asyncio
+async def test_unknown_or_already_consumed_approval_id_is_rejected():
+    store = InMemoryProjectStore()
+    project = Project("project-1", "owner-a", "primary", "Goal requiring approval")
+    await store.save_project(project, event="project.created")
+    service = _service(store)
+
+    with pytest.raises(KeyError, match="approval-missing"):
+        await service.approve(
+            "owner-a",
+            "project-1",
+            "approval-missing",
+            True,
+            None,
+        )
+
+    await service.request_approval(
+        "owner-a",
+        "project-1",
+        "approval-7",
+        task_id="task-1",
+    )
+    await service.approve("owner-a", "project-1", "approval-7", True, "Proceed")
+
+    with pytest.raises(KeyError, match="approval-7"):
+        await service.approve(
+            "owner-a",
+            "project-1",
+            "approval-7",
+            True,
+            "duplicate retry",
+        )
