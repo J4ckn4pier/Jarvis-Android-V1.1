@@ -97,7 +97,8 @@ adb exec-out screencap -p > "$OUTPUT/jarvis-apk-sprint-home.png"
 # AndroidAppActions to refuse ambiguous packages instead of picking whichever package appears first.
 adb shell am force-stop "$PACKAGE" || true
 adb logcat -c
-adb shell am start -W -n "$ACTIVITY" --es jarvis_test_command 'open JARVIS' \
+# adb joins arguments into a remote shell command, so preserve quotes for the remote parser too.
+adb shell am start -W -n "$ACTIVITY" --es jarvis_test_command '"open JARVIS"' \
   | tee "$OUTPUT/apk-sprint-open-app-launch.txt"
 grep -q 'Status: ok' "$OUTPUT/apk-sprint-open-app-launch.txt"
 APP_OPENED=0
