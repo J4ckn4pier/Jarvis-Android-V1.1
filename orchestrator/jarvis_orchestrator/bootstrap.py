@@ -31,6 +31,8 @@ def _read_env(path: Path) -> dict[str, str]:
             continue
         key, value = line.split("=", 1)
         key = key.strip()
+        if key == "JARVIS_API_TOKEN" and key in values:
+            raise ValueError("JARVIS_API_TOKEN must be configured only once")
         if key == "JARVIS_API_TOKEN" and value != value.strip():
             raise ValueError("JARVIS_API_TOKEN must not have leading or trailing whitespace")
         values[key] = value.strip()
