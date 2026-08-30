@@ -21,7 +21,7 @@ public final class ResumablePlanExecutor {
             }
 
             boolean consequential = step.consequential() || tool.spec().consequential();
-            // Approval tokens are one-shot. Any later resume/retry must obtain a fresh token before another attempt.
+            // Approval tokens are one-shot: one consequential external attempt per token.
             if (consequential && !approvals.consume(tool.name())) {
                 return new ExecutionReport(ExecutionReport.Status.APPROVAL_REQUIRED, cursor.outputs(), tool.name(),
                         "Fresh approval required before consequential execution attempt");
@@ -31,6 +31,11 @@ public final class ResumablePlanExecutor {
             try {
                 result = normalizeToolResult(tool.implementation().execute(step.arguments(), context));
                 if (result.status() == ToolResult.Status.RETRYABLE_FAILURE) {
+                    if (consequential) {
+                        return new ExecutionReport(ExecutionReport.Status.APPROVAL_REQUIRED,
+                                append(cursor.outputs(), result.output()), tool.name(),
+                                "Fresh approval required before retrying consequential execution");
+                    }
                     result = normalizeToolResult(tool.implementation().execute(step.arguments(), context));
                     if (result.status() == ToolResult.Status.RETRYABLE_FAILURE) {
                         return new ExecutionReport(ExecutionReport.Status.RECOVERY_REQUIRED,
