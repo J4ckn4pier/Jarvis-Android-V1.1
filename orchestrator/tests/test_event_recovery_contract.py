@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pytest
+from fastapi import HTTPException
 
 from jarvis_orchestrator import app as app_module
 from jarvis_orchestrator.core import BrainEvent
@@ -15,6 +16,19 @@ class FiniteBus:
     async def subscribe(self):
         yield BrainEvent("owner:primary", "task-456", "LANGUAGE", 48, "Preparing response", 3, 20.0)
         raise RuntimeError("end test stream")
+
+
+class MissingCursorBus:
+    async def history(
+        self,
+        session_id: str,
+        limit: int = 100,
+        after_event_id: str | None = None,
+    ):
+        return []
+
+    async def contains_event(self, session_id: str, event_id: str) -> bool:
+        return False
 
 
 class FakeWebSocket:
@@ -43,6 +57,25 @@ async def test_history_exposes_stable_event_id_for_reconnect_deduplication(monke
     payload = await app_module.event_history("primary", limit=100, authorization=None)
 
     assert payload["events"][0]["event_id"] == "task-123:4"
+
+
+@pytest.mark.asyncio
+async def test_reconnect_rejects_cursor_outside_retained_history(monkeypatch):
+    monkeypatch.delenv("JARVIS_API_KEYS_JSON", raising=False)
+    monkeypatch.delenv("JARVIS_API_TOKEN", raising=False)
+    monkeypatch.delenv("JARVIS_REQUIRE_AUTH", raising=False)
+    monkeypatch.setattr(app_module.app.state, "bus", MissingCursorBus(), raising=False)
+
+    with pytest.raises(HTTPException) as exc_info:
+        await app_module.event_history(
+            "primary",
+            limit=100,
+            after_event_id="old-task:4",
+            authorization=None,
+        )
+
+    assert exc_info.value.status_code == 410
+    assert exc_info.value.detail == "Recovery cursor is no longer available"
 
 
 @pytest.mark.asyncio
