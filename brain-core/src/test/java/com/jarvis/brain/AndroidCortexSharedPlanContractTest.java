@@ -61,7 +61,8 @@ public final class AndroidCortexSharedPlanContractTest {
                         && diagnosticsSmoke.contains("Autonomous conversational calls")
                         && diagnosticsSmoke.contains("Diagnostics inspect capability registration only"),
                 "diagnostics emulator smoke must directly launch and prove truthful typed-tool and telephony status text is rendered");
-        check(diagnosticsSmoke.indexOf("am force-stop \"$PACKAGE\"")
+        check(diagnosticsSmoke.contains("am force-stop \"$PACKAGE\"")
+                        && diagnosticsSmoke.indexOf("am force-stop \"$PACKAGE\"")
                         < diagnosticsSmoke.indexOf("am start -W -n \"$DIAGNOSTICS\""),
                 "diagnostics smoke must clear a lingering JARVIS overlay before launching the diagnostics Activity");
         check(mainManifest.contains("<activity android:name=\".DiagnosticsActivity\" android:exported=\"false\"")
