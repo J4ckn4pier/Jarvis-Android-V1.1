@@ -9,6 +9,7 @@ public final class PlanRepairCoordinatorTest {
     public static void main(String[] args) {
         repairsInvalidPlanWithValidationFeedback();
         refusesInvalidPlanAfterBudget();
+        generatorFailureFailsClosedWithoutExecutablePlan();
         System.out.println("PlanRepairCoordinatorTest: " + checks + " assertions passed");
     }
 
@@ -50,6 +51,24 @@ public final class PlanRepairCoordinatorTest {
         check(out.attempts() == 2, "attempt budget must be bounded");
         check(out.clarification().toLowerCase().contains("destination"),
                 "clarification should expose what is missing");
+    }
+
+    private static void generatorFailureFailsClosedWithoutExecutablePlan() {
+        ModelPlanGenerator generator = prompt -> { throw new RuntimeException("provider unavailable"); };
+        PlanTextValidator validator = json -> new PlanValidation(true,
+                new Plan("must-never-run", List.of(new PlanStep("send_message"))), List.of());
+        PlanRepairResult out;
+        try {
+            out = new PlanRepairCoordinator(validator, 2).plan("send something", "", generator);
+        } catch (RuntimeException escaped) {
+            throw new AssertionError("plan generation failure must not escape the repair boundary", escaped);
+        }
+        check(out.status() == PlanRepairResult.Status.NEEDS_CLARIFICATION,
+                "provider failure should yield a non-executable safe result");
+        check(out.plan() == null, "provider failure must never manufacture an executable plan");
+        check(out.attempts() == 1, "provider failure should stop immediately rather than repeatedly hammering the same failed source");
+        check(out.clarification().toLowerCase().contains("couldn't") || out.clarification().toLowerCase().contains("could not"),
+                "provider failure should truthfully say that planning could not complete");
     }
 
     private static void check(boolean condition, String message) {
