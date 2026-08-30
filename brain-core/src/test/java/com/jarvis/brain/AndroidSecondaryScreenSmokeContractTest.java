@@ -21,13 +21,13 @@ public final class AndroidSecondaryScreenSmokeContractTest {
         check(smoke.contains("uiautomator dump"),
                 "secondary-screen smoke verification must inspect the actual Android UI tree");
 
-        checkExported(debugManifest, ".CommandsActivity",
+        checkExported(debugManifest, "CommandsActivity",
                 "debug manifest must export Help for connected emulator smoke tests");
-        checkExported(debugManifest, ".NotesActivity",
+        checkExported(debugManifest, "NotesActivity",
                 "debug manifest must export Notes for connected emulator smoke tests");
-        checkPrivate(productionManifest, ".CommandsActivity",
+        checkPrivate(productionManifest, "CommandsActivity",
                 "production Help activity must remain private");
-        checkPrivate(productionManifest, ".NotesActivity",
+        checkPrivate(productionManifest, "NotesActivity",
                 "production Notes activity must remain private");
 
         System.out.println("AndroidSecondaryScreenSmokeContractTest: PASS");
@@ -42,8 +42,10 @@ public final class AndroidSecondaryScreenSmokeContractTest {
     }
 
     private static String activityDeclaration(String manifest, String className) {
-        String marker = "android:name=\"" + className + "\"";
-        int start = manifest.indexOf(marker);
+        String shortMarker = "android:name=\"." + className + "\"";
+        String qualifiedMarker = "android:name=\"com.jarvis.mobile." + className + "\"";
+        int start = manifest.indexOf(shortMarker);
+        if (start < 0) start = manifest.indexOf(qualifiedMarker);
         check(start >= 0, "manifest missing " + className);
         int end = manifest.indexOf('>', start);
         check(end > start, "manifest has malformed declaration for " + className);
