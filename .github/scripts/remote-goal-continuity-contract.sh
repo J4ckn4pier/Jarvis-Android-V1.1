@@ -10,9 +10,10 @@ require() {
   grep -F "$needle" "$COORD" >/dev/null || { echo "Missing continuity contract token '$needle' in $COORD" >&2; exit 1; }
 }
 
-# Reconnect must use the exact durable public project/cursor state.
-require 'resumeActiveProject' 
+# Reconnect must use the exact durable public project/cursor state and safely no-op when nothing is active.
+require 'resumeActiveProject'
 require 'state.load()'
+require 'saved.hasProject()'
 require 'saved.projectId()'
 require 'saved.eventId()'
 require 'client.getProject(projectId)'
@@ -20,10 +21,11 @@ require 'client.getEvents(projectId, saved.eventId())'
 require 'page.nextEventId()'
 require 'state.saveCursor(projectId, page.nextEventId())'
 
-# Terminal completion and explicit cancellation stay provider-neutral.
+# Terminal completion and explicit cancellation stay provider-neutral. Local state clears only after confirmed cancel.
 require 'client.getResult(projectId)'
 require 'cancelActiveProject'
-require 'client.cancel(projectId)'
+require 'RemoteGoalClient.Cancellation cancelled = client.cancel(projectId)'
+require '"cancelled".equalsIgnoreCase(cancelled.state())'
 require 'state.clearProject()'
 
 # Approval remains intentionally unwired until the public contract exposes a real approval_id.
