@@ -33,6 +33,8 @@ class ManagementService:
     behind this boundary; phone-facing methods return only JARVIS project state.
     """
 
+    _APPROVAL_SEPARATOR = "|"
+
     def __init__(
         self,
         *,
@@ -78,6 +80,42 @@ class ManagementService:
             acceptance_criteria=tuple(request.acceptance_criteria),
             deadline=request.deadline,
         )
+
+    @classmethod
+    def _encode_approval_event(
+        cls,
+        kind: str,
+        approval_id: str,
+        task_id: str | None,
+    ) -> str:
+        return cls._APPROVAL_SEPARATOR.join((kind, approval_id, task_id or ""))
+
+    @classmethod
+    def _decode_approval_event(cls, kind: str) -> tuple[str, str | None, str | None]:
+        parts = kind.split(cls._APPROVAL_SEPARATOR, 2)
+        if len(parts) != 3 or parts[0] not in {
+            "approval.requested",
+            "approval.approved",
+            "approval.rejected",
+        }:
+            return kind, None, None
+        return parts[0], parts[1] or None, parts[2] or None
+
+    @classmethod
+    def _pending_approvals(cls, stored_events) -> list[dict[str, str | None]]:
+        pending: dict[str, dict[str, str | None]] = {}
+        for event in stored_events:
+            kind, approval_id, task_id = cls._decode_approval_event(event.kind)
+            if approval_id is None:
+                continue
+            if kind == "approval.requested":
+                pending[approval_id] = {
+                    "approval_id": approval_id,
+                    "task_id": task_id,
+                }
+            elif kind in {"approval.approved", "approval.rejected"}:
+                pending.pop(approval_id, None)
+        return list(pending.values())
 
     async def submit(self, owner_id: str, session_id: str, request) -> dict:
         compiled = await self.compiler.compile(self._goal_request(owner_id, session_id, request))
@@ -196,6 +234,7 @@ class ManagementService:
     async def status(self, owner_id: str, project_id: str) -> dict:
         project = await self._project(owner_id, project_id)
         tasks = await self.store.list_tasks(owner_id, project_id)
+        stored_events = await self.store.events(owner_id, project_id)
         counts: dict[str, int] = {}
         for task in tasks:
             counts[task.state.value] = counts.get(task.state.value, 0) + 1
@@ -206,6 +245,7 @@ class ManagementService:
             "state": project.state.value,
             "task_count": len(tasks),
             "task_states": counts,
+            "pending_approvals": self._pending_approvals(stored_events),
             "last_progress_at": project.last_progress_at.isoformat(),
             "provider_details_exposed": False,
         }
@@ -230,16 +270,19 @@ class ManagementService:
     ) -> dict:
         await self._project(owner_id, project_id)
         stored = await self.store.events(owner_id, project_id)
-        public = [
-            {
+        public = []
+        for index, event in enumerate(stored, start=1):
+            kind, approval_id, approval_task_id = self._decode_approval_event(event.kind)
+            payload = {
                 "event_id": f"{index:012d}",
                 "project_id": event.project_id,
-                "kind": event.kind,
-                "task_id": event.task_id,
+                "kind": kind,
+                "task_id": approval_task_id if approval_id is not None else event.task_id,
                 "timestamp": event.timestamp.isoformat(),
             }
-            for index, event in enumerate(stored, start=1)
-        ]
+            if approval_id is not None:
+                payload["approval_id"] = approval_id
+            public.append(payload)
         start = 0
         if after_event_id is not None:
             ids = [event["event_id"] for event in public]
@@ -255,6 +298,32 @@ class ManagementService:
             "has_more": start + len(page) < len(public),
         }
 
+    async def request_approval(
+        self,
+        owner_id: str,
+        project_id: str,
+        approval_id: str,
+        *,
+        task_id: str | None = None,
+    ) -> dict:
+        project = await self._project(owner_id, project_id)
+        if not approval_id or approval_id.strip() != approval_id or self._APPROVAL_SEPARATOR in approval_id:
+            raise ValueError("approval_id must be a non-empty exact identifier")
+        if task_id is not None and (
+            not task_id or task_id.strip() != task_id or self._APPROVAL_SEPARATOR in task_id
+        ):
+            raise ValueError("task_id must be an exact identifier")
+        await self.store.save_project(
+            project,
+            event=self._encode_approval_event("approval.requested", approval_id, task_id),
+        )
+        return {
+            "project_id": project_id,
+            "approval_id": approval_id,
+            "task_id": task_id,
+            "state": "pending",
+        }
+
     async def approve(
         self,
         owner_id: str,
@@ -264,9 +333,19 @@ class ManagementService:
         response: str | None,
     ) -> dict:
         project = await self._project(owner_id, project_id)
+        pending = {
+            item["approval_id"]: item
+            for item in self._pending_approvals(await self.store.events(owner_id, project_id))
+        }
+        approval = pending.get(approval_id)
+        task_id = approval["task_id"] if approval is not None else None
         await self.store.save_project(
             project,
-            event=f"approval.{approval_id}.{'approved' if approved else 'rejected'}",
+            event=self._encode_approval_event(
+                "approval.approved" if approved else "approval.rejected",
+                approval_id,
+                task_id,
+            ),
         )
         return {
             "project_id": project_id,
