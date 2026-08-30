@@ -57,6 +57,8 @@ public final class AndroidTypedProviderPlanContractTest {
                 "human-facing local cortex status must identify both missing model and endpoint readiness instead of blaming only the model");
         check(settings.contains("MODE_OPENAI_COMPATIBLE") && settings.contains("OpenAI-compatible local endpoint"),
                 "Android settings must let the user select the free/local compatible cortex explicitly");
+        check(settings.contains(".local") && settings.contains("HTTPS"),
+                "Android settings must accurately explain the allowed HTTPS and user-owned .local endpoint options");
 
         System.out.println("AndroidTypedProviderPlanContractTest passed");
     }
