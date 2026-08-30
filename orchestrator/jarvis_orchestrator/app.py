@@ -41,7 +41,16 @@ def _auth_mode() -> str:
 
 
 def _auth_required() -> bool:
-    return os.getenv("JARVIS_REQUIRE_AUTH", "").strip().lower() in {"1", "true", "yes", "on"}
+    raw = os.getenv("JARVIS_REQUIRE_AUTH", "").strip().lower()
+    if not raw:
+        return False
+    if raw in {"1", "true", "yes", "on"}:
+        return True
+    if raw in {"0", "false", "no", "off"}:
+        return False
+    raise RuntimeError(
+        "JARVIS_REQUIRE_AUTH must be one of: 1, true, yes, on, 0, false, no, off"
+    )
 
 
 def _validate_auth_configuration() -> None:
