@@ -1,0 +1,60 @@
+from __future__ import annotations
+
+import pytest
+
+from jarvis_orchestrator import app as app_module
+from jarvis_orchestrator.core import BrainEvent
+
+
+class HistoryBus:
+    async def history(self, session_id: str, limit: int = 100):
+        return [BrainEvent(session_id, "task-123", "IDLE", 0, "Complete", 4, 10.0)]
+
+
+class FiniteBus:
+    async def subscribe(self):
+        yield BrainEvent("owner:primary", "task-456", "LANGUAGE", 48, "Preparing response", 3, 20.0)
+        raise RuntimeError("end test stream")
+
+
+class FakeWebSocket:
+    def __init__(self) -> None:
+        self.query_params = {"session_id": "primary"}
+        self.accepted = False
+        self.sent: list[dict[str, object]] = []
+
+    async def accept(self) -> None:
+        self.accepted = True
+
+    async def close(self, code: int) -> None:
+        raise AssertionError(f"unexpected close: {code}")
+
+    async def send_json(self, payload: dict[str, object]) -> None:
+        self.sent.append(payload)
+
+
+@pytest.mark.asyncio
+async def test_history_exposes_stable_event_id_for_reconnect_deduplication(monkeypatch):
+    monkeypatch.delenv("JARVIS_API_KEYS_JSON", raising=False)
+    monkeypatch.delenv("JARVIS_API_TOKEN", raising=False)
+    monkeypatch.delenv("JARVIS_REQUIRE_AUTH", raising=False)
+    monkeypatch.setattr(app_module.app.state, "bus", HistoryBus(), raising=False)
+
+    payload = await app_module.event_history("primary", limit=100, authorization=None)
+
+    assert payload["events"][0]["event_id"] == "task-123:4"
+
+
+@pytest.mark.asyncio
+async def test_live_events_use_same_stable_event_id_as_history(monkeypatch):
+    monkeypatch.delenv("JARVIS_API_KEYS_JSON", raising=False)
+    monkeypatch.delenv("JARVIS_API_TOKEN", raising=False)
+    monkeypatch.delenv("JARVIS_REQUIRE_AUTH", raising=False)
+    monkeypatch.setattr(app_module.app.state, "bus", FiniteBus(), raising=False)
+    monkeypatch.setattr(app_module, "_scoped_session", lambda principal, public: "owner:primary")
+    ws = FakeWebSocket()
+
+    await app_module.events(ws)
+
+    assert ws.accepted is True
+    assert ws.sent[0]["event_id"] == "task-456:3"
