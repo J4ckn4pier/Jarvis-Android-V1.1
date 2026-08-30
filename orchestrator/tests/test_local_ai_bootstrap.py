@@ -46,3 +46,12 @@ def test_compose_can_download_qwen_model_without_manual_exec():
     assert "OLLAMA_HOST: http://ollama:11434" in compose
     assert "ollama pull qwen3:4b" in compose
     assert "until ollama list" in compose
+
+
+def test_local_ai_runtime_images_are_version_pinned():
+    compose = Path("compose.yaml").read_text()
+
+    assert "agent0ai/agent-zero:v2.11" in compose
+    assert compose.count("ollama/ollama:0.33.2") == 2
+    assert "agent0ai/agent-zero:latest" not in compose
+    assert "ollama/ollama:latest" not in compose
