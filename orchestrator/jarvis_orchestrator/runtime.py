@@ -11,6 +11,7 @@ from .core import AgentRuntime, EchoRuntime
 class AgentContextStore(Protocol):
     async def get(self, session_id: str) -> str | None: ...
     async def set(self, session_id: str, context_id: str, ttl_seconds: int | None = None) -> None: ...
+    async def delete(self, session_id: str) -> None: ...
 
 
 class InMemoryAgentContextStore:
@@ -22,6 +23,9 @@ class InMemoryAgentContextStore:
 
     async def set(self, session_id: str, context_id: str, ttl_seconds: int | None = None) -> None:
         self._contexts[session_id] = context_id
+
+    async def delete(self, session_id: str) -> None:
+        self._contexts.pop(session_id, None)
 
 
 class ValkeyAgentContextStore:
@@ -39,6 +43,9 @@ class ValkeyAgentContextStore:
     async def set(self, session_id: str, context_id: str, ttl_seconds: int | None = None) -> None:
         kwargs = {"ex": ttl_seconds} if ttl_seconds else {}
         await self.client.set(f"{self.KEY_PREFIX}{session_id}", context_id, **kwargs)
+
+    async def delete(self, session_id: str) -> None:
+        await self.client.delete(f"{self.KEY_PREFIX}{session_id}")
 
 
 class AgentZeroRuntime:
@@ -69,8 +76,7 @@ class AgentZeroRuntime:
         self._owns_client = client is None
         self.client = client or httpx.AsyncClient(base_url=self.base_url, timeout=300.0)
 
-    async def execute(self, text: str, session_id: str) -> str:
-        context_id = await self.context_store.get(session_id)
+    def _payload(self, text: str, context_id: str | None) -> dict[str, object]:
         payload: dict[str, object] = {
             "message": text,
             "lifetime_hours": self.lifetime_hours,
@@ -79,12 +85,35 @@ class AgentZeroRuntime:
             payload["context_id"] = context_id
         elif self.project_name:
             payload["project_name"] = self.project_name
+        return payload
 
-        response = await self.client.post(
+    async def _send(self, text: str, context_id: str | None) -> httpx.Response:
+        return await self.client.post(
             self.MESSAGE_PATH,
             headers={"X-API-KEY": self.api_key},
-            json=payload,
+            json=self._payload(text, context_id),
         )
+
+    @staticmethod
+    def _context_not_found(response: httpx.Response) -> bool:
+        if response.status_code != 404:
+            return False
+        try:
+            return response.json().get("error") == "Context not found"
+        except (ValueError, AttributeError):
+            return False
+
+    async def execute(self, text: str, session_id: str) -> str:
+        context_id = await self.context_store.get(session_id)
+        response = await self._send(text, context_id)
+
+        # Agent Zero contexts have finite lifetimes. If our persisted mapping
+        # outlives the worker context, clear only that stale mapping and retry
+        # the same request once as a fresh chat. Other HTTP failures propagate.
+        if context_id and self._context_not_found(response):
+            await self.context_store.delete(session_id)
+            response = await self._send(text, None)
+
         response.raise_for_status()
         body = response.json()
 
