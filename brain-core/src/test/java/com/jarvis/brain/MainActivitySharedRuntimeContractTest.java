@@ -17,6 +17,10 @@ public final class MainActivitySharedRuntimeContractTest {
                         && source.contains("brainExecutor.execute(")
                         && source.contains("ui.post(() -> deliverPresentation("),
                 "full-app provider/tool work must run off Android's main thread and marshal presentation back to the UI thread");
+        check(source.contains("catch (RuntimeException failure)")
+                        && source.contains("AssistantSurfaceState.ERROR")
+                        && source.contains("JARVIS_RUNTIME_FAILURE"),
+                "unexpected provider/tool runtime failures must surface a truthful error instead of leaving the full app stuck on Processing");
         check(source.contains("private boolean destroyed;")
                         && source.contains("if (destroyed) return;")
                         && source.contains("destroyed = true;"),
