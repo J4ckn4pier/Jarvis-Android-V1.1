@@ -22,6 +22,7 @@ public final class RuleMemoryExtractor implements MemoryExtractor {
         String cleaned = userTurn.trim().replaceFirst("(?i)^actually[, ]+", "");
         for (String sentence : cleaned.split("(?<=[.!?])\\s+")) {
             String s = sentence.trim().replaceAll("[.!?]+$", "").trim();
+            s = s.replaceFirst("(?i)^remember\\s+that\\s+", "").trim();
             if (s.isBlank()) continue;
             Matcher m = PREFER.matcher(s);
             if (m.matches()) { String value = m.group(1).trim(); out.add(new ExtractedMemory("preference." + slug(topic(value)), MemoryType.PREFERENCE, "Prefers " + value, 0.86, tags(value))); continue; }
