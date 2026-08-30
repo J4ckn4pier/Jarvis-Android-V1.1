@@ -153,7 +153,8 @@ async def _run_lifecycle_operation(operation: str, session_id: str) -> bool:
     async def invoke() -> bool:
         return bool(await handler(session_id))
 
-    serializer = getattr(app.state.orchestrator, "run_session_operation", None)
+    orchestrator = getattr(app.state, "orchestrator", None)
+    serializer = getattr(orchestrator, "run_session_operation", None)
     changed = bool(await serializer(session_id, invoke)) if callable(serializer) else await invoke()
     if not changed:
         raise HTTPException(status_code=404, detail="Worker session not found")
