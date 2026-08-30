@@ -9,7 +9,7 @@ A box may be checked only after behavior is evidenced through a freshly compiled
 4. [x] Exact regression `I'm good. Can you do me a favor and open settings, please?` opens JARVIS Settings from the compiled APK.
 5. [ ] Generic `open <app>` routing works without guessing ambiguous app names.
 6. [ ] Phone/dialer and approved contact-call handoff work; autonomous remote phone-agent conversation is excluded from APK runtime.
-7. [ ] Text-message approval flow and email-draft flow work through Android surfaces.
+7. [x] Text-message approval flow and email-draft flow work through Android surfaces.
 8. [ ] Calendar reading and calendar-event draft flow work.
 9. [ ] Timer, alarm, and reminder-draft flows work.
 10. [ ] Navigation, web search, and place-discovery routing work.
@@ -26,4 +26,4 @@ A box may be checked only after behavior is evidenced through a freshly compiled
 
 **Completion percentage = checked items / 20 × 100.**
 
-Current compiled-proof checkpoint: **25% (5/20)** at Android code head `451eb688e102ecc8463f33f1c5e9006ad850b66e`, Android build run `33330104862`. Item 3 is evidenced by the compiled command regression entering `MainActivity`, traversing `AndroidBrainRuntime`, and producing the runtime input/output trace before opening the real Settings activity. Item 16 is evidenced in the same fresh Android 16 run by assigning the Android ASSISTANT role to `com.jarvis.mobile`, verifying the bound `VoiceInteractionService`, requesting a real JARVIS voice session, observing `JARVIS_SESSION_SERVICE_NEW_SESSION` and `JARVIS_ASSISTANT_READY`, and capturing the shown assistant UI. This records only items with fresh emulator evidence; it is not a claim that the remaining behavior is absent or broken.
+Current compiled-proof checkpoint: **30% (6/20)** at Android code head `451eb688e102ecc8463f33f1c5e9006ad850b66e`, Android build run `33330104862`. Item 3 is evidenced by the compiled command regression entering `MainActivity`, traversing `AndroidBrainRuntime`, and producing the runtime input/output trace before opening the real Settings activity. Item 7 is evidenced by the installed APK reaching `AWAITING_APPROVAL` for a text request, rendering APPROVE/CANCEL controls, safely cancelling back to IDLE without execution, plus the production email compose adapter producing and capturing the expected encoded recipient, decoded recipient, subject and body review draft on Android 16. Item 16 is evidenced by assigning the Android ASSISTANT role to `com.jarvis.mobile`, verifying the bound `VoiceInteractionService`, requesting a real JARVIS voice session, observing `JARVIS_SESSION_SERVICE_NEW_SESSION` and `JARVIS_ASSISTANT_READY`, and capturing the shown assistant UI. This records only items with fresh emulator evidence; it is not a claim that the remaining behavior is absent or broken.
