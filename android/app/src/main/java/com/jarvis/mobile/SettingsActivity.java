@@ -50,26 +50,30 @@ public class SettingsActivity extends Activity {
 
         String selectedProvider = cortexPreferences.getString("mode", CortexProviderFactory.MODE_LOCAL);
         RadioGroup providers = new RadioGroup(this);
-        RadioButton local = radio("Private local executive (default)", CortexProviderFactory.MODE_LOCAL.equals(selectedProvider));
+        RadioButton local = radio("Private deterministic executive (default)", CortexProviderFactory.MODE_LOCAL.equals(selectedProvider));
+        RadioButton compatible = radio("OpenAI-compatible local endpoint (free/self-hosted)", CortexProviderFactory.MODE_OPENAI_COMPATIBLE.equals(selectedProvider));
         RadioButton openAi = radio("Optional OpenAI Responses cortex", CortexProviderFactory.MODE_OPENAI.equals(selectedProvider));
         RadioButton anthropic = radio("Optional Anthropic Messages cortex", CortexProviderFactory.MODE_ANTHROPIC.equals(selectedProvider));
         providers.addView(local);
+        providers.addView(compatible);
         providers.addView(openAi);
         providers.addView(anthropic);
         body.addView(providers, fullWrap());
 
         EditText model = textSetting("Model name", cortexPreferences.getString("model", ""));
         body.addView(model, fullWrap());
-        EditText endpoint = textSetting("Optional custom HTTPS endpoint", cortexPreferences.getString("endpoint", ""));
+        EditText endpoint = textSetting("Optional endpoint (HTTPS, or local loopback HTTP)", cortexPreferences.getString("endpoint", ""));
         body.addView(endpoint, fullWrap());
-        EditText apiKey = textSetting("API key (leave blank to keep saved key)", "");
+        EditText apiKey = textSetting("API key (optional for local endpoint; blank keeps saved key)", "");
         apiKey.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         SecureSecretStore secrets = new SecureSecretStore(this);
         if (!secrets.get("provider_api_key").isEmpty()) apiKey.setHint("API key saved securely");
         body.addView(apiKey, fullWrap());
 
         body.addView(action("SAVE CORTEX SETTINGS", () -> {
-            String provider = providers.getCheckedRadioButtonId() == openAi.getId()
+            String provider = providers.getCheckedRadioButtonId() == compatible.getId()
+                    ? CortexProviderFactory.MODE_OPENAI_COMPATIBLE
+                    : providers.getCheckedRadioButtonId() == openAi.getId()
                     ? CortexProviderFactory.MODE_OPENAI
                     : providers.getCheckedRadioButtonId() == anthropic.getId()
                     ? CortexProviderFactory.MODE_ANTHROPIC
@@ -114,7 +118,7 @@ public class SettingsActivity extends Activity {
         body.addView(action("ENABLE DEVICE CONTROL", () -> startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))), fullWrap());
 
         TextView privacy = new TextView(this);
-        privacy.setText("Private by default: memories remain in the app’s local database and the local executive handles recognized phone actions without a cloud model. If you explicitly enable an optional provider, unresolved requests and questions may be sent to that endpoint. No API credential is embedded in the APK. Superseded third-party advertising, analytics, licensing, visual, and speech payloads are not included.");
+        privacy.setText("Private by default: memories remain in the app’s local database and the deterministic executive handles recognized phone actions without a cloud model. You can optionally connect a self-hosted OpenAI-compatible endpoint (for example a local model server) without a paid-provider key. If you explicitly enable any external provider, unresolved requests and questions may be sent to that endpoint. No API credential is embedded in the APK. Superseded third-party advertising, analytics, licensing, visual, and speech payloads are not included.");
         privacy.setTextColor(getColor(R.color.jarvis_text_dim));
         privacy.setPadding(0, dp(20), 0, 0);
         body.addView(privacy, fullWrap());
