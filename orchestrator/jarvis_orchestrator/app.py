@@ -160,6 +160,21 @@ def _validated_request_id(request_id: object | None) -> str | None:
     return value
 
 
+def _validated_command_text(text: object) -> str:
+    value = str(text)
+    if not value or len(value) > 100_000:
+        raise HTTPException(
+            status_code=422,
+            detail="text must be between 1 and 100000 characters",
+        )
+    if not value.strip():
+        raise HTTPException(
+            status_code=422,
+            detail="text must contain at least one non-whitespace character",
+        )
+    return value
+
+
 def _scoped_session(principal: Principal, public_session_id: str) -> str:
     return scope_session_id(principal.principal_id, public_session_id)
 
@@ -320,10 +335,11 @@ async def ready():
 @app.post("/v1/command")
 async def command(body: Command, authorization: str | None = Header(default=None)):
     principal = _require_http_auth(authorization)
+    text = _validated_command_text(body.text)
     public_session_id = _validated_public_session_id(body.session_id)
     request_id = _validated_request_id(body.request_id)
     internal_session_id = _scoped_session(principal, public_session_id)
-    result = await _submit(body.text, internal_session_id, request_id)
+    result = await _submit(text, internal_session_id, request_id)
     result["session_id"] = public_session_id
     return result
 
@@ -446,9 +462,10 @@ async def input_socket(ws: WebSocket):
     try:
         while True:
             message = await ws.receive_json()
-            text = str(message.get("text", "")).strip()
-            if not text or len(text) > 100_000:
-                await ws.send_json({"error": "text must be between 1 and 100000 characters"})
+            try:
+                text = _validated_command_text(message.get("text", ""))
+            except HTTPException as exc:
+                await ws.send_json({"error": exc.detail})
                 continue
             public_session_id = str(message.get("session_id", "primary"))
             if not public_session_id or len(public_session_id) > 128:
