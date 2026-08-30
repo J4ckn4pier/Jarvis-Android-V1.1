@@ -8,12 +8,12 @@ public final class AndroidSecondaryScreenSmokeContractTest {
     public static void main(String[] args) throws Exception {
         String smoke = Files.readString(Path.of("../.github/scripts/emulator-smoke.sh"));
 
-        check(smoke.contains("com.jarvis.mobile/.CommandsActivity"),
-                "Android smoke must launch Help & Features on-device");
+        check(smoke.contains("$PACKAGE/.CommandsActivity"),
+                "Android smoke must launch Help & Features on-device through the production package variable");
         check(smoke.contains("JARVIS COMMANDS"),
                 "Android smoke must verify distinctive Help content rendered");
-        check(smoke.contains("com.jarvis.mobile/.NotesActivity"),
-                "Android smoke must launch Notes & Memory on-device");
+        check(smoke.contains("$PACKAGE/.NotesActivity"),
+                "Android smoke must launch Notes & Memory on-device through the production package variable");
         check(smoke.contains("ADD NOTE"),
                 "Android smoke must verify distinctive Notes content rendered");
         check(smoke.contains("uiautomator dump"),
