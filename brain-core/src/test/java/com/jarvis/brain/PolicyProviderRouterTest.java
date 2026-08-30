@@ -9,6 +9,7 @@ public final class PolicyProviderRouterTest {
         freeLocalWinsOverPaid();
         paidIsBlockedWithoutOptIn();
         repeatedFailuresOpenCircuit();
+        availabilityProbeFailureFallsThroughToNextProvider();
         System.out.println("PolicyProviderRouterTest: " + checks + " assertions passed");
     }
 
@@ -45,6 +46,28 @@ public final class PolicyProviderRouterTest {
         router.reason(new ReasoningRequest("c", "", List.of()));
         check(broken.calls == 2, "provider should be circuit-broken after configured consecutive failures");
         check(fallback.calls == 3, "fallback should continue serving requests");
+    }
+
+    private static void availabilityProbeFailureFallsThroughToNextProvider() {
+        ReasoningProvider brokenProbe = new ReasoningProvider() {
+            public String id() { return "broken-probe"; }
+            public boolean available() { throw new RuntimeException("availability probe crashed"); }
+            public ReasoningResult reason(ReasoningRequest request) { throw new AssertionError("provider with broken availability probe must not reason"); }
+        };
+        StubProvider fallback = new StubProvider("fallback", new ReasoningResult("fallback", "ok", null), false);
+        PolicyProviderRouter router = new PolicyProviderRouter(List.of(
+                new ProviderRoute(brokenProbe, ProviderTier.FREE_LOCAL, 1),
+                new ProviderRoute(fallback, ProviderTier.FREE_LOCAL, 2)
+        ), false, 2);
+        ReasoningResult out;
+        try {
+            out = router.reason(new ReasoningRequest("hi", "", List.of()));
+        } catch (RuntimeException escaped) {
+            throw new AssertionError("availability probe failure must not crash provider routing", escaped);
+        }
+        check("fallback".equals(out.providerId()), "availability failure should fall through to the next permitted provider");
+        check(fallback.calls == 1, "fallback should serve the request exactly once");
+        check(router.failureCount("broken-probe") == 1, "availability probe failure should count toward circuit breaking");
     }
 
     private static void check(boolean condition, String message) {
