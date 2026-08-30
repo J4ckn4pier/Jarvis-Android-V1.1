@@ -21,19 +21,13 @@ def _authenticator() -> Authenticator:
     return Authenticator.from_env()
 
 
-def _authorized(token: str | None) -> bool:
-    # Retained temporarily for websocket compatibility; HTTP paths resolve the
-    # principal so their session ids can be namespaced safely.
-    if not os.getenv("JARVIS_API_KEYS_JSON") and not os.getenv("JARVIS_API_TOKEN"):
-        return True
-    return _authenticator().authenticate(token) is not None
-
-
 def _bearer_token(authorization: str | None) -> str | None:
     return authorization.removeprefix("Bearer ") if authorization else None
 
 
 def _principal_for_token(token: str | None) -> Principal | None:
+    # Zero-configuration developer mode remains usable for the standalone
+    # prototype. Once any credential is configured, authentication is required.
     if not os.getenv("JARVIS_API_KEYS_JSON") and not os.getenv("JARVIS_API_TOKEN"):
         return Principal(principal_id="owner")
     return _authenticator().authenticate(token)
@@ -44,6 +38,10 @@ def _require_http_auth(authorization: str | None) -> Principal:
     if principal is None:
         raise HTTPException(status_code=401, detail="Unauthorized")
     return principal
+
+
+def _scoped_session(principal: Principal, public_session_id: str) -> str:
+    return scope_session_id(principal.principal_id, public_session_id)
 
 
 async def _run_lifecycle_operation(operation: str, session_id: str) -> bool:
@@ -97,7 +95,7 @@ async def lifespan(app: FastAPI):
         await app.state.valkey.aclose()
 
 
-app = FastAPI(title="JARVIS Orchestrator", version="0.6.0", lifespan=lifespan)
+app = FastAPI(title="JARVIS Orchestrator", version="0.7.0", lifespan=lifespan)
 
 
 @app.get("/health")
@@ -113,10 +111,8 @@ async def health():
 @app.post("/v1/command")
 async def command(body: Command, authorization: str | None = Header(default=None)):
     principal = _require_http_auth(authorization)
-    internal_session_id = scope_session_id(principal.principal_id, body.session_id)
+    internal_session_id = _scoped_session(principal, body.session_id)
     result = await app.state.orchestrator.submit(body.text, internal_session_id)
-    # Internal namespacing is an implementation detail; clients keep using the
-    # stable public session id they supplied.
     result["session_id"] = body.session_id
     return result
 
@@ -128,11 +124,12 @@ async def event_history(
     authorization: str | None = Header(default=None),
 ):
     """Recover state missed while a phone/desktop client was disconnected."""
-    _require_http_auth(authorization)
-    events = await app.state.bus.history(session_id, limit)
+    principal = _require_http_auth(authorization)
+    internal_session_id = _scoped_session(principal, session_id)
+    events = await app.state.bus.history(internal_session_id, limit)
     return {"session_id": session_id, "events": [
         {
-            "session_id": event.session_id,
+            "session_id": session_id,
             "task_id": event.task_id,
             "active_layer": event.active_layer,
             "neurons_firing": event.neurons_firing,
@@ -150,8 +147,8 @@ async def reset_session(
     authorization: str | None = Header(default=None),
 ):
     """Reset the configured worker's conversation while preserving JARVIS session identity."""
-    _require_http_auth(authorization)
-    await _run_lifecycle_operation("reset", session_id)
+    principal = _require_http_auth(authorization)
+    await _run_lifecycle_operation("reset", _scoped_session(principal, session_id))
     return {"session_id": session_id, "reset": True}
 
 
@@ -161,32 +158,31 @@ async def terminate_session(
     authorization: str | None = Header(default=None),
 ):
     """Terminate the configured worker session and clear its runtime context mapping."""
-    _require_http_auth(authorization)
-    await _run_lifecycle_operation("terminate", session_id)
+    principal = _require_http_auth(authorization)
+    await _run_lifecycle_operation("terminate", _scoped_session(principal, session_id))
     return {"session_id": session_id, "terminated": True}
 
 
 @app.websocket("/v1/events")
 async def events(ws: WebSocket):
-    token = ws.query_params.get("token")
-    if not _authorized(token):
+    principal = _principal_for_token(ws.query_params.get("token"))
+    if principal is None:
         await ws.close(code=4401)
         return
 
-    # Explicit session subscription is mandatory so an authenticated listener
-    # cannot receive telemetry from unrelated JARVIS sessions.
-    session_id = str(ws.query_params.get("session_id", "")).strip()
-    if not session_id:
+    public_session_id = str(ws.query_params.get("session_id", "")).strip()
+    if not public_session_id:
         await ws.close(code=4400)
         return
+    internal_session_id = _scoped_session(principal, public_session_id)
 
     await ws.accept()
     try:
         async for event in app.state.bus.subscribe():
-            if event.session_id != session_id:
+            if event.session_id != internal_session_id:
                 continue
             await ws.send_json({
-                "session_id": event.session_id,
+                "session_id": public_session_id,
                 "task_id": event.task_id,
                 "active_layer": event.active_layer,
                 "neurons_firing": event.neurons_firing,
@@ -201,8 +197,8 @@ async def events(ws: WebSocket):
 @app.websocket("/v1/input")
 async def input_socket(ws: WebSocket):
     """Phone/desktop text stream. Audio/STT plugs into this same submit() path after transcription."""
-    token = ws.query_params.get("token")
-    if not _authorized(token):
+    principal = _principal_for_token(ws.query_params.get("token"))
+    if principal is None:
         await ws.close(code=4401)
         return
     await ws.accept()
@@ -213,8 +209,10 @@ async def input_socket(ws: WebSocket):
             if not text:
                 await ws.send_json({"error": "text is required"})
                 continue
-            session_id = str(message.get("session_id", "primary"))
-            result = await app.state.orchestrator.submit(text, session_id)
+            public_session_id = str(message.get("session_id", "primary"))
+            internal_session_id = _scoped_session(principal, public_session_id)
+            result = await app.state.orchestrator.submit(text, internal_session_id)
+            result["session_id"] = public_session_id
             await ws.send_json(result)
     except WebSocketDisconnect:
         return
