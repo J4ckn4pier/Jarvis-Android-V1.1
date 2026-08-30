@@ -12,6 +12,6 @@ public class JarvisVoiceSessionService extends VoiceInteractionSessionService {
     @Override
     public VoiceInteractionSession onNewSession(Bundle args) {
         Log.i(TEST_TAG, "JARVIS_SESSION_SERVICE_NEW_SESSION");
-        return new JarvisVoiceSession(this);
+        return new ManagedJarvisVoiceSession(this);
     }
 }
