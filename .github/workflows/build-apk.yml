@@ -78,7 +78,7 @@ jobs:
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: sh .github/scripts/emulator-smoke.sh && sh .github/scripts/overlay-decision-smoke.sh && sh .github/scripts/email-compose-smoke.sh && sh .github/scripts/diagnostics-smoke.sh && sh .github/scripts/cortex-settings-smoke.sh && sh .github/scripts/local-cortex-smoke.sh && sh .github/scripts/external-research-smoke.sh
+          script: sh .github/scripts/emulator-smoke.sh && sh .github/scripts/apk-sprint-acceptance-smoke.sh && sh .github/scripts/overlay-decision-smoke.sh && sh .github/scripts/email-compose-smoke.sh && sh .github/scripts/diagnostics-smoke.sh && sh .github/scripts/cortex-settings-smoke.sh && sh .github/scripts/local-cortex-smoke.sh && sh .github/scripts/external-research-smoke.sh
 
       - name: Preserve Android failure evidence
         if: failure()
