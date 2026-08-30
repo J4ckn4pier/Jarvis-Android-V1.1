@@ -394,10 +394,15 @@ async def events(ws: WebSocket):
         await ws.close(code=4401)
         return
 
-    public_session_id = str(ws.query_params.get("session_id", "")).strip()
-    if not public_session_id or len(public_session_id) > 128:
+    raw_session_id = str(ws.query_params.get("session_id", ""))
+    if (
+        not raw_session_id
+        or len(raw_session_id) > 128
+        or raw_session_id != raw_session_id.strip()
+    ):
         await ws.close(code=4400)
         return
+    public_session_id = raw_session_id
     internal_session_id = _scoped_session(principal, public_session_id)
 
     await ws.accept()
@@ -437,9 +442,14 @@ async def input_socket(ws: WebSocket):
             if not text or len(text) > 100_000:
                 await ws.send_json({"error": "text must be between 1 and 100000 characters"})
                 continue
-            public_session_id = str(message.get("session_id", "primary")).strip()
+            public_session_id = str(message.get("session_id", "primary"))
             if not public_session_id or len(public_session_id) > 128:
                 await ws.send_json({"error": "session_id must be between 1 and 128 characters"})
+                continue
+            if public_session_id != public_session_id.strip():
+                await ws.send_json(
+                    {"error": "session_id must not have leading or trailing whitespace"}
+                )
                 continue
             raw_request_id = message.get("request_id")
             if raw_request_id is not None:
