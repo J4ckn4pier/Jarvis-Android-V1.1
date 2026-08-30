@@ -13,6 +13,7 @@ public final class BrainRuntimeTest {
         consequentialPlanPausesAndResumesOnlyAfterApproval();
         openEndedRequestUsesReasoningRouterInsteadOfLegacyFailureText();
         partialExecutionFailureReportsCompletedWork();
+        partialRecoveryReportsCompletedWork();
         System.out.println("BrainRuntimeTest: " + checks + " assertions passed");
     }
 
@@ -77,6 +78,28 @@ public final class BrainRuntimeTest {
                 "user-facing failure must disclose work that already completed before the failure");
         check(result.text().contains("Second step failed."),
                 "user-facing failure must still disclose the step that failed");
+    }
+
+    private static void partialRecoveryReportsCompletedWork() {
+        ToolRegistry tools = new ToolRegistry();
+        tools.register(new ToolSpec("first_step", false, Set.of(), Set.of(),
+                "Complete first step", ToolExecutionClass.DEVICE_REFLEX),
+                (a,c) -> ToolResult.success("First step completed."));
+        tools.register(new ToolSpec("flaky_step", false, Set.of(), Set.of(),
+                "Attempt flaky step", ToolExecutionClass.DEVICE_REFLEX),
+                (a,c) -> ToolResult.retryableFailure("Second step is temporarily unavailable."));
+        Plan plan = new Plan("two-stage recoverable operation", java.util.List.of(
+                new PlanStep("first_step", Map.of(), false),
+                new PlanStep("flaky_step", Map.of(), false)));
+        BrainRuntime runtime = runtime(tools, req -> new ReasoningResult("planner", "I’ll handle both steps.", plan));
+        runtime.handle("Hey Jarvis");
+        BrainRuntime.Result result = runtime.handle("perform the recoverable operation");
+        check(result.status() == BrainRuntime.Status.RECOVERY_REQUIRED, "repeated temporary failure asks for recovery");
+        check(result.outputs().contains("First step completed."), "recovery report retains earlier completed work");
+        check(result.text().contains("First step completed."),
+                "user-facing recovery must disclose work that already completed before recovery was needed");
+        check(result.text().contains("Second step is temporarily unavailable."),
+                "user-facing recovery must disclose why the remaining step paused");
     }
 
     private static BrainRuntime runtime(ToolRegistry tools, ReasoningRouter reasoner) {
