@@ -117,7 +117,7 @@ async def lifespan(app: FastAPI):
         await app.state.valkey.aclose()
 
 
-app = FastAPI(title="JARVIS Orchestrator", version="0.9.1", lifespan=lifespan)
+app = FastAPI(title="JARVIS Orchestrator", version="0.10.0", lifespan=lifespan)
 
 
 @app.get("/health")
@@ -133,13 +133,21 @@ async def health():
 
 @app.get("/ready")
 async def ready():
-    """Readiness check: required shared state is reachable right now."""
+    """Readiness check: required shared state and worker runtime are reachable."""
     valkey = getattr(app.state, "valkey", None)
     if valkey is not None:
         try:
             await valkey.ping()
         except Exception as exc:
             raise HTTPException(status_code=503, detail="State backend unavailable") from exc
+
+    runtime = getattr(app.state, "runtime", None)
+    runtime_check = getattr(runtime, "check_ready", None)
+    if callable(runtime_check):
+        try:
+            await runtime_check()
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail="Worker runtime unavailable") from exc
 
     using_valkey = valkey is not None
     return {
