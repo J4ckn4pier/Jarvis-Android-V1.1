@@ -39,6 +39,8 @@ class Authenticator:
                     raise ValueError("principal ids must not have leading or trailing whitespace")
                 if not isinstance(token, str) or not token:
                     raise ValueError("API tokens must be non-empty strings")
+                if token != token.strip():
+                    raise ValueError("API tokens must not have leading or trailing whitespace")
                 if token in seen_tokens:
                     raise ValueError("API tokens must be unique across principals")
                 seen_tokens.add(token)
