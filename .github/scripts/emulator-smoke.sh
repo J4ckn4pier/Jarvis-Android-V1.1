@@ -193,14 +193,14 @@ dump_ui_retry /sdcard/jarvis-notes-ui.xml "$OUTPUT/jarvis-notes-ui.xml"
 grep -q 'ADD NOTE' "$OUTPUT/jarvis-notes-ui.xml"
 adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-notes.png"
 
-# Prove live-research configuration is actually reachable from the installed Android Settings UI.
-adb shell am start -W -n "$PACKAGE/.SettingsActivity" | tee "$OUTPUT/emulator-settings-launch.txt"
-grep -q 'Status: ok' "$OUTPUT/emulator-settings-launch.txt"
-dump_ui_retry /sdcard/jarvis-settings-ui.xml "$OUTPUT/jarvis-settings-ui.xml"
-grep -q 'LIVE RESEARCH' "$OUTPUT/jarvis-settings-ui.xml"
-grep -q 'Research endpoint' "$OUTPUT/jarvis-settings-ui.xml"
-grep -q 'SAVE RESEARCH ENDPOINT' "$OUTPUT/jarvis-settings-ui.xml"
-adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-settings.png"
+# Prove live-research configuration is reachable only from the installed advanced Developer Options UI.
+adb shell am start -W -n "$PACKAGE/.DeveloperSettingsActivity" | tee "$OUTPUT/emulator-developer-settings-launch.txt"
+grep -q 'Status: ok' "$OUTPUT/emulator-developer-settings-launch.txt"
+dump_ui_retry /sdcard/jarvis-developer-settings-ui.xml "$OUTPUT/jarvis-developer-settings-ui.xml"
+grep -q 'DEVELOPER OPTIONS' "$OUTPUT/jarvis-developer-settings-ui.xml"
+grep -q 'Research endpoint' "$OUTPUT/jarvis-developer-settings-ui.xml"
+grep -q 'SAVE RESEARCH ENDPOINT' "$OUTPUT/jarvis-developer-settings-ui.xml"
+adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-developer-settings.png"
 
 # Prove a zero-cost local research endpoint actually saves and survives an Activity/process restart.
 RESEARCH_ENDPOINT='http://127.0.0.1:8765/research'
@@ -249,20 +249,20 @@ PY
 set -- $(cat "$OUTPUT/jarvis-research-save-tap.txt")
 adb shell input tap "$1" "$2"
 sleep 1
-dump_ui_retry /sdcard/jarvis-settings-saved-ui.xml "$OUTPUT/jarvis-settings-saved-ui.xml"
-grep -q '127.0.0.1:8765/research' "$OUTPUT/jarvis-settings-saved-ui.xml"
-adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-settings-saved.png"
+dump_ui_retry /sdcard/jarvis-developer-settings-saved-ui.xml "$OUTPUT/jarvis-developer-settings-saved-ui.xml"
+grep -q '127.0.0.1:8765/research' "$OUTPUT/jarvis-developer-settings-saved-ui.xml"
+adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-developer-settings-saved.png"
 adb shell am force-stop "$PACKAGE"
-adb shell am start -W -n "$PACKAGE/.SettingsActivity" | tee "$OUTPUT/emulator-settings-reopen-launch.txt"
-grep -q 'Status: ok' "$OUTPUT/emulator-settings-reopen-launch.txt"
+adb shell am start -W -n "$PACKAGE/.DeveloperSettingsActivity" | tee "$OUTPUT/emulator-developer-settings-reopen-launch.txt"
+grep -q 'Status: ok' "$OUTPUT/emulator-developer-settings-reopen-launch.txt"
 for attempt in $(seq 1 8); do
-  dump_ui_retry /sdcard/jarvis-settings-reopened-ui.xml "$OUTPUT/jarvis-settings-reopened-ui.xml"
-  if grep -q '127.0.0.1:8765/research' "$OUTPUT/jarvis-settings-reopened-ui.xml"; then break; fi
+  dump_ui_retry /sdcard/jarvis-developer-settings-reopened-ui.xml "$OUTPUT/jarvis-developer-settings-reopened-ui.xml"
+  if grep -q '127.0.0.1:8765/research' "$OUTPUT/jarvis-developer-settings-reopened-ui.xml"; then break; fi
   adb shell input swipe 500 1500 500 300 250
   sleep 1
 done
-grep -q '127.0.0.1:8765/research' "$OUTPUT/jarvis-settings-reopened-ui.xml"
-adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-settings-reopened.png"
+grep -q '127.0.0.1:8765/research' "$OUTPUT/jarvis-developer-settings-reopened-ui.xml"
+adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-developer-settings-reopened.png"
 
 # Prove Android owns the assistant selection and has bound JARVIS's VoiceInteractionService.
 adb shell input keyevent KEYCODE_HOME
