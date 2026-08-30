@@ -33,6 +33,12 @@
             </intent-filter>
         </receiver>
 
+        <!-- Debug-only override: emulator CI may launch the real production diagnostics Activity directly.
+             The main/release manifest keeps this Activity non-exported. -->
+        <activity
+            android:name="com.jarvis.mobile.DiagnosticsActivity"
+            android:exported="true" />
+
         <activity
             android:name="com.jarvis.mobile.actions.JarvisEmailCaptureActivity"
             android:exported="true"
