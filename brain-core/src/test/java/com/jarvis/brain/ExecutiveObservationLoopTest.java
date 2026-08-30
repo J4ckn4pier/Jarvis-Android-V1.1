@@ -14,6 +14,7 @@ public final class ExecutiveObservationLoopTest {
         loopStopsAtBoundedIterationCeiling();
         failedSafeToolBecomesObservationForRecoveryReasoning();
         nullSafeToolResultBecomesFailureObservationForRecoveryReasoning();
+        successfulSafeToolWithoutOutputBecomesFailureObservation();
         System.out.println("ExecutiveObservationLoopTest: " + checks + " assertions passed");
     }
 
@@ -156,6 +157,28 @@ public final class ExecutiveObservationLoopTest {
                 "null safe-tool result should be recoverable through another reasoning turn");
         check(recoveryContext[0].contains("FAILED"),
                 "null safe-tool result must become a structured FAILED observation");
+    }
+
+    private static void successfulSafeToolWithoutOutputBecomesFailureObservation() {
+        ToolRegistry registry = new ToolRegistry();
+        registry.register(new ToolSpec("lookup", false, Set.of(), Set.of(), "lookup"),
+                (args, ctx) -> ToolResult.success(null));
+        final int[] reasons = {0};
+        final String[] recoveryContext = {""};
+        ReasoningRouter router = request -> {
+            reasons[0]++;
+            if (reasons[0] == 1) return new ReasoningResult("local", "checking",
+                    new Plan("lookup", List.of(new PlanStep("lookup", Map.of(), false))));
+            recoveryContext[0] = request.context();
+            return new ReasoningResult("local", "The lookup failed to return usable evidence.", null);
+        };
+        ExecutiveOutcome outcome = new ExecutiveObservationLoop(router, registry, new ApprovalGate(), 3).run("verify it", "");
+        check(outcome.status() == ExecutiveOutcome.Status.ANSWERED,
+                "missing success output should stay recoverable through a subsequent reasoning turn");
+        check(recoveryContext[0].contains("FAILED"),
+                "a tool must not tell the executive loop SUCCESS when it returned no usable output");
+        check(recoveryContext[0].toLowerCase().contains("output"),
+                "recovery observation should explain that the successful tool returned no output");
     }
 
     private static void check(boolean condition, String message) { checks++; if (!condition) throw new AssertionError(message); }
