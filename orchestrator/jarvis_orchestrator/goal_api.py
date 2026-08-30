@@ -111,12 +111,12 @@ def install_goal_api(app_module) -> None:
         try:
             payload = await service.events(principal.principal_id, project_id, cursor, limit)
         except KeyError as exc:
-            # ManagementService also uses KeyError for a valid-but-no-longer-
-            # available reconnect cursor. Only translate the project lookup here;
-            # preserve cursor recovery semantics for the caller.
             if exc.args and exc.args[0] == project_id:
                 raise _project_not_found() from None
-            raise
+            raise HTTPException(
+                status_code=410,
+                detail="Recovery cursor is no longer available",
+            ) from None
         return _public_payload(payload)
 
     async def project_approval(
