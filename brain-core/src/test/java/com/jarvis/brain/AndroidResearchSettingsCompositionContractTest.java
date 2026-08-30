@@ -30,6 +30,13 @@ public final class AndroidResearchSettingsCompositionContractTest {
                 "native Android Settings must expose and persist the research endpoint instead of leaving fresh research unreachable from the phone UI");
         check(activity.contains("Research endpoint") && activity.contains(".local"),
                 "native research endpoint guidance must explain the safe user-owned local option");
+        check(activity.contains("EndpointTransportPolicy.allows(researchEndpointValue)"),
+                "native Settings must validate the endpoint with the exact same transport policy before persisting it");
+        check(activity.contains("Use HTTPS, loopback HTTP, or a user-owned .local HTTP endpoint"),
+                "unsafe research endpoints must produce clear corrective guidance instead of silently saving a broken configuration");
+        check(activity.indexOf("EndpointTransportPolicy.allows(researchEndpointValue)")
+                        < activity.indexOf("researchSettings.put(SettingsStore.RESEARCH_ENDPOINT, researchEndpointValue)"),
+                "research endpoint validation must happen before persistence");
         check(diagnostics.contains("new SettingsStore(new AndroidSharedPreferencesSettingsPersistence(this))")
                         && diagnostics.contains("settings.get(SettingsStore.RESEARCH_ENDPOINT)"),
                 "Diagnostics must inspect the same persisted research endpoint that the live brain uses");
