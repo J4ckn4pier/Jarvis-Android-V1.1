@@ -115,7 +115,15 @@ public final class ExecutiveObservationLoop {
     }
 
     private static ToolResult normalizeToolResult(ToolResult result) {
-        return result == null ? ToolResult.failure("tool returned no result") : result;
+        if (result == null) return ToolResult.failure("tool returned no result");
+        if (result.output() != null) return result;
+        if (result.status() == ToolResult.Status.SUCCESS) {
+            return ToolResult.failure("tool reported success but returned no output");
+        }
+        if (result.status() == ToolResult.Status.RETRYABLE_FAILURE) {
+            return ToolResult.retryableFailure("tool reported retryable failure but returned no output");
+        }
+        return ToolResult.failure("tool reported failure but returned no output");
     }
 
     private static ExecutiveOutcome outcome(ExecutiveOutcome.Status status, String text, Plan pendingPlan,
