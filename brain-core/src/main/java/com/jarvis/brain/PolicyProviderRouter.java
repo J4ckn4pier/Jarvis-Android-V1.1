@@ -81,7 +81,10 @@ public final class PolicyProviderRouter implements ReasoningRouter {
 
     private static boolean isUsable(ReasoningResult result) {
         if (result == null) return false;
-        if (result.plan() != null) return true;
+        if (result.plan() != null) {
+            List<PlanStep> steps = result.plan().steps();
+            return steps != null && !steps.isEmpty();
+        }
         String text = result.text();
         return text != null && !text.isBlank();
     }
