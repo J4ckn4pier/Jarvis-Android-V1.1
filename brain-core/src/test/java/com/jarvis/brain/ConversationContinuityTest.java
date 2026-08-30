@@ -6,6 +6,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public final class ConversationContinuityTest {
     private static int checks;
@@ -15,6 +16,7 @@ public final class ConversationContinuityTest {
         conversationHistoryKeepsRolesAndRemainsBounded();
         cancelledClarificationRemainsVisibleToLaterReasoning();
         multiStepClarificationPromptsRemainVisibleToLaterReasoning();
+        deterministicClarificationPromptRemainsVisibleToLaterReasoning();
         System.out.println("ConversationContinuityTest: " + checks + " assertions passed");
     }
 
@@ -108,6 +110,33 @@ public final class ConversationContinuityTest {
                 "later reasoning must retain JARVIS's intermediate clarification prompt, not only user answers");
         check(requests.get(1).context().contains("USER: Mom") && requests.get(1).context().contains("USER: I'm running late"),
                 "later reasoning must retain both clarification answers with user provenance");
+    }
+
+    private static void deterministicClarificationPromptRemainsVisibleToLaterReasoning() {
+        Clock clock = Clock.fixed(Instant.parse("2026-08-27T23:30:00Z"), ZoneOffset.UTC);
+        List<ReasoningRequest> requests = new ArrayList<>();
+        ReasoningRouter router = request -> {
+            requests.add(request);
+            return new ReasoningResult("local", "Fresh task acknowledged.", null);
+        };
+        ToolRegistry tools = ToolRegistry.standard();
+        tools.register(new ToolSpec("create_reminder", false, Set.of("reminder", "remind me"),
+                        Set.of("request", "when"), "Create a personal reminder", ToolExecutionClass.DEVICE_REFLEX),
+                (arguments, context) -> ToolResult.success("reminder-ready"));
+        AssistantCore core = new AssistantCore(BrainEngine.createDefault(clock), router, tools);
+
+        BrainResponse clarification = core.handle("Jarvis remind me to do laundry");
+        check(clarification.kind() == BrainResponse.Kind.CONVERSATION && core.hasPendingPlan(),
+                "deterministic reminder with a missing required argument should ask for clarification");
+        check(clarification.text().equals("When should I do that?"),
+                "deterministic clarification should ask for the required missing field");
+        BrainResponse completed = core.handle("tomorrow morning");
+        check(completed.kind() == BrainResponse.Kind.ACTION_PLAN && !core.hasPendingPlan(),
+                "deterministic clarification answer should complete the reminder plan");
+        core.handle("compare two unrelated ideas for me");
+        check(requests.size() == 1, "fresh open-ended task should reach reasoning after deterministic clarification");
+        check(requests.get(0).context().contains("JARVIS: " + clarification.text()),
+                "later reasoning must retain the first clarification prompt produced by the deterministic reflex path");
     }
 
     private static void check(boolean condition, String message) {
