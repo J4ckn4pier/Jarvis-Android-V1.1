@@ -14,7 +14,7 @@ public final class RemoteGoalCoordinator {
 
     public Optional<Snapshot> resumeActiveProject() throws RemoteGoalClient.RemoteGoalException {
         RemoteGoalStateStore.State saved = state.load();
-        if (saved == null) return Optional.empty();
+        if (!saved.hasProject()) return Optional.empty();
         String projectId = saved.projectId();
         RemoteGoalClient.ProjectStatus project = client.getProject(projectId);
         RemoteGoalClient.EventPage page = client.getEvents(projectId, saved.eventId());
@@ -26,9 +26,10 @@ public final class RemoteGoalCoordinator {
 
     public boolean cancelActiveProject() throws RemoteGoalClient.RemoteGoalException {
         RemoteGoalStateStore.State saved = state.load();
-        if (saved == null) return false;
+        if (!saved.hasProject()) return false;
         String projectId = saved.projectId();
-        client.cancel(projectId);
+        RemoteGoalClient.Cancellation cancelled = client.cancel(projectId);
+        if (!"cancelled".equalsIgnoreCase(cancelled.state())) return false;
         state.clearProject();
         return true;
     }
