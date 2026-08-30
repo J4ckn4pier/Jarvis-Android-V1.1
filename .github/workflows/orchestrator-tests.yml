@@ -85,7 +85,7 @@ jobs:
           curl -fsS -X POST http://127.0.0.1:8000/v1/command \
             -H 'Authorization: Bearer ci-token' \
             -H 'Content-Type: application/json' \
-            -d '{"text":"prototype smoke test","session_id":"primary"}' \
+            -d '{"text":"prototype smoke test","session_id":"primary","request_id":"ci-retry-1"}' \
             -o /tmp/command.json
           cat /tmp/command.json
           python3 - <<'PY'
@@ -93,8 +93,37 @@ jobs:
           with open('/tmp/command.json') as handle:
               command = json.load(handle)
           assert command['session_id'] == 'primary', command
+          assert command['request_id'] == 'ci-retry-1', command
           assert command['response'] == 'JARVIS received: prototype smoke test', command
           PY
+      - name: Prove mobile retry is deduplicated through Valkey
+        run: |
+          curl -fsS -X POST http://127.0.0.1:8000/v1/command \
+            -H 'Authorization: Bearer ci-token' \
+            -H 'Content-Type: application/json' \
+            -d '{"text":"prototype smoke test","session_id":"primary","request_id":"ci-retry-1"}' \
+            -o /tmp/retry.json
+          curl -fsS http://127.0.0.1:8000/v1/sessions/primary/events \
+            -H 'Authorization: Bearer ci-token' \
+            -o /tmp/retry-history.json
+          python3 - <<'PY'
+          import json
+          with open('/tmp/command.json') as handle:
+              first = json.load(handle)
+          with open('/tmp/retry.json') as handle:
+              retry = json.load(handle)
+          with open('/tmp/retry-history.json') as handle:
+              history = json.load(handle)
+          assert retry == first, (first, retry)
+          assert len(history['events']) == 4, history
+          assert {event['task_id'] for event in history['events']} == {first['task_id']}, history
+          PY
+          status="$(curl -sS -o /tmp/conflict.json -w '%{http_code}' -X POST http://127.0.0.1:8000/v1/command \
+            -H 'Authorization: Bearer ci-token' \
+            -H 'Content-Type: application/json' \
+            -d '{"text":"different command","session_id":"primary","request_id":"ci-retry-1"}')"
+          cat /tmp/conflict.json
+          test "$status" = "409"
       - name: Prove same public session is isolated between users
         run: |
           curl -fsS http://127.0.0.1:8000/v1/sessions/primary/events \
