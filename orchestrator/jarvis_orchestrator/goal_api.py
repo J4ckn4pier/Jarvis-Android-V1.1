@@ -114,15 +114,20 @@ def install_goal_api(app_module) -> None:
         project_id = _validated_id(project_id, "project_id")
         approval_id = _validated_id(approval_id, "approval_id")
         service = await _service()
-        return _public_payload(
-            await service.approve(
+        try:
+            payload = await service.approve(
                 principal.principal_id,
                 project_id,
                 approval_id,
                 body.approved,
                 body.response,
             )
-        )
+        except KeyError:
+            raise HTTPException(
+                status_code=404,
+                detail="Approval not found or no longer pending",
+            ) from None
+        return _public_payload(payload)
 
     async def cancel_project(
         project_id: str,
