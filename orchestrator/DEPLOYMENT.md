@@ -76,6 +76,20 @@ AGENT_ZERO_PROJECT=
 
 Packaged Docker sets `JARVIS_REQUIRE_AUTH=1` by default. A missing JARVIS credential therefore prevents startup instead of silently exposing an unauthenticated backend. Zero-configuration open mode remains only for explicit developer/test use outside that packaged requirement.
 
+### Multi-user authentication and session ownership
+
+`JARVIS_API_TOKEN` is the simple single-owner deployment mode. For a deployment serving more than one person, use `JARVIS_API_KEYS_JSON` instead. It maps a stable principal ID to that principal's bearer token:
+
+```dotenv
+JARVIS_API_KEYS_JSON={"alice":"replace-with-long-random-token-a","bob":"replace-with-long-random-token-b"}
+```
+
+When `JARVIS_API_KEYS_JSON` is present it is authoritative; do not also rely on `JARVIS_API_TOKEN` as a fallback. The Orchestrator deliberately fails startup rather than guessing when the multi-user identity map is unsafe or malformed. The value must be valid JSON, must be a JSON object, and must contain at least one principal. Principal IDs must be non-empty strings with no leading or trailing whitespace. Tokens must be non-empty strings and must be unique across principals; one bearer token may never identify two owners.
+
+Principal IDs are durable ownership identifiers, not display names. Keep them stable across redeployments. Changing a principal ID changes the namespace used for that person's sessions even if the bearer token stays the same. Phone and desktop clients belonging to the same person should therefore authenticate as the same principal and may use the same public session ID (for example `primary`) to share JARVIS state. Different principals may safely use the same public session ID because the Orchestrator scopes storage, event history, locks, retry records, and worker context by authenticated owner.
+
+Treat bearer tokens as secrets: generate high-entropy random values, keep `.env` out of source control, rotate a token if it is exposed, and expose the JARVIS API remotely only through TLS or a private authenticated network. WebSocket clients should prefer `Authorization: Bearer …`; query-string `?token=` authentication remains only as a compatibility fallback because URLs are more likely to appear in logs and diagnostics.
+
 Agent Zero's external token is not a made-up JARVIS credential. On a fresh packaged stack, `bootstrap.py` reproduces Agent Zero's current upstream token derivation from `A0_PERSISTENT_RUNTIME_ID` with blank optional login/password fields, then gives the same runtime ID to the Agent Zero container. If a deployment intentionally enables different Agent Zero login/password settings, provide the corresponding external API token instead of relying on the fresh-stack derivation.
 
 The full Compose stack can also be managed directly:
