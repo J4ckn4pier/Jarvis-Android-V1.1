@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import asyncio
+
 from redis.exceptions import RedisError
 
 from .goal_planner import GoalRequest, PlannedTask
@@ -56,21 +58,55 @@ class RuntimeTaskWorker:
 
 
 class PackagedManagementService(ManagementService):
-    """Management service that lazily restores its stable built-in worker node."""
+    """Management service that owns submitted work after the client disconnects."""
 
     def __init__(self, *args, worker_node: WorkerNode, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self.worker_node = worker_node
+        self._background_tasks: set[asyncio.Task] = set()
 
     async def ensure_worker_registered(self) -> None:
         await self.registry.register(self.worker_node)
+
+    def _track(self, coroutine) -> None:
+        task = asyncio.create_task(coroutine)
+        self._background_tasks.add(task)
+
+        def finished(done: asyncio.Task) -> None:
+            self._background_tasks.discard(done)
+            if not done.cancelled():
+                # Retrieve the exception so asyncio does not emit an unobserved
+                # task warning. Durable project/task state remains authoritative.
+                done.exception()
+
+        task.add_done_callback(finished)
+
+    async def _drive_project(self, owner_id: str, project_id: str) -> None:
+        await self.run_until_blocked(owner_id, project_id)
+        # CompletionGate is deliberately strict: projects with acceptance
+        # criteria remain VERIFYING until trusted evidence exists. Simple goals
+        # with no outstanding criteria can finish autonomously.
+        await self.verify_and_complete(owner_id, project_id)
 
     async def submit(self, owner_id: str, session_id: str, request) -> dict:
         # Registration lives in durable Valkey in production. Reassert it at the
         # point of use so a process can start degraded while Valkey is offline,
         # then recover naturally once the dependency returns.
         await self.ensure_worker_registered()
-        return await super().submit(owner_id, session_id, request)
+        response = await super().submit(owner_id, session_id, request)
+        self._track(self._drive_project(owner_id, response["project_id"]))
+        return response
+
+    async def aclose(self) -> None:
+        # A process restart must never hang waiting for an external worker. Any
+        # in-flight coroutine is cancelled; durable management state is retained
+        # for restart/recovery instead of tying project lifetime to one process.
+        pending = tuple(self._background_tasks)
+        for task in pending:
+            task.cancel()
+        if pending:
+            await asyncio.gather(*pending, return_exceptions=True)
+        self._background_tasks.clear()
 
 
 async def build_packaged_management_service(*, store, registry, runtime) -> ManagementService:
