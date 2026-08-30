@@ -35,6 +35,12 @@ public final class AndroidCortexSharedPlanContractTest {
                 "Anthropic provider must not carry retired raw intent-plan compatibility code");
         check(factory.contains("ReasoningResult proposeReasoning(ReasoningRequest request, ToolRegistry tools)"),
                 "local cortex fallback must implement the same shared typed interface");
+        check(factory.contains("public boolean isConfigured() { return false; }"),
+                "empty local fallback must not claim that a general reasoning cortex is configured");
+        check(factory.contains("Deterministic brain active; no general local cortex configured"),
+                "user-visible local status must distinguish deterministic brain behavior from a configured reasoning model");
+        check(!factory.contains("Local deterministic reasoning (offline)"),
+                "factory must not describe an empty provider as offline general reasoning");
         check(!Files.exists(providers.resolve("CortexPlanAdapter.java")),
                 "retired cortex compatibility adapter must not ship");
         check(!Files.exists(providers.resolve("ProviderSchema.java")) && !Files.exists(providers.resolve("ProviderPlanFactory.java")),
