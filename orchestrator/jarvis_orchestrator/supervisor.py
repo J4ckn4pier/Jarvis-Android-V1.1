@@ -64,6 +64,42 @@ class WatchdogSupervisor:
         project = await self.store.get_project(owner_id, task.project_id)
         return project is not None and project.state is ProjectState.CANCELLED
 
+    async def _degrade_assignments(self, task: Task) -> None:
+        for worker_id in task.assigned_workers:
+            node = await self.registry.get(worker_id)
+            if node is not None and node.status is not WorkerStatus.OFFLINE:
+                await self.registry.set_status(worker_id, WorkerStatus.DEGRADED)
+
+    async def _reassign_or_escalate_after_failure(
+        self,
+        owner_id: str,
+        task: Task,
+        attempts: int,
+    ) -> SupervisorOutcome:
+        await self._degrade_assignments(task)
+        await self.store.save_task(owner_id, task, event="task.failed.recovering")
+        replacement = await self._available_replacement(task)
+        if replacement is None:
+            blocked = task.transition(TaskState.BLOCKED)
+            await self.store.save_task(owner_id, blocked, event="task.blocked.no_replacement")
+            return SupervisorOutcome(
+                blocked,
+                {},
+                attempts,
+                blocker="no compatible available worker",
+                needs_user_escalation=True,
+            )
+
+        reassigned = replace(
+            task,
+            assigned_workers=(replacement,),
+            state=TaskState.ASSIGNED,
+            updated_at=self.clock(),
+            last_progress_at=self.clock(),
+        )
+        await self.store.save_task(owner_id, reassigned, event="task.reassigned")
+        return await self.run_task(owner_id, reassigned)
+
     async def run_task(self, owner_id: str, task: Task) -> SupervisorOutcome:
         attempts = self._attempt_count(owner_id, task)
         if task.state in (TaskState.COMPLETE, TaskState.CANCELLED):
@@ -76,7 +112,10 @@ class WatchdogSupervisor:
         attempts = self._increment_attempt(owner_id, task)
         running = task.transition(TaskState.RUNNING)
         await self.store.save_task(owner_id, running, event="task.running")
-        result = await self.dispatcher.dispatch(owner_id, running)
+        try:
+            result = await self.dispatcher.dispatch(owner_id, running)
+        except Exception:
+            return await self._reassign_or_escalate_after_failure(owner_id, running, attempts)
         completed = running.transition(TaskState.COMPLETE)
         await self.store.save_task(owner_id, completed, event="task.complete")
         return SupervisorOutcome(completed, result.outputs, attempts)
@@ -110,11 +149,7 @@ class WatchdogSupervisor:
         if self.clock() - last_progress < self.stall_after:
             return SupervisorOutcome(task, {}, attempts)
 
-        for worker_id in task.assigned_workers:
-            node = await self.registry.get(worker_id)
-            if node is not None and node.status is not WorkerStatus.OFFLINE:
-                await self.registry.set_status(worker_id, WorkerStatus.DEGRADED)
-
+        await self._degrade_assignments(task)
         replacement = await self._available_replacement(task)
         if replacement is None:
             blocked = task.transition(TaskState.BLOCKED)
