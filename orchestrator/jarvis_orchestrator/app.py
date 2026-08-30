@@ -108,7 +108,7 @@ async def lifespan(app: FastAPI):
         await app.state.valkey.aclose()
 
 
-app = FastAPI(title="JARVIS Orchestrator", version="0.8.0", lifespan=lifespan)
+app = FastAPI(title="JARVIS Orchestrator", version="0.9.0", lifespan=lifespan)
 
 
 @app.get("/health")
@@ -205,7 +205,7 @@ async def events(ws: WebSocket):
         return
 
     public_session_id = str(ws.query_params.get("session_id", "")).strip()
-    if not public_session_id:
+    if not public_session_id or len(public_session_id) > 128:
         await ws.close(code=4400)
         return
     internal_session_id = _scoped_session(principal, public_session_id)
@@ -240,10 +240,13 @@ async def input_socket(ws: WebSocket):
         while True:
             message = await ws.receive_json()
             text = str(message.get("text", "")).strip()
-            if not text:
-                await ws.send_json({"error": "text is required"})
+            if not text or len(text) > 100_000:
+                await ws.send_json({"error": "text must be between 1 and 100000 characters"})
                 continue
-            public_session_id = str(message.get("session_id", "primary"))
+            public_session_id = str(message.get("session_id", "primary")).strip()
+            if not public_session_id or len(public_session_id) > 128:
+                await ws.send_json({"error": "session_id must be between 1 and 128 characters"})
+                continue
             internal_session_id = _scoped_session(principal, public_session_id)
             result = await app.state.orchestrator.submit(text, internal_session_id)
             result["session_id"] = public_session_id
