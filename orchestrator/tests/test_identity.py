@@ -24,6 +24,14 @@ def test_duplicate_multi_principal_tokens_are_rejected(monkeypatch):
         Authenticator.from_env()
 
 
+def test_multi_principal_tokens_with_edge_whitespace_are_rejected(monkeypatch):
+    monkeypatch.setenv("JARVIS_API_KEYS_JSON", '{"alice":" token-a"}')
+    monkeypatch.delenv("JARVIS_API_TOKEN", raising=False)
+
+    with pytest.raises(ValueError, match="API tokens must not have leading or trailing whitespace"):
+        Authenticator.from_env()
+
+
 def test_legacy_single_token_maps_to_owner_principal(monkeypatch):
     monkeypatch.delenv("JARVIS_API_KEYS_JSON", raising=False)
     monkeypatch.setenv("JARVIS_API_TOKEN", "legacy-secret")
