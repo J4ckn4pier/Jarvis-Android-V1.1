@@ -30,6 +30,7 @@ public final class ToolRegistry {
     public static ToolRegistry standard(ExternalResearchGateway research, ConversationalCallTransport callTransport) {
         ExternalResearchGateway gateway = research == null ? ExternalResearchGateway.unavailable() : research; ToolRegistry r = new ToolRegistry();
         r.register(spec("open_dialer", false, Set.of("phone", "phone app", "dialer", "calls", "call", "telephone"), Set.of(), "Open the phone dialer", ToolExecutionClass.DEVICE_REFLEX), ready("dialer-ready"));
+        r.register(spec("call_contact", true, Set.of("call contact", "phone contact"), Set.of("recipient"), "Place an approved phone call to one exact contact or explicit phone number", ToolExecutionClass.CONSEQUENTIAL), ready("contact-call-ready"));
         r.register(spec("open_app", false, Set.of("launch app", "open application"), Set.of("app"), "Open an installed app by exact visible app name", ToolExecutionClass.DEVICE_REFLEX), ready("app-ready"));
         r.register(spec("web_search", false, Set.of("search web", "web search", "search online", "look up online"), Set.of("query"), "Search the web for a user-provided query", ToolExecutionClass.DEVICE_REFLEX), ready("web-search-ready"));
         r.register(spec("discover_places", false, Set.of("restaurants", "find food", "dinner"), Set.of("category"), "Discover nearby places; cuisine/type is arbitrary user data, not a fixed enum", ToolExecutionClass.AUTONOMOUS_RESEARCH), gateway::discoverPlaces);
