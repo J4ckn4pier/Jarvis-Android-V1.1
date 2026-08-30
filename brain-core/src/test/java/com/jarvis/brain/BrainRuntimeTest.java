@@ -12,6 +12,7 @@ public final class BrainRuntimeTest {
         deviceReflexExecutesThroughSharedRegistry();
         consequentialPlanPausesAndResumesOnlyAfterApproval();
         openEndedRequestUsesReasoningRouterInsteadOfLegacyFailureText();
+        partialExecutionFailureReportsCompletedWork();
         System.out.println("BrainRuntimeTest: " + checks + " assertions passed");
     }
 
@@ -54,6 +55,28 @@ public final class BrainRuntimeTest {
         check(result.text().contains("comparing the constraints"), "reasoning answer used");
         check(!result.text().toLowerCase().contains("reliable interpretation"), "legacy failure language gone");
         check(!result.text().toLowerCase().contains("no framework"), "no framework failure gone");
+    }
+
+    private static void partialExecutionFailureReportsCompletedWork() {
+        ToolRegistry tools = new ToolRegistry();
+        tools.register(new ToolSpec("first_step", false, Set.of(), Set.of(),
+                "Complete first step", ToolExecutionClass.DEVICE_REFLEX),
+                (a,c) -> ToolResult.success("First step completed."));
+        tools.register(new ToolSpec("second_step", false, Set.of(), Set.of(),
+                "Attempt second step", ToolExecutionClass.DEVICE_REFLEX),
+                (a,c) -> ToolResult.failure("Second step failed."));
+        Plan plan = new Plan("two-stage operation", java.util.List.of(
+                new PlanStep("first_step", Map.of(), false),
+                new PlanStep("second_step", Map.of(), false)));
+        BrainRuntime runtime = runtime(tools, req -> new ReasoningResult("planner", "I’ll handle both steps.", plan));
+        runtime.handle("Hey Jarvis");
+        BrainRuntime.Result result = runtime.handle("perform the two-stage operation");
+        check(result.status() == BrainRuntime.Status.FAILED, "later-step failure remains a failure");
+        check(result.outputs().contains("First step completed."), "execution report retains earlier completed work");
+        check(result.text().contains("First step completed."),
+                "user-facing failure must disclose work that already completed before the failure");
+        check(result.text().contains("Second step failed."),
+                "user-facing failure must still disclose the step that failed");
     }
 
     private static BrainRuntime runtime(ToolRegistry tools, ReasoningRouter reasoner) {
