@@ -107,6 +107,8 @@ class ProjectStore(Protocol):
     async def get_project(self, owner_id: str, project_id: str) -> Project | None: ...
     async def save_task(self, owner_id: str, task: Task, event: str = "task.saved") -> None: ...
     async def list_tasks(self, owner_id: str, project_id: str) -> list[Task]: ...
+    async def save_task_output(self, owner_id: str, project_id: str, task_id: str, output: str) -> None: ...
+    async def task_outputs(self, owner_id: str, project_id: str) -> dict[str, str]: ...
     async def events(self, owner_id: str, project_id: str) -> list[ProjectEvent]: ...
 
 
@@ -116,6 +118,7 @@ class InMemoryProjectStore:
     def __init__(self) -> None:
         self._projects: dict[tuple[str, str], Project] = {}
         self._tasks: dict[tuple[str, str, str], Task] = {}
+        self._outputs: dict[tuple[str, str, str], str] = {}
         self._events: dict[tuple[str, str], list[ProjectEvent]] = {}
 
     async def save_project(self, project: Project, event: str = "project.saved") -> None:
@@ -140,6 +143,16 @@ class InMemoryProjectStore:
             if owner == owner_id and project == project_id
         ]
         return sorted(tasks, key=lambda task: task.task_id)
+
+    async def save_task_output(self, owner_id: str, project_id: str, task_id: str, output: str) -> None:
+        self._outputs[(owner_id, project_id, task_id)] = output
+
+    async def task_outputs(self, owner_id: str, project_id: str) -> dict[str, str]:
+        return {
+            task_id: output
+            for (owner, project, task_id), output in self._outputs.items()
+            if owner == owner_id and project == project_id
+        }
 
     async def events(self, owner_id: str, project_id: str) -> list[ProjectEvent]:
         return list(self._events.get((owner_id, project_id), ()))
@@ -169,6 +182,12 @@ class ValkeyProjectStore:
 
     def _task_index(self, owner_id: str, project_id: str) -> str:
         return f"{self._scope(owner_id, project_id)}:tasks"
+
+    def _output_key(self, owner_id: str, project_id: str, task_id: str) -> str:
+        return f"{self._scope(owner_id, project_id)}:output:{_hash(task_id)}"
+
+    def _output_index(self, owner_id: str, project_id: str) -> str:
+        return f"{self._scope(owner_id, project_id)}:outputs"
 
     def _event_stream(self, owner_id: str, project_id: str) -> str:
         return f"{self._scope(owner_id, project_id)}:events"
@@ -207,6 +226,22 @@ class ValkeyProjectStore:
             if task is not None:
                 tasks.append(task)
         return tasks
+
+    async def save_task_output(self, owner_id: str, project_id: str, task_id: str, output: str) -> None:
+        await self.client.set(self._output_key(owner_id, project_id, task_id), output)
+        await self.client.sadd(self._output_index(owner_id, project_id), task_id)
+
+    async def task_outputs(self, owner_id: str, project_id: str) -> dict[str, str]:
+        task_ids = sorted(
+            _decode(value)
+            for value in await self.client.smembers(self._output_index(owner_id, project_id))
+        )
+        outputs: dict[str, str] = {}
+        for task_id in task_ids:
+            raw = await self.client.get(self._output_key(owner_id, project_id, task_id))
+            if raw is not None:
+                outputs[task_id] = _decode(raw)
+        return outputs
 
     async def events(self, owner_id: str, project_id: str) -> list[ProjectEvent]:
         rows = await self.client.xrange(self._event_stream(owner_id, project_id))
