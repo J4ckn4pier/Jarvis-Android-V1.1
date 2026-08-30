@@ -16,3 +16,30 @@ def test_request_id_rejects_edge_whitespace_instead_of_normalizing():
 
 def test_request_id_preserves_exact_valid_value():
     assert app_module._validated_request_id("phone-42") == "phone-42"
+
+
+class RecordingOrchestrator:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str, str | None]] = []
+
+    async def submit(self, text: str, session_id: str, request_id: str | None = None):
+        self.calls.append((text, session_id, request_id))
+        return {"session_id": session_id, "task_id": "task-1", "response": "ok"}
+
+
+@pytest.mark.asyncio
+async def test_http_command_rejects_ambiguous_request_id_before_dispatch(monkeypatch):
+    monkeypatch.delenv("JARVIS_API_TOKEN", raising=False)
+    monkeypatch.delenv("JARVIS_API_KEYS_JSON", raising=False)
+    orchestrator = RecordingOrchestrator()
+    monkeypatch.setattr(app_module.app.state, "orchestrator", orchestrator, raising=False)
+
+    with pytest.raises(HTTPException) as exc:
+        await app_module.command(
+            app_module.Command(text="hello", session_id="primary", request_id=" phone-42 "),
+            authorization=None,
+        )
+
+    assert exc.value.status_code == 422
+    assert exc.value.detail == "request_id must not have leading or trailing whitespace"
+    assert orchestrator.calls == []
