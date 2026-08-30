@@ -33,7 +33,26 @@ if [ "$SETTINGS_OPENED" -ne 1 ]; then
   cat "$OUTPUT/apk-sprint-settings-activity.txt" || true
 fi
 test "$SETTINGS_OPENED" -eq 1
+
+# The visible destination itself must now be the canonical user Settings surface, not the old
+# provider/developer panel. Capture both top and lower settings regions from this compiled APK.
+adb shell uiautomator dump /sdcard/jarvis-apk-sprint-settings.xml >/dev/null
+adb pull /sdcard/jarvis-apk-sprint-settings.xml "$OUTPUT/jarvis-apk-sprint-settings.xml" >/dev/null
+grep -q 'SETTINGS' "$OUTPUT/jarvis-apk-sprint-settings.xml"
+grep -q 'Wake Word' "$OUTPUT/jarvis-apk-sprint-settings.xml"
+grep -q 'Voice Model' "$OUTPUT/jarvis-apk-sprint-settings.xml"
+grep -q 'Language' "$OUTPUT/jarvis-apk-sprint-settings.xml"
+! grep -Eiq 'PREFRONTAL CORTEX|API key|research endpoint|127\.0\.0\.1' "$OUTPUT/jarvis-apk-sprint-settings.xml"
 adb exec-out screencap -p > "$OUTPUT/jarvis-apk-sprint-settings-command.png"
+
+adb shell input swipe 540 1700 540 520 350 || true
+adb shell input swipe 540 1700 540 520 350 || true
+sleep 1
+adb shell uiautomator dump /sdcard/jarvis-apk-sprint-settings-lower.xml >/dev/null
+adb pull /sdcard/jarvis-apk-sprint-settings-lower.xml "$OUTPUT/jarvis-apk-sprint-settings-lower.xml" >/dev/null
+grep -Eq 'AI Providers|Backup &amp; Sync|Profile|Default Apps|Personality|Widgets &amp; Lock Screen' "$OUTPUT/jarvis-apk-sprint-settings-lower.xml"
+! grep -Eiq 'PREFRONTAL CORTEX|API key|research endpoint|127\.0\.0\.1' "$OUTPUT/jarvis-apk-sprint-settings-lower.xml"
+adb exec-out screencap -p > "$OUTPUT/jarvis-apk-sprint-settings-lower.png"
 
 # Shipped UI must not expose developer/demo scenario controls.
 adb shell am force-stop "$PACKAGE" || true
