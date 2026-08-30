@@ -18,7 +18,18 @@ public final class PlanRepairCoordinator {
         if (generator == null) throw new IllegalArgumentException("generator required");
         String prompt = initialPrompt(goal, context);
         for (int attempt = 1; attempt <= maxAttempts; attempt++) {
-            PlanValidation validation = validator.validate(generator.generate(prompt));
+            String generated;
+            try {
+                generated = generator.generate(prompt);
+            } catch (RuntimeException providerFailure) {
+                String detail = providerFailure.getMessage() == null
+                        ? providerFailure.getClass().getSimpleName()
+                        : providerFailure.getMessage();
+                return new PlanRepairResult(PlanRepairResult.Status.NEEDS_CLARIFICATION,
+                        null, attempt, List.of("Plan generation failed: " + detail),
+                        "I couldn't generate a safe plan right now, so I did not prepare any action.");
+            }
+            PlanValidation validation = validator.validate(generated);
             if (validation.valid()) {
                 return new PlanRepairResult(PlanRepairResult.Status.VALID,
                         validation.effectivePlan(), attempt, List.of(), "");
