@@ -32,6 +32,10 @@ public class JarvisAccessibilityService extends AccessibilityService {
         super.onDestroy();
     }
 
+    public static boolean isConnected() {
+        return instance != null;
+    }
+
     public static boolean back() {
         return instance != null && instance.performGlobalAction(GLOBAL_ACTION_BACK);
     }
