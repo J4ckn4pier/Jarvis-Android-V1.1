@@ -292,13 +292,17 @@ async def event_history(
     # with EventBus implementations that predate cursor support when no cursor is used.
     cursor = after_event_id if isinstance(after_event_id, str) else None
     if cursor is None:
-        recovered = await app.state.bus.history(internal_session_id, limit + 1)
-    else:
-        recovered = await app.state.bus.history(
-            internal_session_id,
-            limit + 1,
-            after_event_id=cursor,
-        )
+        events = await app.state.bus.history(internal_session_id, limit)
+        return {
+            "session_id": public_session_id,
+            "events": [_event_payload(event, public_session_id) for event in events],
+        }
+
+    recovered = await app.state.bus.history(
+        internal_session_id,
+        limit + 1,
+        after_event_id=cursor,
+    )
     has_more = len(recovered) > limit
     events = recovered[:limit]
     next_event_id = brain_event_id(events[-1]) if events else cursor
