@@ -3,13 +3,14 @@ package com.jarvis.brain;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-/** The native UI/backend settings surfaces must configure the exact research gateway used by the live Android brain. */
+/** The native UI/backend settings and diagnostics surfaces must describe the exact research gateway used by the live Android brain. */
 public final class AndroidResearchSettingsCompositionContractTest {
     public static void main(String[] args) throws Exception {
         String settings = Files.readString(Path.of("src/main/java/com/jarvis/brain/SettingsStore.java"));
         String runtime = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/AndroidBrainRuntime.java"));
         String adapter = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/AndroidExternalResearchGateway.java"));
         String activity = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/SettingsActivity.java"));
+        String diagnostics = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/DiagnosticsActivity.java"));
 
         check(settings.contains("RESEARCH_ENDPOINT") && settings.contains("research_endpoint"),
                 "shared settings must expose a stable non-secret research endpoint key");
@@ -29,6 +30,15 @@ public final class AndroidResearchSettingsCompositionContractTest {
                 "native Android Settings must expose and persist the research endpoint instead of leaving fresh research unreachable from the phone UI");
         check(activity.contains("Research endpoint") && activity.contains(".local"),
                 "native research endpoint guidance must explain the safe user-owned local option");
+        check(diagnostics.contains("new SettingsStore(new AndroidSharedPreferencesSettingsPersistence(this))")
+                        && diagnostics.contains("settings.get(SettingsStore.RESEARCH_ENDPOINT)"),
+                "Diagnostics must inspect the same persisted research endpoint that the live brain uses");
+        check(diagnostics.contains("EndpointTransportPolicy.allows(researchEndpoint)"),
+                "Diagnostics must evaluate research readiness with the exact shared endpoint safety policy");
+        check(diagnostics.contains("Live research")
+                        && diagnostics.contains("Configured")
+                        && diagnostics.contains("Not configured"),
+                "Diagnostics must truthfully expose whether live research is usable instead of only counting registered tools");
 
         System.out.println("AndroidResearchSettingsCompositionContractTest passed");
     }
