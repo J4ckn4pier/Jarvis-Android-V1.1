@@ -3,11 +3,13 @@ package com.jarvis.brain;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-/** Android production composition must attach a provider-neutral fresh-research boundary without baking in paid/non-commercial hosted APIs. */
+/** Android production composition must attach provider-neutral fresh research and preserve a narrow local-network trust boundary. */
 public final class AndroidExternalResearchGatewayContractTest {
     public static void main(String[] args) throws Exception {
         String runtime = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/AndroidBrainRuntime.java"));
         String adapter = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/AndroidExternalResearchGateway.java"));
+        String httpJson = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/providers/HttpJson.java"));
+        String networkSecurity = Files.readString(Path.of("../android/app/src/main/res/xml/network_security_config.xml"));
         String workflow = Files.readString(Path.of("../.github/workflows/build-apk.yml"));
         Path debugReceiverPath = Path.of("../android/app/src/debug/java/com/jarvis/mobile/brain/AndroidExternalResearchGatewayTestReceiver.java");
         Path smokePath = Path.of("../.github/scripts/external-research-smoke.sh");
@@ -29,6 +31,27 @@ public final class AndroidExternalResearchGatewayContractTest {
                 "fresh read-only research adapter must not silently enable consequential reservation submission");
         check(adapter.contains("setInstanceFollowRedirects(false)"),
                 "research transport must not silently follow redirects away from the user-configured endpoint trust boundary");
+
+        check(EndpointTransportPolicy.allows("https://provider.example/v1"),
+                "normal external providers must remain HTTPS-capable");
+        check(EndpointTransportPolicy.allows("http://127.0.0.1:11434/v1"),
+                "loopback local AI must remain available without paid hosting");
+        check(EndpointTransportPolicy.allows("http://10.0.2.2:11434/v1"),
+                "Android emulator host bridge must remain available for real device proof");
+        check(EndpointTransportPolicy.allows("http://jarvis.local:11434/v1"),
+                "user-owned mDNS local AI endpoints must be usable without requiring public TLS hosting");
+        check(!EndpointTransportPolicy.allows("http://provider.example/v1"),
+                "ordinary internet HTTP must remain fail-closed");
+        check(!EndpointTransportPolicy.allows("http://jarvis.local.evil.example/v1"),
+                "mDNS allowance must not be bypassable with a lookalike internet hostname");
+        check(adapter.contains("EndpointTransportPolicy.allows(endpoint)"),
+                "external research transport must use the shared endpoint trust policy");
+        check(httpJson.contains("EndpointTransportPolicy.allows(endpoint)"),
+                "all cortex provider HTTP transport must use the same endpoint trust policy");
+        check(networkSecurity.contains("<domain includeSubdomains=\"true\">local</domain>"),
+                "Android network security must permit only the mDNS local namespace in addition to existing loopback cleartext hosts");
+        check(networkSecurity.contains("<base-config cleartextTrafficPermitted=\"false\""),
+                "general Android cleartext internet traffic must remain disabled");
 
         check(Files.exists(debugReceiverPath),
                 "Android research transport must have a debug-only receiver for real emulator HTTP/provenance proof");
