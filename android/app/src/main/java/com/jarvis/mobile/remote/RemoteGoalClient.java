@@ -70,6 +70,19 @@ public final class RemoteGoalClient {
                 taskStates.put(key, counts.optInt(key, 0));
             }
         }
+        JSONArray approvalValues = json.optJSONArray("pending_approvals");
+        List<PendingApproval> pendingApprovals = new ArrayList<>();
+        if (approvalValues != null) {
+            for (int i = 0; i < approvalValues.length(); i++) {
+                JSONObject approval = approvalValues.optJSONObject(i);
+                if (approval == null) {
+                    throw new RemoteGoalException(-1, "Remote JARVIS returned an invalid approval response.");
+                }
+                pendingApprovals.add(new PendingApproval(
+                        requiredString(approval, "approval_id"),
+                        requiredString(approval, "task_id")));
+            }
+        }
         return new ProjectStatus(
                 requiredString(json, "project_id"),
                 requiredString(json, "session_id"),
@@ -77,6 +90,7 @@ public final class RemoteGoalClient {
                 requiredString(json, "state"),
                 json.optInt("task_count", 0),
                 Collections.unmodifiableMap(taskStates),
+                List.copyOf(pendingApprovals),
                 requiredString(json, "last_progress_at"));
     }
 
@@ -99,6 +113,7 @@ public final class RemoteGoalClient {
                         requiredString(event, "project_id"),
                         requiredString(event, "kind"),
                         event.isNull("task_id") ? null : event.optString("task_id", null),
+                        event.isNull("approval_id") ? null : event.optString("approval_id", null),
                         requiredString(event, "timestamp")));
             }
         }
@@ -265,9 +280,12 @@ public final class RemoteGoalClient {
     }
 
     public record GoalSubmission(String projectId, String sessionId, String state, String goal) {}
+    public record PendingApproval(String approvalId, String taskId) {}
     public record ProjectStatus(String projectId, String sessionId, String goal, String state,
-                                int taskCount, Map<String, Integer> taskStates, String lastProgressAt) {}
-    public record ProjectEvent(String eventId, String projectId, String kind, String taskId, String timestamp) {}
+                                int taskCount, Map<String, Integer> taskStates,
+                                List<PendingApproval> pendingApprovals, String lastProgressAt) {}
+    public record ProjectEvent(String eventId, String projectId, String kind, String taskId,
+                               String approvalId, String timestamp) {}
     public record EventPage(String projectId, List<ProjectEvent> events, String nextEventId, boolean hasMore) {}
     public record ApprovalDecision(String projectId, String approvalId, boolean approved, String response) {}
     public record Cancellation(String projectId, String state) {}
@@ -276,7 +294,7 @@ public final class RemoteGoalClient {
     public static final class RemoteGoalException extends Exception {
         private final int statusCode;
         public RemoteGoalException(int statusCode, String message) { super(Objects.requireNonNull(message)); this.statusCode = statusCode; }
-        public RemoteGoalException(int statusCode, String message, Throwable cause) { super(Objects.requireNonNull(message), cause); this.statusCode = statusCode; }
+        public RemoteGoalException(int statusCode, String message, Throwable cause) { super(Objects.requireNonNull(message)); this.statusCode = statusCode; }
         public int statusCode() { return statusCode; }
         public boolean retryable() { return statusCode == -1 || statusCode == 503; }
     }

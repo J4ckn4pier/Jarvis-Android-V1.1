@@ -26,6 +26,8 @@ public final class AndroidBrainRuntime {
     private final MemoryConsolidator memoryConsolidator;
     private final Clock clock;
     private final Context app;
+    private volatile boolean remoteApprovalVisible;
+    private volatile boolean remoteProjectVisible;
 
     public AndroidBrainRuntime(Context context) {
         app = context.getApplicationContext();
@@ -85,6 +87,8 @@ public final class AndroidBrainRuntime {
     public RuntimeSurfacePresentation handlePresentation(String utterance) { return handlePresentation(utterance, 1.0); }
 
     public RuntimeSurfacePresentation handlePresentation(String utterance, double speechConfidence) {
+        remoteApprovalVisible = false;
+        remoteProjectVisible = false;
         Log.i(TRACE_TAG, "JARVIS_RUNTIME_INPUT utterance=" + String.valueOf(utterance));
         memoryConsolidator.ingestUserTurn(utterance, speechConfidence, clock.instant());
         RuntimeSurfacePresentation presentation = conversation.handle(utterance, speechConfidence);
@@ -96,7 +100,11 @@ public final class AndroidBrainRuntime {
     public Optional<RuntimeSurfacePresentation> resumeRemoteGoalPresentation() {
         RemoteGoalStateStore state = new RemoteGoalStateStore(app);
         RemoteGoalStateStore.State saved = state.load();
-        if (!saved.hasProject()) return Optional.empty();
+        if (!saved.hasProject()) {
+            remoteApprovalVisible = false;
+            remoteProjectVisible = false;
+            return Optional.empty();
+        }
         RemoteGoalStateStore.Connection connection = state.loadConnection();
         if (connection == null) return Optional.empty();
         try {
@@ -108,6 +116,8 @@ public final class AndroidBrainRuntime {
             RemoteGoalClient.ProjectStatus project = snapshot.project();
 
             if (snapshot.completed()) {
+                remoteApprovalVisible = false;
+                remoteProjectVisible = false;
                 return Optional.of(new RuntimeSurfacePresentation(
                         AssistantSurfaceState.ACTION_DONE,
                         snapshot.result().result(),
@@ -116,6 +126,8 @@ public final class AndroidBrainRuntime {
                         RuntimeSurfaceAction.NONE));
             }
             if ("failed".equalsIgnoreCase(project.state()) || "cancelled".equalsIgnoreCase(project.state())) {
+                remoteApprovalVisible = false;
+                remoteProjectVisible = false;
                 return Optional.of(new RuntimeSurfacePresentation(
                         AssistantSurfaceState.ERROR,
                         "That background task stopped before it completed.",
@@ -123,6 +135,28 @@ public final class AndroidBrainRuntime {
                         RuntimeSurfaceAction.NONE,
                         RuntimeSurfaceAction.NONE));
             }
+
+            remoteProjectVisible = true;
+            if (project.pendingApprovals().size() == 1) {
+                remoteApprovalVisible = true;
+                return Optional.of(new RuntimeSurfacePresentation(
+                        AssistantSurfaceState.AWAITING_APPROVAL,
+                        "That background task needs your approval, sir.",
+                        "Review the requested step before choosing APPROVE or CANCEL.",
+                        RuntimeSurfaceAction.APPROVE,
+                        RuntimeSurfaceAction.CANCEL));
+            }
+            if (project.pendingApprovals().size() > 1) {
+                remoteApprovalVisible = false;
+                return Optional.of(new RuntimeSurfacePresentation(
+                        AssistantSurfaceState.ERROR,
+                        "That background task has more than one approval waiting, so I won't guess which one you mean.",
+                        "Open it again after the approvals have been narrowed to one.",
+                        RuntimeSurfaceAction.NONE,
+                        RuntimeSurfaceAction.CANCEL));
+            }
+
+            remoteApprovalVisible = false;
             if (snapshot.events().events().isEmpty()) return Optional.empty();
 
             int completed = project.taskStates().getOrDefault("completed", 0);
@@ -134,15 +168,101 @@ public final class AndroidBrainRuntime {
                     "I'm still working on that, sir.",
                     detail,
                     RuntimeSurfaceAction.NONE,
-                    RuntimeSurfaceAction.NONE));
+                    RuntimeSurfaceAction.CANCEL));
         } catch (RemoteGoalClient.RemoteGoalException | IllegalArgumentException unavailable) {
             return Optional.empty();
         }
     }
 
-    public RuntimeSurfacePresentation approvePresentation() { return conversation.approvePending(); }
+    public RuntimeSurfacePresentation approveRemoteGoalPresentation() {
+        return respondToRemoteApproval(true);
+    }
+
+    public RuntimeSurfacePresentation declineRemoteGoalPresentation() {
+        return respondToRemoteApproval(false);
+    }
+
+    public RuntimeSurfacePresentation cancelRemoteGoalPresentation() {
+        RemoteGoalCoordinator coordinator = remoteCoordinator();
+        if (coordinator == null) return remoteUnavailablePresentation();
+        try {
+            if (!coordinator.cancelActiveProject()) {
+                return new RuntimeSurfacePresentation(
+                        AssistantSurfaceState.ERROR,
+                        "I couldn't confirm that the background task was cancelled.",
+                        "I kept its local project state so I can check it again.",
+                        RuntimeSurfaceAction.NONE,
+                        RuntimeSurfaceAction.CANCEL);
+            }
+            remoteApprovalVisible = false;
+            remoteProjectVisible = false;
+            return new RuntimeSurfacePresentation(
+                    AssistantSurfaceState.ACTION_DONE,
+                    "Cancelled, sir.",
+                    "The remote task confirmed cancellation.",
+                    RuntimeSurfaceAction.NONE,
+                    RuntimeSurfaceAction.NONE);
+        } catch (RemoteGoalClient.RemoteGoalException unavailable) {
+            return remoteUnavailablePresentation();
+        }
+    }
+
+    private RuntimeSurfacePresentation respondToRemoteApproval(boolean approved) {
+        RemoteGoalCoordinator coordinator = remoteCoordinator();
+        if (coordinator == null) return remoteUnavailablePresentation();
+        try {
+            Optional<RemoteGoalClient.ApprovalDecision> decision = coordinator.respondToActiveApproval(approved, null);
+            if (decision.isEmpty()) {
+                return new RuntimeSurfacePresentation(
+                        AssistantSurfaceState.ERROR,
+                        "I couldn't identify exactly one approval to act on, so I didn't change anything.",
+                        "",
+                        RuntimeSurfaceAction.NONE,
+                        RuntimeSurfaceAction.CANCEL);
+            }
+            remoteApprovalVisible = false;
+            remoteProjectVisible = true;
+            return new RuntimeSurfacePresentation(
+                    AssistantSurfaceState.RESPONDING,
+                    approved ? "Approved. I'll continue that background task, sir." : "Understood. I declined that step.",
+                    "",
+                    RuntimeSurfaceAction.NONE,
+                    RuntimeSurfaceAction.CANCEL);
+        } catch (RemoteGoalClient.RemoteGoalException unavailable) {
+            return remoteUnavailablePresentation();
+        }
+    }
+
+    private RemoteGoalCoordinator remoteCoordinator() {
+        RemoteGoalStateStore state = new RemoteGoalStateStore(app);
+        RemoteGoalStateStore.State saved = state.load();
+        RemoteGoalStateStore.Connection connection = state.loadConnection();
+        if (!saved.hasProject() || connection == null) return null;
+        try {
+            return new RemoteGoalCoordinator(new RemoteGoalClient(connection.baseUrl(), connection.token()), state);
+        } catch (IllegalArgumentException invalidConnection) {
+            return null;
+        }
+    }
+
+    private RuntimeSurfacePresentation remoteUnavailablePresentation() {
+        return new RuntimeSurfacePresentation(
+                AssistantSurfaceState.ERROR,
+                "I couldn't reach that background task right now.",
+                "I kept its project state so I can try again when the connection is available.",
+                RuntimeSurfaceAction.NONE,
+                RuntimeSurfaceAction.CANCEL);
+    }
+
+    public RuntimeSurfacePresentation approvePresentation() {
+        return remoteApprovalVisible ? approveRemoteGoalPresentation() : conversation.approvePending();
+    }
     public RuntimeSurfacePresentation retryPresentation() { return conversation.retryPending(); }
-    public RuntimeSurfacePresentation cancelPresentation() { return conversation.cancelPending(); }
+    public RuntimeSurfacePresentation cancelPresentation() {
+        if (remoteApprovalVisible) return declineRemoteGoalPresentation();
+        if (remoteProjectVisible) return cancelRemoteGoalPresentation();
+        return conversation.cancelPending();
+    }
 
     public void recordActedOnEpisode(RecommendationEpisode episode, Instant actedAt) { followups.recordActedOn(episode, actedAt); }
     public Optional<ProactiveIntervention> onOutcomeFollowupSignal(OutcomeFollowupSignal signal) { return followups.onSignal(signal); }

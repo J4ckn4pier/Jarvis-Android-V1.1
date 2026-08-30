@@ -2,7 +2,7 @@ package com.jarvis.mobile.remote;
 
 import java.util.Optional;
 
-/** Reconnect/progress/result/cancel coordinator for one durable provider-neutral remote project. */
+/** Reconnect/progress/result/cancel/approval coordinator for one durable provider-neutral remote project. */
 public final class RemoteGoalCoordinator {
     private final RemoteGoalClient client;
     private final RemoteGoalStateStore state;
@@ -22,6 +22,17 @@ public final class RemoteGoalCoordinator {
         RemoteGoalClient.GoalResult result = null;
         if ("completed".equalsIgnoreCase(project.state())) result = client.getResult(projectId);
         return Optional.of(new Snapshot(project, page, result));
+    }
+
+    public Optional<RemoteGoalClient.ApprovalDecision> respondToActiveApproval(
+            boolean approved, String response) throws RemoteGoalClient.RemoteGoalException {
+        RemoteGoalStateStore.State saved = state.load();
+        if (!saved.hasProject()) return Optional.empty();
+        String projectId = saved.projectId();
+        RemoteGoalClient.ProjectStatus project = client.getProject(projectId);
+        if (project.pendingApprovals().size() != 1) return Optional.empty();
+        RemoteGoalClient.PendingApproval pending = project.pendingApprovals().get(0);
+        return Optional.of(client.respondToApproval(projectId, pending.approvalId(), approved, response));
     }
 
     public boolean cancelActiveProject() throws RemoteGoalClient.RemoteGoalException {

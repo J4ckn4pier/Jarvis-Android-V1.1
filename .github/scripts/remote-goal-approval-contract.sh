@@ -24,13 +24,16 @@ require 'respondToActiveApproval' "$COORDINATOR"
 require 'pendingApprovals().size() != 1' "$COORDINATOR"
 require 'respondToApproval' "$COORDINATOR"
 
-# Normal JARVIS UI presents and acts on remote approval without exposing backend/provider plumbing.
+# Normal JARVIS UI presents and acts on remote approval/cancel without exposing backend/provider plumbing.
 require 'AWAITING_APPROVAL' "$RUNTIME"
 require 'RemoteGoalCoordinator' "$RUNTIME"
 require 'approveRemoteGoalPresentation' "$RUNTIME"
 require 'declineRemoteGoalPresentation' "$RUNTIME"
-require 'approveRemoteGoalPresentation' "$MAIN"
-require 'declineRemoteGoalPresentation' "$MAIN"
+require 'cancelRemoteGoalPresentation' "$RUNTIME"
+require 'RuntimeSurfaceAction.APPROVE' "$RUNTIME"
+require 'RuntimeSurfaceAction.CANCEL' "$RUNTIME"
+require 'runtime::approvePresentation' "$MAIN"
+require 'runtime::cancelPresentation' "$MAIN"
 
 if grep -Eiq 'taskId\(\).*respondToApproval|respondToApproval\([^,]+,[[:space:]]*[^,]*task' "$COORDINATOR" "$RUNTIME"; then
   echo 'Android must not substitute task_id for approval_id' >&2
