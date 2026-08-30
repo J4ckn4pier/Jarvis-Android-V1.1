@@ -52,9 +52,24 @@ jobs:
           assert isinstance(response, str) and response.strip(), result
           assert response != 'JARVIS received: Reply with exactly: JARVIS LOCAL AI ONLINE', result
           PY
-      - name: Show live local AI logs on failure
+      - name: Collect live local AI diagnostics
         if: failure()
-        run: docker compose --profile agent-zero --profile local-ai logs --no-color
+        run: |
+          docker compose --profile agent-zero --profile local-ai logs --no-color > /tmp/live-local-ai.log 2>&1 || true
+          docker compose --profile agent-zero --profile local-ai ps > /tmp/live-local-ai-ps.txt 2>&1 || true
+          cat /tmp/live-local-ai.log
+      - name: Upload live local AI diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-local-ai-diagnostics
+          path: |
+            /tmp/live-local-ai.log
+            /tmp/live-local-ai-ps.txt
+            /tmp/live-command.json
+            /tmp/live-ready.json
+          if-no-files-found: warn
+          retention-days: 7
       - name: Stop live local AI stack
         if: always()
         run: docker compose --profile agent-zero --profile local-ai down -v
