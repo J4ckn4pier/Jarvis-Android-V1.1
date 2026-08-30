@@ -122,11 +122,11 @@ async def test_event_history_is_principal_scoped_and_returns_public_session_id(m
     )
 
     scoped = scope_session_id("alice", "primary")
-    assert bus.history_calls == [(scoped, 26, None)]
+    assert bus.history_calls == [(scoped, 25, None)]
     assert result["session_id"] == "primary"
     assert result["events"][0]["session_id"] == "primary"
-    assert result["next_event_id"] == "t1:1"
-    assert result["has_more"] is False
+    assert "next_event_id" not in result
+    assert "has_more" not in result
 
 
 @pytest.mark.asyncio
@@ -145,6 +145,7 @@ async def test_event_history_forwards_last_seen_event_cursor(monkeypatch):
 
     assert bus.history_calls[0][1:] == (11, "previous-task:4")
     assert result["next_event_id"] == "t1:1"
+    assert result["has_more"] is False
 
 
 class LifecycleRuntime:
