@@ -11,6 +11,7 @@ public final class RuntimeApprovalConversationTest {
         spokenYesApprovesExactlyOnce();
         spokenDeferralCancelsWithoutExecution();
         lowConfidenceApprovalStaysPending();
+        retryableConsequentialFailureExplainsFreshApproval();
         System.out.println("RuntimeApprovalConversationTest: " + checks + " assertions passed");
     }
 
@@ -46,6 +47,33 @@ public final class RuntimeApprovalConversationTest {
         RuntimeSurfacePresentation done = bridge.handle("confirm", 0.95);
         check(done.state() == AssistantSurfaceState.ACTION_DONE, "clear explicit confirmation resumes pending plan");
         check(sends[0] == 1, "clear explicit confirmation executes exactly once");
+    }
+
+    private static void retryableConsequentialFailureExplainsFreshApproval() {
+        int[] sends = {0};
+        ToolRegistry tools = ToolRegistry.standard(ExternalResearchGateway.unavailable());
+        tools.register(new ToolSpec("send_message", true, Set.of("text", "message"), Set.of("recipient", "message"),
+                "send", ToolExecutionClass.CONSEQUENTIAL), (args, ctx) -> {
+                    sends[0]++;
+                    return sends[0] == 1 ? ToolResult.retryableFailure("Messaging service is temporarily busy") : ToolResult.success("Message sent");
+                });
+        BrainEngine engine = BrainEngine.createDefault(Clock.fixed(Instant.parse("2026-08-28T23:00:00Z"), ZoneOffset.UTC));
+        AssistantCore assistant = new AssistantCore(engine, request -> new ReasoningResult("local", "reasoned", null), tools);
+        RuntimeApprovalConversation bridge = new RuntimeApprovalConversation(new BrainRuntime(assistant, tools));
+
+        RuntimeSurfacePresentation pending = bridge.handle("Jarvis, text Mom I am on my way");
+        check(pending.state() == AssistantSurfaceState.AWAITING_APPROVAL, "message waits for initial approval");
+        RuntimeSurfacePresentation retryApproval = bridge.handle("yes");
+        check(retryApproval.state() == AssistantSurfaceState.AWAITING_APPROVAL,
+                "retryable consequential failure must return to approval instead of silently retrying");
+        check(sends[0] == 1, "first approval authorizes exactly one send attempt");
+        String retryText = retryApproval.text().toLowerCase();
+        check(retryText.contains("temporarily busy"), "retry approval prompt should explain the failed attempt");
+        check(retryText.contains("approval") || retryText.contains("approve") || retryText.contains("retry"),
+                "retry approval prompt should explain that another attempt needs a fresh decision");
+        RuntimeSurfacePresentation done = bridge.handle("yes");
+        check(done.state() == AssistantSurfaceState.ACTION_DONE, "fresh second approval may retry and finish");
+        check(sends[0] == 2, "second approval authorizes exactly one retry attempt");
     }
 
     private static RuntimeApprovalConversation bridge(int[] sends) {
