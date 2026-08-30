@@ -15,7 +15,18 @@ public final class AndroidUiInteractionToolBindingContractTest {
         check(registry.contains("spec(\"ui_type\", true"), "screen typing must be consequential and approval-gated");
         check(registry.contains("Set.of(\"target\")"), "clicking must require an explicit visible target");
         check(registry.contains("Set.of(\"text\")"), "typing must require explicit text");
-        check(registry.contains("ToolExecutionClass.CONSEQUENTIAL"), "UI mutation tools must use the consequential execution class");
+
+        ToolRegistry runtimeRegistry = ToolRegistry.standard();
+        ToolSpec clickSpec = runtimeRegistry.specs().stream().filter(spec -> "ui_click".equals(spec.name())).findFirst()
+                .orElseThrow(() -> new AssertionError("ui_click runtime tool missing"));
+        ToolSpec typeSpec = runtimeRegistry.specs().stream().filter(spec -> "ui_type".equals(spec.name())).findFirst()
+                .orElseThrow(() -> new AssertionError("ui_type runtime tool missing"));
+        check(clickSpec.consequential() && clickSpec.executionClass() == ToolExecutionClass.CONSEQUENTIAL,
+                "ui_click must reach runtime as a consequential approval-gated tool");
+        check(typeSpec.consequential() && typeSpec.executionClass() == ToolExecutionClass.CONSEQUENTIAL,
+                "ui_type must reach runtime as a consequential approval-gated tool");
+        check(clickSpec.requiredArguments().contains("target"), "ui_click runtime contract must require target");
+        check(typeSpec.requiredArguments().contains("text"), "ui_type runtime contract must require text");
 
         check(service.contains("UniqueNamedTargetResolver.resolve"), "click targeting must use the shared exact fail-closed resolver");
         check(service.contains("clickableTargets.size()"), "click targeting must de-duplicate clickable ancestors before resolving");
