@@ -6,6 +6,7 @@ import asyncio
 from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from typing import Callable, Mapping
+from uuid import uuid4
 
 from .goal_planner import GoalCompiler, GoalRequest, PlanningHook
 from .management import ProjectState, Task, TaskState
@@ -184,6 +185,12 @@ class ManagementService:
             if outcome.task.assigned_workers != previous_workers and outcome.task.state is TaskState.COMPLETE:
                 reassigned.append(task.task_id)
             if outcome.needs_user_escalation:
+                await self.request_approval(
+                    owner_id,
+                    project_id,
+                    f"approval-{uuid4().hex}",
+                    task_id=task.task_id,
+                )
                 escalated.append(task.task_id)
         return {"reassigned": reassigned, "escalated": escalated}
 
