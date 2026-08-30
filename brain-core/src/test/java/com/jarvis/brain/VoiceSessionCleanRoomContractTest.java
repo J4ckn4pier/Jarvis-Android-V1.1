@@ -11,9 +11,9 @@ public final class VoiceSessionCleanRoomContractTest {
         check(!source.contains("R.drawable.jarvis_normal"), "overlay must not use donor normal reactor");
         check(!source.contains("R.drawable.jarvis_active"), "overlay must not use donor active reactor");
         check(source.contains("RuntimeSurfacePresentation"), "overlay must remain bound to shared runtime presentation");
-        check(source.contains("brain.approvePresentation()"), "overlay must preserve approval action");
-        check(source.contains("brain.retryPresentation()"), "overlay must preserve recovery action");
-        check(source.contains("brain.cancelPresentation()"), "overlay must preserve cancellation action");
+        check(source.contains("brain.approvePresentation") || source.contains("brain::approvePresentation"), "overlay must preserve approval action");
+        check(source.contains("brain.retryPresentation") || source.contains("brain::retryPresentation"), "overlay must preserve recovery action");
+        check(source.contains("brain.cancelPresentation") || source.contains("brain::cancelPresentation"), "overlay must preserve cancellation action");
         System.out.println("VoiceSessionCleanRoomContractTest passed");
     }
 
