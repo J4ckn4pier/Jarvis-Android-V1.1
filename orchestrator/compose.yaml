@@ -6,6 +6,15 @@ services:
     volumes:
       - valkey-data:/data
 
+  agent-zero:
+    image: agent0ai/agent-zero:latest
+    restart: unless-stopped
+    profiles: ["agent-zero"]
+    ports:
+      - "5080:80"
+    volumes:
+      - agent-zero-data:/a0/usr
+
   orchestrator:
     build: .
     restart: unless-stopped
@@ -13,7 +22,7 @@ services:
       VALKEY_URL: redis://valkey:6379/0
       JARVIS_API_TOKEN: ${JARVIS_API_TOKEN:-}
       JARVIS_RUNTIME: ${JARVIS_RUNTIME:-echo}
-      AGENT_ZERO_URL: ${AGENT_ZERO_URL:-}
+      AGENT_ZERO_URL: ${AGENT_ZERO_URL:-http://agent-zero}
       AGENT_ZERO_API_KEY: ${AGENT_ZERO_API_KEY:-}
       AGENT_ZERO_LIFETIME_HOURS: ${AGENT_ZERO_LIFETIME_HOURS:-24}
       AGENT_ZERO_PROJECT: ${AGENT_ZERO_PROJECT:-}
@@ -24,3 +33,4 @@ services:
 
 volumes:
   valkey-data:
+  agent-zero-data:
