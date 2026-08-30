@@ -9,6 +9,7 @@ public final class AndroidCortexSharedPlanContractTest {
         Path providers = Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/providers");
         Path legacyCore = Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/core");
         Path diagnosticsSmokePath = Path.of("../.github/scripts/diagnostics-smoke.sh");
+        Path localCortexSmokePath = Path.of("../.github/scripts/local-cortex-smoke.sh");
         String runtime = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/AndroidBrainRuntime.java"));
         String diagnostics = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/DiagnosticsActivity.java"));
         String provider = Files.readString(providers.resolve("CortexProvider.java"));
@@ -18,6 +19,7 @@ public final class AndroidCortexSharedPlanContractTest {
         String workflow = Files.readString(Path.of("../.github/workflows/build-apk.yml"));
         String mainManifest = Files.readString(Path.of("../android/app/src/main/AndroidManifest.xml"));
         String debugManifest = Files.readString(Path.of("../android/app/src/debug/AndroidManifest.xml"));
+        String networkSecurity = Files.readString(Path.of("../android/app/src/main/res/xml/network_security_config.xml"));
 
         check(runtime.contains("reasonWithConfiguredCortex(app, request, tools)"),
                 "Android runtime must give provider reasoning the shared request and tool registry");
@@ -59,6 +61,19 @@ public final class AndroidCortexSharedPlanContractTest {
                 "diagnostics Activity must remain private in production and be exported only by the debug test manifest");
         check(workflow.contains("diagnostics-smoke.sh"),
                 "full APK workflow must launch the user-visible diagnostics screen on Android 16");
+
+        check(Files.exists(localCortexSmokePath),
+                "free/self-hosted cortex support must have a real Android emulator transport smoke, not source-only coverage");
+        String localCortexSmoke = Files.readString(localCortexSmokePath);
+        check(localCortexSmoke.contains("DEBUG_TEST_LOCAL_CORTEX")
+                        && localCortexSmoke.contains("10.0.2.2")
+                        && localCortexSmoke.contains("CI_CONTEXT_MARKER_314159")
+                        && localCortexSmoke.contains("JARVIS_LOCAL_CORTEX_TEST_PASS"),
+                "local cortex smoke must prove Android-to-host transport, shared context propagation, and provider parsing");
+        check(networkSecurity.contains("10.0.2.2") && networkSecurity.contains("cleartextTrafficPermitted=\"true\""),
+                "debug emulator host transport must be explicitly allowed without enabling arbitrary cleartext traffic");
+        check(workflow.contains("local-cortex-smoke.sh"),
+                "full APK workflow must exercise the free/self-hosted cortex transport on Android 16");
 
         System.out.println("AndroidCortexSharedPlanContractTest passed");
     }
