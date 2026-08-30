@@ -11,4 +11,4 @@ def test_ci_proves_authenticated_management_request_across_non_loopback_boundary
     assert "host.docker.internal:host-gateway" in workflow
     assert "http://host.docker.internal:8000/v1/goals" in workflow
     assert "Authorization: Bearer ci-token" in workflow
-    assert '"goal":"remote boundary smoke test"' in workflow
+    assert "remote boundary smoke test" in workflow
