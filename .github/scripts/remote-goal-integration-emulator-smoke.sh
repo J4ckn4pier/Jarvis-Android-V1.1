@@ -66,6 +66,8 @@ class H(BaseHTTPRequestHandler):
             self.send_json({'project_id':'project-cancel','session_id':'primary','goal':'cancel proof','state':'active','task_count':2,'task_states':{'completed':1},'pending_approvals':[],'last_progress_at':'2026-08-30T21:00:00Z','provider_details_exposed':False}); return
         if self.path == '/v1/projects/project-expired':
             self.send_json({'project_id':'project-expired','session_id':'primary','goal':'expired cursor proof','state':'active','task_count':3,'task_states':{'completed':2},'pending_approvals':[],'last_progress_at':'2026-08-30T21:05:00Z','provider_details_exposed':False}); return
+        if self.path == '/v1/projects/project-failed':
+            self.send_json({'project_id':'project-failed','session_id':'primary','goal':'failed task proof','state':'failed','task_count':2,'task_states':{'completed':1,'failed':1},'pending_approvals':[],'last_progress_at':'2026-08-30T21:06:00Z','provider_details_exposed':False}); return
         self.send_json({'error':'not found'},404)
 ThreadingHTTPServer(('127.0.0.1',port),H).serve_forever()
 PY
@@ -171,7 +173,28 @@ sleep 2
 MISSING_AFTER=$(grep -c 'GET /v1/projects/project-missing auth=Bearer emulator-secret' "$LOG" || true)
 test "$MISSING_AFTER" -eq $((MISSING_BEFORE + 1))
 
-# 5) Reconnect discovers the exact opaque approval ID and exposes normal JARVIS decision controls.
+# 5) A server-reported terminal failure is shown once, then its phone-side active bookmark is consumed.
+seed project-failed
+FAILED_BEFORE=$(grep -c 'GET /v1/projects/project-failed auth=Bearer emulator-secret' "$LOG" || true)
+adb shell am force-stop "$PACKAGE" || true
+adb shell am start -W -n "$ACTIVITY" > "$OUTPUT/remote-integration-failed-first-launch.txt"
+FAILED_UI=0
+for i in $(seq 1 20); do
+  dump_ui remote-integration-failed
+  if grep -q 'stopped before it completed' "$OUTPUT/remote-integration-failed.xml"; then FAILED_UI=1; break; fi
+  sleep 1
+done
+test "$FAILED_UI" -eq 1
+adb exec-out screencap -p > "$OUTPUT/jarvis-remote-failed-consumed.png"
+FAILED_ONCE=$(grep -c 'GET /v1/projects/project-failed auth=Bearer emulator-secret' "$LOG" || true)
+test "$FAILED_ONCE" -eq $((FAILED_BEFORE + 1))
+adb shell am force-stop "$PACKAGE" || true
+adb shell am start -W -n "$ACTIVITY" > "$OUTPUT/remote-integration-failed-second-launch.txt"
+sleep 2
+FAILED_AFTER=$(grep -c 'GET /v1/projects/project-failed auth=Bearer emulator-secret' "$LOG" || true)
+test "$FAILED_AFTER" -eq "$FAILED_ONCE"
+
+# 6) Reconnect discovers the exact opaque approval ID and exposes normal JARVIS decision controls.
 seed project-approval
 adb shell am force-stop "$PACKAGE" || true
 adb shell am start -W -n "$ACTIVITY" > "$OUTPUT/remote-integration-approval-launch.txt"
@@ -200,7 +223,7 @@ done
 test "$RESULT_UI" -eq 1
 adb exec-out screencap -p > "$OUTPUT/jarvis-remote-integration-result.png"
 
-# 6) Separate active project exposes CANCEL; cancellation must be backend-confirmed before local state clears.
+# 7) Separate active project exposes CANCEL; cancellation must be backend-confirmed before local state clears.
 seed project-cancel
 adb shell am force-stop "$PACKAGE" || true
 adb shell am start -W -n "$ACTIVITY" > "$OUTPUT/remote-integration-cancel-launch.txt"
@@ -220,6 +243,6 @@ grep -q 'Cancelled, sir' "$OUTPUT/remote-integration-cancelled.xml"
 
 # UI proof must remain provider/worker-neutral.
 ! grep -Eiq 'agent[ _-]?zero|valkey|ollama|anthropic|openai|claude|chatgpt|management plane' \
-  "$OUTPUT/remote-integration-expired.xml" "$OUTPUT/remote-integration-approval.xml" "$OUTPUT/remote-integration-result.xml" "$OUTPUT/remote-integration-cancel.xml" "$OUTPUT/remote-integration-cancelled.xml"
+  "$OUTPUT/remote-integration-expired.xml" "$OUTPUT/remote-integration-failed.xml" "$OUTPUT/remote-integration-approval.xml" "$OUTPUT/remote-integration-result.xml" "$OUTPUT/remote-integration-cancel.xml" "$OUTPUT/remote-integration-cancelled.xml"
 
 echo 'Remote goal full integration emulator proof GREEN'
