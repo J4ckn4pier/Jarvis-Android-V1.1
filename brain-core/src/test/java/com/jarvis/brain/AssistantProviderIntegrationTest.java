@@ -14,6 +14,7 @@ public final class AssistantProviderIntegrationTest {
         policyRouterCanDriveAssistantWithoutPaidFallback();
         unexpectedReasoningFailureBecomesTruthfulConversation();
         nullReasoningResultBecomesTruthfulConversation();
+        emptyReasoningResultBecomesTruthfulConversation();
         System.out.println("AssistantProviderIntegrationTest: " + checks + " assertions passed");
     }
 
@@ -101,10 +102,18 @@ public final class AssistantProviderIntegrationTest {
         assertTruthfulReasoningFailure(response, "null provider result");
     }
 
+    private static void emptyReasoningResultBecomesTruthfulConversation() {
+        ReasoningRouter malformed = request -> new ReasoningResult("custom", null, null);
+        AssistantCore core = new AssistantCore(fixedBrain(), malformed, ToolRegistry.standard());
+        core.handle("Hey Jarvis");
+        BrainResponse response = core.handle("reason through a complicated problem with me");
+        assertTruthfulReasoningFailure(response, "empty provider result");
+    }
+
     private static void assertTruthfulReasoningFailure(BrainResponse response, String source) {
         check(response.kind() == BrainResponse.Kind.CONVERSATION,
                 source + " should become a non-action conversational failure response");
-        check(response.text().toLowerCase().contains("couldn't") && response.text().toLowerCase().contains("safely"),
+        check(response.text() != null && response.text().toLowerCase().contains("couldn't") && response.text().toLowerCase().contains("safely"),
                 source + " must be reported truthfully without inventing an answer");
     }
 
