@@ -51,6 +51,7 @@ import com.jarvis.mobile.widgets.QuickActivationWidget;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Optional;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.function.Supplier;
@@ -137,6 +138,25 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         setIntent(intent);
         String action = intent == null ? null : intent.getAction();
         if (Intent.ACTION_ASSIST.equals(action) || Intent.ACTION_VOICE_COMMAND.equals(action)) listen();
+    }
+
+    @Override protected void onStart() {
+        super.onStart();
+        submitRemoteResumeCheck();
+    }
+
+    private void submitRemoteResumeCheck() {
+        if (runtime == null || destroyed || commandTestMode) return;
+        Intent intent = getIntent();
+        if (intent != null && intent.getBooleanExtra("jarvis_self_test", false)) return;
+        brainExecutor.execute(() -> {
+            try {
+                Optional<RuntimeSurfacePresentation> resumed = runtime.resumeRemoteGoalPresentation();
+                resumed.ifPresent(presentation -> ui.post(() -> deliverPresentation(presentation)));
+            } catch (RuntimeException failure) {
+                Log.w(RUNTIME_FAILURE_TAG, "Remote goal resume check unavailable", failure);
+            }
+        });
     }
 
     private void buildCurrentShell() {
