@@ -40,45 +40,49 @@ jobs:
         run: docker compose config --quiet
       - name: Boot standalone prototype
         run: docker compose up -d --build valkey orchestrator
-      - name: Exercise command and durable event history
+      - name: Wait for healthy orchestrator
         run: |
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8000/health -o /tmp/health.json; then
+              cat /tmp/health.json
+              python3 - <<'PY'
+          import json
+          with open('/tmp/health.json') as handle:
+              health = json.load(handle)
+          assert health['status'] == 'ok', health
+          assert health['state_backend'] == 'valkey', health
+          PY
+              exit 0
+            fi
+            sleep 1
+          done
+          echo 'orchestrator did not become healthy'
+          exit 1
+      - name: Send prototype command
+        run: |
+          curl -fsS -X POST http://127.0.0.1:8000/v1/command \
+            -H 'Content-Type: application/json' \
+            -d '{"text":"prototype smoke test","session_id":"ci-prototype"}' \
+            -o /tmp/command.json
+          cat /tmp/command.json
           python3 - <<'PY'
           import json
-          import time
-          import urllib.error
-          import urllib.request
-
-          base = "http://127.0.0.1:8000"
-          health = None
-          for _ in range(60):
-              try:
-                  with urllib.request.urlopen(base + "/health", timeout=2) as response:
-                      health = json.load(response)
-                  break
-              except (urllib.error.URLError, TimeoutError):
-                  time.sleep(1)
-          if health is None:
-              raise SystemExit("orchestrator did not become healthy")
-          assert health["status"] == "ok", health
-          assert health["state_backend"] == "valkey", health
-
-          request = urllib.request.Request(
-              base + "/v1/command",
-              data=json.dumps({"text": "prototype smoke test", "session_id": "ci-prototype"}).encode(),
-              headers={"Content-Type": "application/json"},
-              method="POST",
-          )
-          with urllib.request.urlopen(request, timeout=10) as response:
-              command = json.load(response)
-          assert command["session_id"] == "ci-prototype", command
-          assert command["response"] == "JARVIS received: prototype smoke test", command
-
-          with urllib.request.urlopen(base + "/v1/sessions/ci-prototype/events", timeout=10) as response:
-              history = json.load(response)
-          assert history["session_id"] == "ci-prototype", history
-          assert [event["sequence"] for event in history["events"]] == [1, 2, 3, 4], history
-          assert history["events"][-1]["agent_ops_status"] == "Complete", history
-          print(json.dumps({"health": health, "command": command, "events": len(history["events"])}, indent=2))
+          with open('/tmp/command.json') as handle:
+              command = json.load(handle)
+          assert command['session_id'] == 'ci-prototype', command
+          assert command['response'] == 'JARVIS received: prototype smoke test', command
+          PY
+      - name: Recover durable prototype history
+        run: |
+          curl -fsS http://127.0.0.1:8000/v1/sessions/ci-prototype/events -o /tmp/history.json
+          cat /tmp/history.json
+          python3 - <<'PY'
+          import json
+          with open('/tmp/history.json') as handle:
+              history = json.load(handle)
+          assert history['session_id'] == 'ci-prototype', history
+          assert [event['sequence'] for event in history['events']] == [1, 2, 3, 4], history
+          assert history['events'][-1]['agent_ops_status'] == 'Complete', history
           PY
       - name: Show prototype logs on failure
         if: failure()
