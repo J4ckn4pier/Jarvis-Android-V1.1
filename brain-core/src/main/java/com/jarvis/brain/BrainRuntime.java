@@ -79,28 +79,33 @@ public final class BrainRuntime {
         case FAILED->{String detail=failureText(report,"That action failed safely.");clearPending();yield new Result(Status.FAILED,detail,report.blockedTool(),report.outputs());}
     };}
     private static String approvalText(ExecutionReport report,String assistantText){
-        if(assistantText!=null&&!assistantText.isBlank())return assistantText;
-        String lastOutput=lastNonBlank(report.outputs(),"");
-        if(!lastOutput.isBlank()&&report.failureDetail()!=null&&!report.failureDetail().isBlank()){
-            return lastOutput+" I need fresh approval before I retry that action.";
+        String failureDetail=report.failureDetail()==null?"":report.failureDetail().trim();
+        String completed=completedOutputs(report.outputs(),failureDetail);
+        if(!failureDetail.isBlank()){
+            String context=completed.isBlank()?failureDetail:"Completed before the retry pause: "+completed+" The remaining action reported: "+failureDetail;
+            return context+" I need fresh approval before I retry that action.";
         }
-        return "I need your approval before I do that.";
+        if(!completed.isBlank())return "Completed before approval: "+completed+" I need your approval before I continue.";
+        String intro=assistantText==null?"":assistantText.trim();
+        return intro.isBlank()?"I need your approval before I do that.":intro+" I need your approval before I do that.";
+    }
+    private static String completedOutputs(List<String> outputs,String excludedFinalDetail){
+        if(outputs==null||outputs.isEmpty())return "";
+        List<String> completed=new ArrayList<>();
+        for(int i=0;i<outputs.size();i++){
+            String output=outputs.get(i);
+            if(output==null||output.isBlank())continue;
+            String normalized=output.trim();
+            boolean excluded=i==outputs.size()-1&&!excludedFinalDetail.isBlank()&&normalized.equals(excludedFinalDetail);
+            if(!excluded)completed.add(normalized);
+        }
+        return String.join(" ",completed);
     }
     private static String failureText(ExecutionReport report,String fallback){
         String detail=report.failureDetail()==null||report.failureDetail().isBlank()?fallback:report.failureDetail().trim();
-        List<String> completed=new ArrayList<>();
-        List<String> outputs=report.outputs();
-        if(outputs!=null){
-            for(int i=0;i<outputs.size();i++){
-                String output=outputs.get(i);
-                if(output==null||output.isBlank())continue;
-                String normalized=output.trim();
-                boolean finalFailure=i==outputs.size()-1&&normalized.equals(detail);
-                if(!finalFailure)completed.add(normalized);
-            }
-        }
-        if(completed.isEmpty())return detail;
-        return "Completed before the failure: "+String.join(" ",completed)+" The remaining task failed: "+detail;
+        String completed=completedOutputs(report.outputs(),detail);
+        if(completed.isBlank())return detail;
+        return "Completed before the failure: "+completed+" The remaining task failed: "+detail;
     }
     private void recordCompletedPlan(Plan plan,Instant recommendedAt){
         if(plan==null||plan.steps()==null||plan.steps().isEmpty())return;
