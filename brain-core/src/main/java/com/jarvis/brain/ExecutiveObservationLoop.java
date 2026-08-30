@@ -59,6 +59,10 @@ public final class ExecutiveObservationLoop {
             if (result.stateDelta() != null && !result.stateDelta().isEmpty()) latestStateDelta = result.stateDelta();
 
             if (result.plan() == null) {
+                if (lastText.isBlank()) {
+                    return outcome(ExecutiveOutcome.Status.FAILED,
+                            "I couldn't complete the reasoning step safely.", null, iteration, context, latestStateDelta);
+                }
                 return outcome(ExecutiveOutcome.Status.ANSWERED, lastText, null, iteration, context, latestStateDelta);
             }
 
