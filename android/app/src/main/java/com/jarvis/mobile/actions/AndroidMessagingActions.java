@@ -8,8 +8,10 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.provider.ContactsContract;
 
-import java.util.LinkedHashSet;
-import java.util.Set;
+import com.jarvis.brain.UniqueNamedTargetResolver;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /** Typed SMS compose capability. Sending remains approval-gated by the shared tool policy. */
 public final class AndroidMessagingActions {
@@ -59,20 +61,17 @@ public final class AndroidMessagingActions {
                 ContactsContract.CommonDataKinds.Phone.NUMBER,
                 ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME
         };
-        Set<String> exactMatches = new LinkedHashSet<>();
+        List<UniqueNamedTargetResolver.Candidate> candidates = new ArrayList<>();
         try (Cursor cursor = context.getContentResolver().query(filter, projection, null, null, null)) {
             if (cursor == null) return null;
             int numberIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER);
             int nameIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME);
             while (cursor.moveToNext()) {
                 String number = numberIndex < 0 ? null : cursor.getString(numberIndex);
-                if (number == null || number.isBlank()) continue;
                 String displayName = nameIndex < 0 ? null : cursor.getString(nameIndex);
-                if (displayName != null && displayName.equalsIgnoreCase(name)) {
-                    exactMatches.add(number.trim());
-                }
+                candidates.add(new UniqueNamedTargetResolver.Candidate(displayName, number));
             }
-            return exactMatches.size() == 1 ? exactMatches.iterator().next() : null;
+            return UniqueNamedTargetResolver.resolve(name, candidates).orElse(null);
         }
     }
 
