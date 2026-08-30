@@ -141,6 +141,31 @@ async def test_agent_zero_readiness_uses_supported_health_endpoint():
 
 
 @pytest.mark.asyncio
+async def test_agent_zero_readiness_uses_short_timeout_instead_of_inference_timeout():
+    requests = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={"status": "ok"})
+
+    client = httpx.AsyncClient(
+        transport=httpx.MockTransport(handler),
+        base_url="http://agent-zero:50001",
+        timeout=300.0,
+    )
+    runtime = AgentZeroRuntime(
+        base_url="http://agent-zero:50001",
+        api_key="secret",
+        context_store=InMemoryAgentContextStore(),
+        client=client,
+    )
+
+    assert await runtime.check_ready() is True
+    assert requests[0].extensions["timeout"]["read"] == 5.0
+    await client.aclose()
+
+
+@pytest.mark.asyncio
 async def test_agent_zero_reset_keeps_mapping_and_calls_supported_endpoint():
     requests = []
 
