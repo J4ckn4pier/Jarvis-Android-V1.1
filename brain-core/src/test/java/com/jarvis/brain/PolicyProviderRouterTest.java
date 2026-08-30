@@ -12,6 +12,7 @@ public final class PolicyProviderRouterTest {
         availabilityProbeFailureFallsThroughToNextProvider();
         identityProbeFailureFallsThroughToNextProvider();
         emptyProviderResultFallsThroughToNextProvider();
+        emptyPlanFallsThroughToNextProvider();
         planOnlyProviderResultIsUsable();
         System.out.println("PolicyProviderRouterTest: " + checks + " assertions passed");
     }
@@ -106,6 +107,23 @@ public final class PolicyProviderRouterTest {
         check(empty.calls == 1, "empty provider should be attempted once");
         check(fallback.calls == 1, "fallback should serve after unusable empty response");
         check(router.failureCount("empty") == 1, "unusable empty response should count toward circuit breaking");
+    }
+
+    private static void emptyPlanFallsThroughToNextProvider() {
+        StubProvider emptyPlanner = new StubProvider("empty-planner",
+                new ReasoningResult("empty-planner", "done", new Plan("claim work", List.of())), false);
+        StubProvider fallback = new StubProvider("fallback", new ReasoningResult("fallback", "usable answer", null), false);
+        PolicyProviderRouter router = new PolicyProviderRouter(List.of(
+                new ProviderRoute(emptyPlanner, ProviderTier.FREE_LOCAL, 1),
+                new ProviderRoute(fallback, ProviderTier.FREE_LOCAL, 2)
+        ), false, 2);
+        ReasoningResult out = router.reason(new ReasoningRequest("do the work", "", List.of()));
+        check("fallback".equals(out.providerId()),
+                "a provider response whose action plan contains zero steps must not block a healthy fallback provider");
+        check(emptyPlanner.calls == 1 && fallback.calls == 1,
+                "router should attempt the malformed planner once, then use the next permitted provider");
+        check(router.failureCount("empty-planner") == 1,
+                "structurally empty provider plan should count toward provider circuit breaking");
     }
 
     private static void planOnlyProviderResultIsUsable() {
