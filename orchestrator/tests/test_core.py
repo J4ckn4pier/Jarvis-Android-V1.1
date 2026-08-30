@@ -1,6 +1,14 @@
 import asyncio
 
-from jarvis_orchestrator.core import EchoRuntime, InMemoryEventBus, Orchestrator
+import pytest
+
+from jarvis_orchestrator.core import (
+    EchoRuntime,
+    IdempotencyConflict,
+    InMemoryEventBus,
+    InMemoryIdempotencyStore,
+    Orchestrator,
+)
 
 
 async def test_submit_broadcasts_ordered_state_and_returns_result():
@@ -73,3 +81,53 @@ async def test_history_is_session_scoped_and_limit_applies():
     assert all(event.session_id == "phone" for event in phone)
     assert len(desktop) == 4
     assert all(event.session_id == "desktop" for event in desktop)
+
+
+async def test_retry_with_same_request_id_executes_runtime_once():
+    class Runtime:
+        def __init__(self):
+            self.calls = 0
+
+        async def execute(self, text, session_id):
+            self.calls += 1
+            return f"answer:{text}"
+
+    runtime = Runtime()
+    orchestrator = Orchestrator(
+        InMemoryEventBus(),
+        runtime,
+        idempotency=InMemoryIdempotencyStore(),
+    )
+
+    first = await orchestrator.submit("turn on lights", "phone", request_id="mobile-123")
+    retry = await orchestrator.submit("turn on lights", "phone", request_id="mobile-123")
+
+    assert runtime.calls == 1
+    assert retry == first
+    assert first["request_id"] == "mobile-123"
+
+
+async def test_request_id_reuse_with_different_command_is_rejected():
+    orchestrator = Orchestrator(
+        InMemoryEventBus(),
+        EchoRuntime(),
+        idempotency=InMemoryIdempotencyStore(),
+    )
+    await orchestrator.submit("first action", "phone", request_id="same-id")
+
+    with pytest.raises(IdempotencyConflict):
+        await orchestrator.submit("different action", "phone", request_id="same-id")
+
+
+async def test_same_request_id_is_independent_between_sessions():
+    orchestrator = Orchestrator(
+        InMemoryEventBus(),
+        EchoRuntime(),
+        idempotency=InMemoryIdempotencyStore(),
+    )
+
+    phone = await orchestrator.submit("phone command", "phone", request_id="req-1")
+    desktop = await orchestrator.submit("desktop command", "desktop", request_id="req-1")
+
+    assert phone["task_id"] != desktop["task_id"]
+    assert phone["response"] != desktop["response"]
