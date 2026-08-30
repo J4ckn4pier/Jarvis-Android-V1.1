@@ -25,6 +25,8 @@ class Authenticator:
             parsed = json.loads(raw_multi)
             if not isinstance(parsed, dict):
                 raise ValueError("JARVIS_API_KEYS_JSON must be a JSON object")
+            if not parsed:
+                raise ValueError("JARVIS_API_KEYS_JSON must define at least one principal")
             credentials: dict[str, str] = {}
             seen_tokens: set[str] = set()
             for principal_id, token in parsed.items():
