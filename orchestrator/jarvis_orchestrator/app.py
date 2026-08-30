@@ -253,6 +253,7 @@ async def health():
         "state_backend": "valkey" if app.state.valkey else "memory",
         "runtime": os.getenv("JARVIS_RUNTIME", "echo"),
         "session_locking": "valkey" if app.state.valkey else "memory",
+        "checks_dependencies": False,
     }
 
 
@@ -280,6 +281,7 @@ async def ready():
         "runtime": os.getenv("JARVIS_RUNTIME", "echo"),
         "session_locking": "valkey" if using_valkey else "memory",
         "auth_mode": _auth_mode(),
+        "checks_dependencies": True,
     }
 
 
