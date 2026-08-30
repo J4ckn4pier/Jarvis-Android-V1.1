@@ -29,3 +29,9 @@ def test_bootstrap_creates_required_secrets_once(tmp_path: Path):
 def test_compose_passes_generated_persistent_identity_to_agent_zero():
     compose = Path("compose.yaml").read_text()
     assert "A0_PERSISTENT_RUNTIME_ID: ${AGENT_ZERO_RUNTIME_ID:-}" in compose
+
+
+def test_generated_env_file_is_ignored_by_orchestrator_workstream():
+    ignore = Path(".gitignore")
+    assert ignore.exists(), "orchestrator must protect generated .env secrets"
+    assert ".env" in {line.strip() for line in ignore.read_text().splitlines()}
