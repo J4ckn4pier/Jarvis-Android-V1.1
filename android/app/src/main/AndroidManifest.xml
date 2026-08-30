@@ -40,7 +40,8 @@
 
         <activity android:name=".CommandsActivity" android:exported="false" android:theme="@style/JarvisPanelTheme" />
         <activity android:name=".NotesActivity" android:exported="false" android:theme="@style/JarvisPanelTheme" />
-        <activity android:name=".SettingsActivity" android:exported="false" android:theme="@style/JarvisPanelTheme" />
+        <activity android:name=".SettingsActivity" android:exported="false" android:theme="@style/AppTheme" />
+        <activity android:name=".DeveloperSettingsActivity" android:exported="false" android:theme="@style/AppTheme" />
         <activity android:name=".DiagnosticsActivity" android:exported="false" android:theme="@style/JarvisPanelTheme" />
 
         <service android:name=".assistant.JarvisVoiceInteractionService" android:exported="true" android:permission="android.permission.BIND_VOICE_INTERACTION">
