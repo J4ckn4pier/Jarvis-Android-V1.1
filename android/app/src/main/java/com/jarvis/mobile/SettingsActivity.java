@@ -22,6 +22,7 @@ import com.jarvis.mobile.brain.providers.CortexProviderFactory;
 
 /** Canonical user-facing JARVIS Settings. Raw endpoint/provider fields live in DeveloperSettingsActivity. */
 public class SettingsActivity extends Activity {
+    private static final String ACTION_TTS_SETTINGS = "com.android.settings.TTS_SETTINGS";
     private SharedPreferences preferences;
 
     @Override protected void onCreate(Bundle state) {
@@ -43,7 +44,7 @@ public class SettingsActivity extends Activity {
         body.addView(section("VOICE & INVOCATION"));
         body.addView(toggleRow("Voice", "Speak responses aloud", "voice_enabled", true));
         body.addView(toggleRow("Wake Word", "Listen for “Jarvis” or “Hey Jarvis”", "wake_enabled", true));
-        body.addView(row("Voice Model", "Android system voice", () -> launch(Settings.ACTION_TTS_SETTINGS)));
+        body.addView(row("Voice Model", "Android system voice", () -> launch(ACTION_TTS_SETTINGS)));
         body.addView(row("Language", getResources().getConfiguration().getLocales().get(0).getDisplayLanguage(), () -> launch(Settings.ACTION_LOCALE_SETTINGS)));
 
         body.addView(section("JARVIS & APPS"));
