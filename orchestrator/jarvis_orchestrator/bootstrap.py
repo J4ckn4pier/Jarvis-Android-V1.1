@@ -5,7 +5,14 @@ import hashlib
 import secrets
 from pathlib import Path
 
-_REQUIRED_KEYS = ("JARVIS_API_TOKEN", "AGENT_ZERO_RUNTIME_ID", "AGENT_ZERO_API_KEY")
+_REQUIRED_KEYS = (
+    "JARVIS_API_TOKEN",
+    "JARVIS_RUNTIME",
+    "AGENT_ZERO_RUNTIME_ID",
+    "AGENT_ZERO_API_KEY",
+    "AGENT_ZERO_URL",
+    "AGENT_ZERO_LIFETIME_HOURS",
+)
 
 
 def compute_agent_zero_api_key(runtime_id: str, username: str = "", password: str = "") -> str:
@@ -28,12 +35,15 @@ def _read_env(path: Path) -> dict[str, str]:
 
 
 def ensure_env(path: Path = Path(".env")) -> dict[str, str]:
-    """Create only missing prototype secrets; never rotate existing credentials."""
+    """Create only missing prototype settings/secrets; never rotate existing values."""
     existing = _read_env(path)
     generated: dict[str, str] = {}
 
     if not existing.get("JARVIS_API_TOKEN"):
         generated["JARVIS_API_TOKEN"] = secrets.token_urlsafe(32)
+
+    if not existing.get("JARVIS_RUNTIME"):
+        generated["JARVIS_RUNTIME"] = "agent-zero"
 
     runtime_id = existing.get("AGENT_ZERO_RUNTIME_ID") or secrets.token_hex(16)
     if not existing.get("AGENT_ZERO_RUNTIME_ID"):
@@ -41,6 +51,12 @@ def ensure_env(path: Path = Path(".env")) -> dict[str, str]:
 
     if not existing.get("AGENT_ZERO_API_KEY"):
         generated["AGENT_ZERO_API_KEY"] = compute_agent_zero_api_key(runtime_id)
+
+    if not existing.get("AGENT_ZERO_URL"):
+        generated["AGENT_ZERO_URL"] = "http://agent-zero"
+
+    if not existing.get("AGENT_ZERO_LIFETIME_HOURS"):
+        generated["AGENT_ZERO_LIFETIME_HOURS"] = "24"
 
     if generated:
         previous = path.read_text() if path.exists() else ""
