@@ -47,7 +47,9 @@ class Authenticator:
                 credentials[principal_id] = token
             return cls(credentials)
 
-        legacy_token = os.getenv("JARVIS_API_TOKEN", "").strip()
+        legacy_token = os.getenv("JARVIS_API_TOKEN", "")
+        if legacy_token and legacy_token != legacy_token.strip():
+            raise ValueError("JARVIS_API_TOKEN must not have leading or trailing whitespace")
         return cls({"owner": legacy_token} if legacy_token else {})
 
     def authenticate(self, token: str | None) -> Principal | None:
