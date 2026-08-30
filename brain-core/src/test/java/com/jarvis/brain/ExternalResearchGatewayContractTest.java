@@ -10,6 +10,7 @@ public final class ExternalResearchGatewayContractTest {
         standardRegistryFailsClosedWhenExternalResearchIsNotAttached();
         revisedPlaceGoalCancelsPriorRequestBeforeRestart();
         researchEvidenceCarriesFreshnessAndSourceProvenance();
+        researchEvidenceRejectsImpossibleFutureObservationTime();
         System.out.println("ExternalResearchGatewayContractTest: " + checks + " assertions passed");
     }
 
@@ -93,6 +94,17 @@ public final class ExternalResearchGatewayContractTest {
         check(encoded.contains("source=maps-provider"), "research evidence must identify its source");
         check(encoded.contains("observed_at=2026-08-28T16:00:00Z"), "research evidence must identify observation time for freshness reasoning");
         check(encoded.contains("confidence=0.93"), "research evidence must preserve confidence rather than flattening into unqualified text");
+    }
+
+    private static void researchEvidenceRejectsImpossibleFutureObservationTime() {
+        boolean rejected = false;
+        try {
+            new ResearchEvidence("Castle Cafe", "maps-provider", "2999-01-01T00:00:00Z", 0.93);
+        } catch (IllegalArgumentException expected) {
+            rejected = true;
+        }
+        check(rejected,
+                "fresh research evidence must reject impossible future observation timestamps instead of letting a provider spoof freshness");
     }
 
     private static void check(boolean condition, String message) {
