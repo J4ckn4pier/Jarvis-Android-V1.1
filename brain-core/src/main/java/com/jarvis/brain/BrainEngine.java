@@ -113,7 +113,7 @@ public final class BrainEngine {
     }
 
     private BrainResponse handleCommonAssistantTools(String input, String lower, boolean acceptedWithoutWake, String context) {
-        if (lower.contains("weather")) {
+        if (lower.contains("weather") && !isExplicitWebSearch(lower)) {
             String location = extractWeatherLocation(input);
             if (!location.isBlank()) lastWeatherLocation = location;
             if (location.isBlank()) location = lastWeatherLocation;
@@ -136,6 +136,11 @@ public final class BrainEngine {
         Matcher text = Pattern.compile("(?i)^(?:text|message)\\s+([^,]+?)\\s+(.+)$").matcher(input);
         if (text.matches()) return action("Send message", "send_message", Map.of("recipient", text.group(1).trim(), "message", text.group(2).trim()), true, acceptedWithoutWake, context);
         return null;
+    }
+
+    private static boolean isExplicitWebSearch(String lower) {
+        return lower.contains("search the web for ") || lower.contains("search web for ")
+                || lower.contains("search online for ") || lower.contains("look up online ");
     }
 
     private static String extractWeatherLocation(String input) {
