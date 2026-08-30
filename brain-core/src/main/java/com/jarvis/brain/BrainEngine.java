@@ -66,6 +66,12 @@ public final class BrainEngine {
                     null, true, acceptedWithoutWake, context);
         }
 
+        Matcher contactCall = Pattern.compile("(?i)^call\\s+(.+)$").matcher(input);
+        if (contactCall.matches()) {
+            return action("Call contact", "call_contact", Map.of("recipient", contactCall.group(1).trim()), true,
+                    acceptedWithoutWake, context);
+        }
+
         if (isDinnerDiscovery(lower, context.toLowerCase(Locale.ROOT))) {
             Map<String, String> discovery = Map.of("category", "restaurant", "meal", "dinner", "time", "tonight", "preference_context", context);
             Plan plan = new Plan("Find a good place for dinner tonight", List.of(new PlanStep("discover_places", discovery, false), new PlanStep("rank_options", Map.of("use_personal_context", "true"), false), new PlanStep("present_options", Map.of("count", "3"), false)));
