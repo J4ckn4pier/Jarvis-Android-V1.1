@@ -12,6 +12,11 @@ services:
     environment:
       VALKEY_URL: redis://valkey:6379/0
       JARVIS_API_TOKEN: ${JARVIS_API_TOKEN:-}
+      JARVIS_RUNTIME: ${JARVIS_RUNTIME:-echo}
+      AGENT_ZERO_URL: ${AGENT_ZERO_URL:-}
+      AGENT_ZERO_API_KEY: ${AGENT_ZERO_API_KEY:-}
+      AGENT_ZERO_LIFETIME_HOURS: ${AGENT_ZERO_LIFETIME_HOURS:-24}
+      AGENT_ZERO_PROJECT: ${AGENT_ZERO_PROJECT:-}
     ports:
       - "8000:8000"
     depends_on:
