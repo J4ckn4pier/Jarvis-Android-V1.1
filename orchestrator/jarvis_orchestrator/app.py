@@ -88,6 +88,15 @@ def _bearer_token(authorization: str | None) -> str | None:
     return authorization.removeprefix("Bearer ") if authorization else None
 
 
+def _websocket_token(ws: WebSocket) -> str | None:
+    """Prefer an Authorization header so credentials do not need to live in URLs."""
+    headers = getattr(ws, "headers", None)
+    authorization = headers.get("authorization") if headers is not None else None
+    if authorization:
+        return _bearer_token(str(authorization))
+    return ws.query_params.get("token")
+
+
 def _principal_for_token(token: str | None) -> Principal | None:
     if not os.getenv("JARVIS_API_KEYS_JSON") and not os.getenv("JARVIS_API_TOKEN"):
         if _auth_required():
@@ -342,7 +351,7 @@ async def terminate_session(
 
 @app.websocket("/v1/events")
 async def events(ws: WebSocket):
-    principal = _principal_for_token(ws.query_params.get("token"))
+    principal = _principal_for_token(_websocket_token(ws))
     if principal is None:
         await ws.close(code=4401)
         return
@@ -365,7 +374,7 @@ async def events(ws: WebSocket):
 
 @app.websocket("/v1/input")
 async def input_socket(ws: WebSocket):
-    principal = _principal_for_token(ws.query_params.get("token"))
+    principal = _principal_for_token(_websocket_token(ws))
     if principal is None:
         await ws.close(code=4401)
         return
