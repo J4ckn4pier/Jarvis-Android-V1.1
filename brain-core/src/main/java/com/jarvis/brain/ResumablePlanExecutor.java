@@ -23,8 +23,7 @@ public final class ResumablePlanExecutor {
             boolean consequential = step.consequential() || tool.spec().consequential();
             // Approval tokens are one-shot: one consequential external attempt per token.
             if (consequential && !approvals.consume(tool.name())) {
-                return new ExecutionReport(ExecutionReport.Status.APPROVAL_REQUIRED, cursor.outputs(), tool.name(),
-                        "Fresh approval required before consequential execution attempt");
+                return new ExecutionReport(ExecutionReport.Status.APPROVAL_REQUIRED, cursor.outputs(), tool.name(), "");
             }
 
             ToolResult result;
