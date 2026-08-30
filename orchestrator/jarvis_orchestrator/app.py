@@ -298,6 +298,10 @@ async def event_history(
             "events": [_event_payload(event, public_session_id) for event in events],
         }
 
+    contains_event = getattr(app.state.bus, "contains_event", None)
+    if callable(contains_event) and not await contains_event(internal_session_id, cursor):
+        raise HTTPException(status_code=410, detail="Recovery cursor is no longer available")
+
     recovered = await app.state.bus.history(
         internal_session_id,
         limit + 1,
