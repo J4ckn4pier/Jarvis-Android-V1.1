@@ -196,6 +196,15 @@ dump_ui_retry /sdcard/jarvis-notes-ui.xml "$OUTPUT/jarvis-notes-ui.xml"
 grep -q 'ADD NOTE' "$OUTPUT/jarvis-notes-ui.xml"
 adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-notes.png"
 
+# Prove live-research configuration is actually reachable from the installed Android Settings UI.
+adb shell am start -W -n "$PACKAGE/.SettingsActivity" | tee "$OUTPUT/emulator-settings-launch.txt"
+grep -q 'Status: ok' "$OUTPUT/emulator-settings-launch.txt"
+dump_ui_retry /sdcard/jarvis-settings-ui.xml "$OUTPUT/jarvis-settings-ui.xml"
+grep -q 'LIVE RESEARCH' "$OUTPUT/jarvis-settings-ui.xml"
+grep -q 'Research endpoint' "$OUTPUT/jarvis-settings-ui.xml"
+grep -q 'SAVE RESEARCH ENDPOINT' "$OUTPUT/jarvis-settings-ui.xml"
+adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-settings.png"
+
 # Prove Android owns the assistant selection and has bound JARVIS's VoiceInteractionService.
 adb shell input keyevent KEYCODE_HOME
 adb logcat -c
