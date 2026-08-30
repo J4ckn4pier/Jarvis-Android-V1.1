@@ -7,6 +7,7 @@ import java.nio.file.Path;
 public final class BrainExitGateCompositionContractTest {
     public static void main(String[] args) throws Exception {
         String gate = Files.readString(Path.of("src/test/java/com/jarvis/brain/BrainExitGateAcceptanceTest.java"));
+        require(gate, "DeterministicPlanValidationContractTest.class", "built-in deterministic action plans must keep the same validation boundary as provider plans");
         require(gate, "TranslationGatewayContractTest.class", "provider-neutral translation truthfulness must be part of the composed brain gate");
         require(gate, "OrchestrationGatewayContractTest.class", "ranking/presentation/outcome truthfulness must be part of the composed brain gate");
         require(gate, "ConversationalCallOrchestratorTest.class", "provider-neutral conversational-call orchestration must be part of the composed brain gate");
