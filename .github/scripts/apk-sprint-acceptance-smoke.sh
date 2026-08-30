@@ -124,3 +124,29 @@ if [ "$APP_OPENED" -ne 1 ]; then
   cat "$OUTPUT/apk-sprint-open-app-activity.txt" || true
 fi
 test "$APP_OPENED" -eq 1
+
+# The ordinary phrase "phone app" must use Android's typed ACTION_DIAL adapter, not guess a
+# launcher label named Phone. On the Android 16 image this should visibly hand off to a dialer.
+adb shell am force-stop "$PACKAGE" || true
+adb logcat -c
+start_test_command 'phone app' | tee "$OUTPUT/apk-sprint-dialer-launch.txt"
+grep -q 'Status: ok' "$OUTPUT/apk-sprint-dialer-launch.txt"
+DIALER_OPENED=0
+for attempt in $(seq 1 20); do
+  adb logcat -d > "$OUTPUT/apk-sprint-dialer-logcat.txt" || true
+  adb shell dumpsys activity activities > "$OUTPUT/apk-sprint-dialer-activity.txt" || true
+  if grep -Eq 'JARVIS_RUNTIME_INPUT utterance=phone app$' "$OUTPUT/apk-sprint-dialer-logcat.txt" \
+      && grep -q 'JARVIS_COMMAND_RESULT Dialer opened.' "$OUTPUT/apk-sprint-dialer-logcat.txt" \
+      && grep -Eq 'topResumedActivity=' "$OUTPUT/apk-sprint-dialer-activity.txt" \
+      && ! grep -Eq 'topResumedActivity=.*com\.jarvis\.mobile/' "$OUTPUT/apk-sprint-dialer-activity.txt"; then
+    DIALER_OPENED=1
+    break
+  fi
+  sleep 1
+done
+if [ "$DIALER_OPENED" -ne 1 ]; then
+  grep -E 'JARVIS_RUNTIME_INPUT|JARVIS_RUNTIME_OUTPUT|JARVIS_COMMAND_RESULT' "$OUTPUT/apk-sprint-dialer-logcat.txt" || true
+  grep -E 'topResumedActivity=' "$OUTPUT/apk-sprint-dialer-activity.txt" || true
+fi
+test "$DIALER_OPENED" -eq 1
+adb exec-out screencap -p > "$OUTPUT/jarvis-apk-sprint-dialer.png"
