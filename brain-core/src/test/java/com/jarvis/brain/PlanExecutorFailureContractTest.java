@@ -12,6 +12,7 @@ public final class PlanExecutorFailureContractTest {
         approvedExceptionFailsClosedAndConsumesApproval();
         approvedNullResultFailsClosedAndConsumesApproval();
         retryableConsequentialFailureRequiresFreshApprovalBeforeRetry();
+        successfulStatusWithoutOutputFailsClosed();
         System.out.println("PlanExecutorFailureContractTest: " + checks + " assertions passed");
     }
 
@@ -91,6 +92,23 @@ public final class PlanExecutorFailureContractTest {
         check(afterFreshApproval.status() == ExecutionReport.Status.COMPLETED,
                 "fresh approval should permit a new consequential attempt");
         check(calls[0] == 2, "fresh approval should authorize exactly the next attempt");
+    }
+
+    private static void successfulStatusWithoutOutputFailsClosed() {
+        ToolRegistry registry = new ToolRegistry();
+        registry.register(new ToolSpec("lookup", false, Set.of(), Set.of(), "lookup"),
+                (arguments, context) -> ToolResult.success(null));
+        PlanExecutor executor = new PlanExecutor(registry, new ApprovalGate());
+        ExecutionReport report;
+        try {
+            report = executor.execute(new Plan("lookup", List.of(new PlanStep("lookup"))), new ExecutionContext());
+        } catch (RuntimeException escaped) {
+            throw new AssertionError("success-with-null-output must not crash execution bookkeeping", escaped);
+        }
+        check(report.status() == ExecutionReport.Status.FAILED,
+                "a tool cannot claim successful execution without returning a usable outcome");
+        check(report.failureDetail().toLowerCase().contains("output"),
+                "missing success output should be reported as an invalid tool outcome");
     }
 
     private static void check(boolean condition, String message) {
