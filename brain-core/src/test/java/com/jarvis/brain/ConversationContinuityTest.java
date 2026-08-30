@@ -14,6 +14,7 @@ public final class ConversationContinuityTest {
         providerSeesItsOwnPriorAnswerOnFollowup();
         conversationHistoryKeepsRolesAndRemainsBounded();
         cancelledClarificationRemainsVisibleToLaterReasoning();
+        multiStepClarificationPromptsRemainVisibleToLaterReasoning();
         System.out.println("ConversationContinuityTest: " + checks + " assertions passed");
     }
 
@@ -76,6 +77,37 @@ public final class ConversationContinuityTest {
                 "later reasoning must know the user cancelled the prior task");
         check(requests.get(1).context().contains("JARVIS: Cancelled."),
                 "later reasoning must know JARVIS acknowledged cancellation");
+    }
+
+    private static void multiStepClarificationPromptsRemainVisibleToLaterReasoning() {
+        Clock clock = Clock.fixed(Instant.parse("2026-08-27T23:30:00Z"), ZoneOffset.UTC);
+        List<ReasoningRequest> requests = new ArrayList<>();
+        ReasoningRouter router = request -> {
+            requests.add(request);
+            if (requests.size() == 1) {
+                return new ReasoningResult("local", "I'll prepare it.",
+                        new Plan("Message", List.of(new PlanStep("send_message", Map.of(), false))));
+            }
+            return new ReasoningResult("local", "Fresh task acknowledged.", null);
+        };
+        AssistantCore core = new AssistantCore(BrainEngine.createDefault(clock), router, ToolRegistry.standard());
+        core.handle("Hey Jarvis");
+        BrainResponse first = core.handle("prepare a message for someone");
+        check(first.kind() == BrainResponse.Kind.CONVERSATION && core.hasPendingPlan(),
+                "message with two missing fields should begin clarification");
+        BrainResponse second = core.handle("Mom");
+        check(second.kind() == BrainResponse.Kind.CONVERSATION && core.hasPendingPlan(),
+                "first clarification answer should leave the other required field pending");
+        String secondPrompt = second.text();
+        BrainResponse completed = core.handle("I'm running late");
+        check(completed.kind() == BrainResponse.Kind.ACTION_PLAN && !core.hasPendingPlan(),
+                "second clarification answer should complete the safe plan");
+        core.handle("compare two unrelated ideas for me");
+        check(requests.size() == 2, "fresh reasoning should run after the clarified plan is complete");
+        check(requests.get(1).context().contains("JARVIS: " + secondPrompt),
+                "later reasoning must retain JARVIS's intermediate clarification prompt, not only user answers");
+        check(requests.get(1).context().contains("USER: Mom") && requests.get(1).context().contains("USER: I'm running late"),
+                "later reasoning must retain both clarification answers with user provenance");
     }
 
     private static void check(boolean condition, String message) {
