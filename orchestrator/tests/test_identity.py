@@ -43,6 +43,14 @@ def test_legacy_single_token_maps_to_owner_principal(monkeypatch):
     assert principal.principal_id == "owner"
 
 
+def test_legacy_single_token_with_edge_whitespace_is_rejected(monkeypatch):
+    monkeypatch.delenv("JARVIS_API_KEYS_JSON", raising=False)
+    monkeypatch.setenv("JARVIS_API_TOKEN", " legacy-secret ")
+
+    with pytest.raises(ValueError, match="JARVIS_API_TOKEN must not have leading or trailing whitespace"):
+        Authenticator.from_env()
+
+
 def test_scope_session_id_is_stable_and_principal_specific():
     alice_primary = scope_session_id("alice", "primary")
     bob_primary = scope_session_id("bob", "primary")
