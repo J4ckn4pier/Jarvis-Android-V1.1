@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import os
 from typing import Protocol
 from urllib.parse import urlparse
@@ -228,6 +229,8 @@ def build_runtime(context_store: AgentContextStore) -> AgentRuntime:
         timeout_seconds = float(timeout_raw)
     except ValueError as exc:
         raise RuntimeError("AGENT_ZERO_TIMEOUT_SECONDS must be a number") from exc
+    if not math.isfinite(timeout_seconds):
+        raise RuntimeError("AGENT_ZERO_TIMEOUT_SECONDS must be a finite number")
     if timeout_seconds <= 0:
         raise RuntimeError("AGENT_ZERO_TIMEOUT_SECONDS must be greater than zero")
 
