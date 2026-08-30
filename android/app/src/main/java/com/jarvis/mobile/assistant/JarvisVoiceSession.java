@@ -61,6 +61,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private boolean autoListenTriggered;
     private boolean resumeAfterSpeech;
     private long conversationDeadlineElapsedRealtime;
+    private long sessionGeneration;
     private String lastCommand = "";
     private String lastPartial = "";
 
@@ -156,6 +157,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
 
     @Override public void onShow(Bundle args, int flags) {
         super.onShow(args, flags);
+        sessionGeneration++;
         sessionVisible = true;
         beginConversationWindowIfNeeded();
         Log.i(TEST_TAG, "JARVIS_OVERLAY_SESSION_SHOWN");
@@ -179,6 +181,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     }
 
     @Override public void onHide() {
+        sessionGeneration++;
         sessionVisible = false;
         autoListenTriggered = false;
         resumeAfterSpeech = false;
@@ -322,9 +325,13 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     }
 
     private void submitBrainWork(Supplier<RuntimeSurfacePresentation> work) {
+        long submittedGeneration = sessionGeneration;
         brainExecutor.execute(() -> {
             RuntimeSurfacePresentation presentation = work.get();
-            if (output != null) output.post(() -> deliver(presentation));
+            if (output != null) output.post(() -> {
+                if (!sessionVisible || submittedGeneration != sessionGeneration) return;
+                deliver(presentation);
+            });
         });
     }
 
@@ -423,6 +430,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     }
 
     @Override public void onDestroy() {
+        sessionGeneration++;
         sessionVisible = false;
         resumeAfterSpeech = false;
         conversationDeadlineElapsedRealtime = 0L;
