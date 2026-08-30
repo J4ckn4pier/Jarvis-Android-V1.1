@@ -2,7 +2,7 @@ name: Build and Test JARVIS Prefrontal APK
 
 on:
   push:
-    branches: [main, brain-first-v1]
+    branches: [main, brain-first-v1, prototype-release-v1]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -20,6 +20,8 @@ jobs:
 
       - name: Run standalone shared brain acceptance suite
         env:
+          # Prototype release intentionally defers autonomous two-way phone-agent transport.
+          # Ordinary Android dialer/call handoff remains part of the application.
           JARVIS_SKIP_KNOWN_BLOCKERS: 'true'
         run: bash brain-core/run-tests.sh
 
@@ -92,12 +94,12 @@ jobs:
       - name: Stage single verified APK
         run: |
           mkdir -p release
-          cp android/app/build/outputs/apk/debug/app-debug.apk release/JARVIS-Android-V1.1.apk
-          sha256sum release/JARVIS-Android-V1.1.apk | tee release/SHA256.txt
+          cp android/app/build/outputs/apk/debug/app-debug.apk release/JARVIS-Android-V1.1-Prototype.apk
+          sha256sum release/JARVIS-Android-V1.1-Prototype.apk | tee release/SHA256.txt
 
       - uses: actions/upload-artifact@v4
         with:
-          name: JARVIS-Android-V1.1
-          path: release/JARVIS-Android-V1.1.apk
+          name: JARVIS-Android-V1.1-Prototype
+          path: release/JARVIS-Android-V1.1-Prototype.apk
           if-no-files-found: error
           retention-days: 30
