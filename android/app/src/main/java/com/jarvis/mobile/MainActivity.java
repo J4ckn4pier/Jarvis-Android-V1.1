@@ -141,28 +141,28 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
     private void buildCurrentShell() {
         FrameLayout root = new FrameLayout(this);
-        root.setBackgroundColor(Color.BLACK);
+        root.setBackgroundColor(getColor(R.color.jarvis_bg));
 
         background = new ImageView(this);
         background.setContentDescription("JARVIS interface background");
         root.addView(background, matchFrame());
         applyThemeFrame(false);
 
-        TextView brand = hudText("J A R V I S", 13, Color.rgb(115, 235, 255));
+        TextView brand = hudText("J A R V I S", 13, getColor(R.color.jarvis_cyan));
         brand.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
         FrameLayout.LayoutParams brandParams = wrapFrame(Gravity.TOP | Gravity.START);
         brandParams.setMargins(dp(18), dp(20), 0, 0);
         root.addView(brand, brandParams);
 
-        modeStatus = hudText("", 10, Color.rgb(115, 235, 255));
-        modeStatus.setBackgroundColor(Color.argb(180, 3, 30, 40));
+        modeStatus = hudText("", 10, getColor(R.color.jarvis_cyan));
+        modeStatus.setBackgroundColor(getColor(R.color.jarvis_bg_panel));
         modeStatus.setPadding(dp(8), dp(5), dp(8), dp(5));
         modeStatus.setVisibility(View.GONE);
         FrameLayout.LayoutParams modeParams = wrapFrame(Gravity.TOP | Gravity.END);
         modeParams.setMargins(0, dp(16), dp(16), 0);
         root.addView(modeStatus, modeParams);
 
-        TextView core = hudText("◉", 94, Color.rgb(115, 235, 255));
+        TextView core = hudText("◉", 94, getColor(R.color.jarvis_cyan));
         core.setGravity(Gravity.CENTER);
         core.setContentDescription("Speak to JARVIS");
         core.setOnClickListener(v -> listen());
@@ -175,7 +175,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         status.setGravity(Gravity.CENTER);
         status.setMaxLines(8);
         status.setPadding(dp(20), dp(14), dp(20), dp(14));
-        status.setBackgroundColor(Color.argb(110, 0, 15, 22));
+        status.setBackgroundColor(getColor(R.color.jarvis_bg_panel));
         status.setContentDescription("JARVIS status and response");
         FrameLayout.LayoutParams statusParams = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -212,7 +212,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private LinearLayout buildDecisionPanel() {
         LinearLayout panel = new LinearLayout(this);
         panel.setGravity(Gravity.CENTER);
-        panel.setBackgroundColor(Color.argb(220, 3, 30, 40));
+        panel.setBackgroundColor(getColor(R.color.jarvis_bg_panel));
 
         primaryActionButton = decisionButton();
         primaryActionButton.setOnClickListener(v -> runDecisionAction(true));
@@ -226,10 +226,10 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
     private Button decisionButton() {
         Button button = new Button(this);
-        button.setTextColor(Color.rgb(115, 235, 255));
+        button.setTextColor(getColor(R.color.jarvis_cyan));
         button.setTextSize(11);
         button.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
-        button.setBackgroundColor(Color.argb(220, 3, 30, 40));
+        button.setBackgroundColor(getColor(R.color.jarvis_bg_panel));
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(0, dp(48), 1f);
         params.setMargins(dp(6), dp(3), dp(6), dp(3));
         button.setLayoutParams(params);
@@ -240,7 +240,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         LinearLayout panel = new LinearLayout(this);
         panel.setOrientation(LinearLayout.VERTICAL);
         panel.setGravity(Gravity.CENTER);
-        panel.setBackgroundColor(Color.argb(235, 3, 30, 40));
+        panel.setBackgroundColor(getColor(R.color.jarvis_bg_panel));
 
         TextView title = hudText("Now playing ...", 12, Color.WHITE);
         title.setSingleLine(true);
@@ -487,7 +487,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private void applyThemeFrame(boolean activated) {
         if (background == null) return;
         background.setImageDrawable(null);
-        background.setBackgroundColor(activated ? Color.rgb(3, 39, 52) : Color.rgb(1, 18, 27));
+        background.setBackgroundColor(activated ? getColor(R.color.jarvis_bg_panel_raised) : getColor(R.color.jarvis_bg));
         background.setAlpha(activated ? 1.0f : 0.96f);
     }
 
