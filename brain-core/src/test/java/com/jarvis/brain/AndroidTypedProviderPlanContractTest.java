@@ -15,7 +15,8 @@ public final class AndroidTypedProviderPlanContractTest {
         String anthropic = Files.readString(providers.resolve("AnthropicMessagesProvider.java"));
         String compatible = Files.readString(providers.resolve("OpenAiCompatibleChatProvider.java"));
         String cortexFactory = Files.readString(providers.resolve("CortexProviderFactory.java"));
-        String settings = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/SettingsActivity.java"));
+        String userSettings = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/SettingsActivity.java"));
+        String developerSettings = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/DeveloperSettingsActivity.java"));
 
         check(provider.contains("proposeReasoning(ReasoningRequest request, ToolRegistry tools)"),
                 "cortex interface must expose the shared reasoning request + tool registry path");
@@ -55,16 +56,20 @@ public final class AndroidTypedProviderPlanContractTest {
                 "Android provider factory must expose the free/local OpenAI-compatible cortex mode");
         check(cortexFactory.contains("needs a model and allowed endpoint"),
                 "human-facing local cortex status must identify both missing model and endpoint readiness instead of blaming only the model");
-        check(settings.contains("MODE_OPENAI_COMPATIBLE") && settings.contains("OpenAI-compatible local endpoint"),
-                "Android settings must let the user select the free/local compatible cortex explicitly");
-        check(settings.contains(".local") && settings.contains("HTTPS"),
-                "Android settings must accurately explain the allowed HTTPS and user-owned .local endpoint options");
-        check(settings.contains("String cortexEndpointValue = endpoint.getText().toString().trim()")
-                        && settings.contains("EndpointTransportPolicy.allows(cortexEndpointValue)"),
-                "native cortex Settings must validate a user-supplied endpoint with the same shared transport policy before saving it");
-        check(settings.indexOf("EndpointTransportPolicy.allows(cortexEndpointValue)")
-                        < settings.indexOf(".putString(\"endpoint\", cortexEndpointValue)"),
-                "cortex endpoint validation must happen before provider preferences are persisted");
+
+        check(userSettings.contains("DeveloperSettingsActivity.class")
+                        && !userSettings.contains("EndpointTransportPolicy.allows"),
+                "normal user Settings must link to, but not directly expose, raw provider endpoint validation controls");
+        check(developerSettings.contains("MODE_OPENAI_COMPATIBLE") && developerSettings.contains("OpenAI-compatible endpoint"),
+                "advanced Developer Options must retain explicit selection of the free/local compatible cortex");
+        check(developerSettings.contains(".local") && developerSettings.contains("HTTPS"),
+                "advanced provider settings must accurately explain the allowed HTTPS and user-owned .local endpoint options");
+        check(developerSettings.contains("String endpointValue = endpoint.getText().toString().trim()")
+                        && developerSettings.contains("EndpointTransportPolicy.allows(endpointValue)"),
+                "advanced provider Settings must validate a user-supplied endpoint with the shared transport policy before saving it");
+        check(developerSettings.indexOf("EndpointTransportPolicy.allows(endpointValue)")
+                        < developerSettings.indexOf(".putString(\"endpoint\", endpointValue)"),
+                "provider endpoint validation must happen before advanced preferences are persisted");
 
         System.out.println("AndroidTypedProviderPlanContractTest passed");
     }
