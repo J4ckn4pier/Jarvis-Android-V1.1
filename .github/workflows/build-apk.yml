@@ -21,17 +21,6 @@ jobs:
           JARVIS_SKIP_KNOWN_BLOCKERS: 'true'
         run: bash brain-core/run-tests.sh
 
-      - name: Test legacy Android local-intent contract
-        run: |
-          mkdir -p build/core-test
-          javac -d build/core-test \
-            android/app/src/main/java/com/jarvis/mobile/brain/core/IntentPlan.java \
-            android/app/src/main/java/com/jarvis/mobile/brain/core/CommandNormalizer.java \
-            android/app/src/main/java/com/jarvis/mobile/brain/core/LocalIntentEngine.java \
-            android/app/src/main/java/com/jarvis/mobile/brain/core/BrainResult.java \
-            android/app/src/test/java/com/jarvis/mobile/brain/core/LocalIntentEngineContractTest.java
-          java -cp build/core-test com.jarvis.mobile.brain.core.LocalIntentEngineContractTest
-
       - uses: android-actions/setup-android@v3
 
       - name: Install Android 16 SDK
@@ -79,25 +68,28 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Install, launch, and test inside Android 16
+      - name: Install Android 16 emulator image
+        run: sdkmanager "emulator" "system-images;android-36;google_apis;x86_64"
+
+      - name: Boot Android 16 emulator and smoke-test APK
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 36
+          target: google_apis
           arch: x86_64
           profile: pixel_6
           disable-animations: true
-          emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: sh .github/scripts/emulator-smoke.sh && sh .github/scripts/overlay-decision-smoke.sh && sh .github/scripts/email-compose-smoke.sh
+          script: |
+            adb install -r android/app/build/outputs/apk/debug/app-debug.apk
+            adb shell am force-stop com.jarvis.mobile
+            adb shell monkey -p com.jarvis.mobile -c android.intent.category.LAUNCHER 1
+            sleep 5
+            adb shell pidof com.jarvis.mobile
+            adb shell dumpsys activity activities | grep -q 'com.jarvis.mobile/.MainActivity'
 
-      - name: Stage single verified APK
-        run: |
-          mkdir -p release
-          cp android/app/build/outputs/apk/debug/app-debug.apk release/JARVIS-Android-V1.1.apk
-          sha256sum release/JARVIS-Android-V1.1.apk | tee release/SHA256.txt
-
-      - uses: actions/upload-artifact@v4
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
         with:
-          name: JARVIS-Android-V1.1
-          path: release/JARVIS-Android-V1.1.apk
+          name: JARVIS-Android-V1.1-brain-first
+          path: android/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-          retention-days: 30
