@@ -80,6 +80,8 @@ public final class BrainExitGateCompositionContractTest {
                 "pending runtime decisions must use explicit ASK/DO_BOTH interruption policy in the composed brain gate");
         require(gate, "PendingDecisionSurfaceContinuityTest.class",
                 "pending decision affordances must survive side answers in the composed brain gate");
+        require(gate, "LegacyAndroidActionRouterNamedTargetSafetyContractTest.class",
+                "legacy raw-command contact guessing must remain isolated from production typed tools in the composed brain gate");
 
         System.out.println("BrainExitGateCompositionContractTest passed");
     }
