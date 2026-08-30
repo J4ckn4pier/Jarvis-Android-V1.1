@@ -23,6 +23,7 @@
     </queries>
 
     <application
+        android:name=".JarvisApplication"
         android:allowBackup="false"
         android:fullBackupContent="false"
         android:icon="@mipmap/ic_launcher"
