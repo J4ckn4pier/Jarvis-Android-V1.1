@@ -38,6 +38,33 @@ A client receiving this response must **not** assume it is caught up and must **
 
 The `410` response is a telemetry recovery signal, not an authentication failure and not evidence that the JARVIS conversation itself was deleted. Conversation/worker state and command retry state have separate lifecycle contracts.
 
+## Temporary worker outage
+
+A temporary Agent Zero transport failure or server-side `5xx` is exposed as a stable JARVIS worker-unavailable condition rather than as a raw upstream exception.
+
+For REST command submission the contract is:
+
+```text
+HTTP 503 Service Unavailable
+{"detail":"Worker runtime unavailable"}
+```
+
+For `/v1/input`, the WebSocket remains open and the command receives:
+
+```json
+{
+  "error": "Worker runtime unavailable",
+  "code": "worker_unavailable",
+  "request_id": "the-client-request-id",
+  "session_id": "the-public-session-id",
+  "retryable": true
+}
+```
+
+A client may retry the same logical command after the worker becomes available, but it must reuse the same `request_id`. That preserves JARVIS's duplicate-command protection if the original worker call actually completed near a network failure boundary. Do not generate a new request ID merely because a `worker_unavailable` response was received.
+
+The WebSocket is deliberately kept alive for this condition. A worker outage is not an authentication failure and does not mean the phone/desktop has lost its JARVIS session.
+
 ## Command retry is separate
 
 Network retries of user commands use `request_id`, not `event_id`. Reuse one stable `request_id` only for retries of the same logical command. JARVIS stores successful results in shared Valkey state so a phone retry does not execute the same worker action twice.
