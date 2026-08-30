@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from typing import Protocol
+from urllib.parse import urlparse
 
 import httpx
 
@@ -191,10 +192,20 @@ def build_runtime(context_store: AgentContextStore) -> AgentRuntime:
     api_key = os.getenv("AGENT_ZERO_API_KEY", "").strip()
     if not base_url:
         raise RuntimeError("AGENT_ZERO_URL is required when JARVIS_RUNTIME=agent-zero")
+    parsed_url = urlparse(base_url)
+    if parsed_url.scheme not in {"http", "https"} or not parsed_url.netloc:
+        raise RuntimeError("AGENT_ZERO_URL must use http or https and include a host")
     if not api_key:
         raise RuntimeError("AGENT_ZERO_API_KEY is required when JARVIS_RUNTIME=agent-zero")
 
-    lifetime_hours = int(os.getenv("AGENT_ZERO_LIFETIME_HOURS", "24"))
+    lifetime_raw = os.getenv("AGENT_ZERO_LIFETIME_HOURS", "24").strip()
+    try:
+        lifetime_hours = int(lifetime_raw)
+    except ValueError as exc:
+        raise RuntimeError("AGENT_ZERO_LIFETIME_HOURS must be an integer") from exc
+    if lifetime_hours <= 0:
+        raise RuntimeError("AGENT_ZERO_LIFETIME_HOURS must be greater than zero")
+
     project_name = os.getenv("AGENT_ZERO_PROJECT") or None
     return AgentZeroRuntime(
         base_url=base_url,
