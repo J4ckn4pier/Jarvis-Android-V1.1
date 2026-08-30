@@ -6,10 +6,12 @@ on:
     paths:
       - 'orchestrator/**'
       - '.github/workflows/orchestrator-tests.yml'
+      - '.github/workflows/orchestrator-live-local-ai.yml'
   pull_request:
     paths:
       - 'orchestrator/**'
       - '.github/workflows/orchestrator-tests.yml'
+      - '.github/workflows/orchestrator-live-local-ai.yml'
 
 jobs:
   test:
