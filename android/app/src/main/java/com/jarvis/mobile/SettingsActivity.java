@@ -62,7 +62,7 @@ public class SettingsActivity extends Activity {
 
         EditText model = textSetting("Model name", cortexPreferences.getString("model", ""));
         body.addView(model, fullWrap());
-        EditText endpoint = textSetting("Optional endpoint (HTTPS, or local loopback HTTP)", cortexPreferences.getString("endpoint", ""));
+        EditText endpoint = textSetting("Optional endpoint (HTTPS, loopback HTTP, or user-owned .local HTTP)", cortexPreferences.getString("endpoint", ""));
         body.addView(endpoint, fullWrap());
         EditText apiKey = textSetting("API key (optional for local endpoint; blank keeps saved key)", "");
         apiKey.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
