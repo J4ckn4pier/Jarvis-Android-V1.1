@@ -4,7 +4,7 @@ import com.jarvis.mobile.hands.JarvisAccessibilityService;
 
 import java.util.Locale;
 
-/** Safe typed navigation/read-only accessibility actions for the production tool registry. */
+/** Typed Android accessibility actions. UI mutation methods remain approval-gated by their tool specs. */
 public final class AndroidAccessibilityActions {
     public String navigate(String action) {
         String normalized = action == null ? "" : action.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " ");
@@ -37,6 +37,29 @@ public final class AndroidAccessibilityActions {
             return "No readable text is visible on the current screen.";
         }
         return text;
+    }
+
+    public String click(String target) {
+        if (target == null || target.isBlank()) return "Tell me the exact visible control to tap.";
+        if (!JarvisAccessibilityService.isConnected()) {
+            return "Enable JARVIS Device Control in Accessibility settings first.";
+        }
+        String clean = target.trim().replaceAll("\\s+", " ");
+        if (!JarvisAccessibilityService.clickText(clean)) {
+            return "JARVIS could not find one unique clickable control exactly matching '" + clean + "' on the current screen.";
+        }
+        return "Tapped the uniquely matching '" + clean + "' control.";
+    }
+
+    public String type(String text) {
+        if (text == null) return "Tell me what text to enter.";
+        if (!JarvisAccessibilityService.isConnected()) {
+            return "Enable JARVIS Device Control in Accessibility settings first.";
+        }
+        if (!JarvisAccessibilityService.typeText(text)) {
+            return "JARVIS could not find one unique editable field to type into on the current screen.";
+        }
+        return "Entered the approved text into the uniquely selected field.";
     }
 
     private static boolean isSupported(String action) {
