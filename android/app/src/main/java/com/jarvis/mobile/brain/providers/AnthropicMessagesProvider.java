@@ -3,7 +3,6 @@ package com.jarvis.mobile.brain.providers;
 import com.jarvis.brain.ReasoningRequest;
 import com.jarvis.brain.ReasoningResult;
 import com.jarvis.brain.ToolRegistry;
-import com.jarvis.mobile.brain.core.IntentPlan;
 import org.json.JSONArray;
 import org.json.JSONObject;
 import java.util.Map;
@@ -16,13 +15,6 @@ public final class AnthropicMessagesProvider implements CortexProvider {
     }
     public String id() { return "anthropic_messages"; }
     public boolean isConfigured() { return !model.isEmpty() && !apiKey.isEmpty(); }
-
-    /** Legacy compatibility path for callers not yet migrated to shared typed plans. */
-    public IntentPlan propose(String utterance) throws Exception {
-        if (!isConfigured()) return IntentPlan.unknown();
-        JSONObject input = toolInput(utterance, ProviderSchema.systemPrompt(), ProviderSchema.jsonSchema(), "jarvis_plan");
-        return input == null ? IntentPlan.unknown() : ProviderPlanFactory.fromJson(input);
-    }
 
     @Override
     public ReasoningResult proposeReasoning(ReasoningRequest request, ToolRegistry tools) throws Exception {
