@@ -8,6 +8,7 @@ import com.jarvis.brain.ToolRegistry;
 
 public final class CortexProviderFactory {
     public static final String MODE_LOCAL = "local";
+    public static final String MODE_OPENAI_COMPATIBLE = "openai_compatible";
     public static final String MODE_OPENAI = "openai";
     public static final String MODE_ANTHROPIC = "anthropic";
     private CortexProviderFactory() {}
@@ -18,6 +19,7 @@ public final class CortexProviderFactory {
         String endpoint = p.getString("endpoint", "");
         String model = p.getString("model", "");
         String key = new SecureSecretStore(context).get("provider_api_key");
+        if (MODE_OPENAI_COMPATIBLE.equals(mode)) return new OpenAiCompatibleChatProvider(endpoint, model, key);
         if (MODE_OPENAI.equals(mode)) return new OpenAIResponsesProvider(endpoint, model, key);
         if (MODE_ANTHROPIC.equals(mode)) return new AnthropicMessagesProvider(endpoint, model, key);
         return new CortexProvider() {
@@ -31,7 +33,11 @@ public final class CortexProviderFactory {
 
     public static String status(Context context) {
         CortexProvider provider = create(context);
-        if ("local".equals(provider.id())) return "Local reasoning (offline)";
+        if ("local".equals(provider.id())) return "Local deterministic reasoning (offline)";
+        if (MODE_OPENAI_COMPATIBLE.equals(provider.id())) {
+            return provider.isConfigured() ? "OpenAI-compatible local cortex configured"
+                    : "OpenAI-compatible local cortex needs a model";
+        }
         return provider.isConfigured() ? provider.id() + " configured"
                 : provider.id() + " needs a model and API key";
     }
