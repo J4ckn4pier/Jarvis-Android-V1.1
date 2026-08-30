@@ -17,7 +17,14 @@ public final class RemoteGoalCoordinator {
         if (!saved.hasProject()) return Optional.empty();
         String projectId = saved.projectId();
         RemoteGoalClient.ProjectStatus project = client.getProject(projectId);
-        RemoteGoalClient.EventPage page = client.getEvents(projectId, saved.eventId());
+        RemoteGoalClient.EventPage page;
+        try {
+            page = client.getEvents(projectId, saved.eventId());
+        } catch (RemoteGoalClient.RemoteGoalException expired) {
+            if (expired.statusCode() != 410 || saved.eventId() == null) throw expired;
+            state.saveCursor(projectId, null);
+            page = client.getEvents(projectId, null);
+        }
         if (page.nextEventId() != null) state.saveCursor(projectId, page.nextEventId());
         RemoteGoalClient.GoalResult result = null;
         if ("completed".equalsIgnoreCase(project.state())) result = client.getResult(projectId);
