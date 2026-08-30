@@ -11,6 +11,7 @@ public final class AssistantContextIntegrationTest {
     public static void main(String[] args) {
         relevantLongTermMemoryReachesReasoningCortex();
         irrelevantMemoryDoesNotPolluteReasoningContext();
+        failingOptionalContextDoesNotTakeDownReasoning();
         System.out.println("AssistantContextIntegrationTest: " + checks + " assertions passed");
     }
 
@@ -53,6 +54,29 @@ public final class AssistantContextIntegrationTest {
         core.handle("help me plan date night");
         check(seen[0] != null && !seen[0].context().contains("mechanical keyboard"),
                 "unrelated long-term memory must not be stuffed into every prompt");
+    }
+
+    private static void failingOptionalContextDoesNotTakeDownReasoning() {
+        Instant now = Instant.parse("2026-08-27T23:30:00Z");
+        final ReasoningRequest[] seen = {null};
+        ReasoningRouter router = request -> {
+            seen[0] = request;
+            return new ReasoningResult("capture", "I can still reason without optional context.", null);
+        };
+        AssistantContextSource brokenContext = utterance -> { throw new IllegalStateException("memory store unavailable"); };
+        AssistantCore core = new AssistantCore(
+                BrainEngine.createDefault(Clock.fixed(now, ZoneOffset.UTC)), router, ToolRegistry.standard(), brokenContext);
+        core.handle("Hey Jarvis");
+        BrainResponse response;
+        try {
+            response = core.handle("help me reason about a hard decision");
+        } catch (RuntimeException failure) {
+            throw new AssertionError("optional durable/device context failure must not take down shared reasoning", failure);
+        }
+        check(seen[0] != null, "reasoning should proceed when optional context is unavailable");
+        check(response.text().contains("still reason"), "assistant should return the valid provider answer without optional context");
+        check(seen[0].context().contains("Recent conversation:"),
+                "conversation context should still be preserved when optional durable context fails");
     }
 
     private static void check(boolean condition, String message) {
