@@ -28,6 +28,8 @@ public final class BrainExitGateCompositionContractTest {
                 "Android email compose/review binding must be part of the composed brain gate");
         require(gate, "AndroidMediaToolBindingContractTest.class",
                 "typed Android media search/play and transport controls must be part of the composed brain gate");
+        require(gate, "AndroidAlarmToolBindingContractTest.class",
+                "typed Android alarm creation must be part of the composed brain gate");
         require(gate, "ResponseStyleContractTest.class",
                 "central beta response style must be part of the composed brain gate");
         require(gate, "CommercialWakeWordPolicyTest.class",
