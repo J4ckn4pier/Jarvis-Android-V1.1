@@ -13,11 +13,16 @@ public final class AssistantProviderIntegrationTest {
         invalidProviderPlanIsNeverExposedAsActionPlan();
         policyRouterCanDriveAssistantWithoutPaidFallback();
         unexpectedReasoningFailureBecomesTruthfulConversation();
+        nullReasoningResultBecomesTruthfulConversation();
         System.out.println("AssistantProviderIntegrationTest: " + checks + " assertions passed");
     }
 
+    private static BrainEngine fixedBrain() {
+        return BrainEngine.createDefault(Clock.fixed(Instant.parse("2026-08-27T23:30:00Z"), ZoneOffset.UTC));
+    }
+
     private static void reasoningReceivesRealToolContract() {
-        BrainEngine reflex = BrainEngine.createDefault(Clock.fixed(Instant.parse("2026-08-27T23:30:00Z"), ZoneOffset.UTC));
+        BrainEngine reflex = fixedBrain();
         ToolRegistry tools = ToolRegistry.standard();
         final ReasoningRequest[] seen = {null};
         ReasoningRouter router = request -> {
@@ -36,11 +41,10 @@ public final class AssistantProviderIntegrationTest {
     }
 
     private static void invalidProviderPlanIsNeverExposedAsActionPlan() {
-        BrainEngine reflex = BrainEngine.createDefault(Clock.fixed(Instant.parse("2026-08-27T23:30:00Z"), ZoneOffset.UTC));
         ToolRegistry tools = ToolRegistry.standard();
         ReasoningRouter router = request -> new ReasoningResult("bad-model", "Doing it.",
                 new Plan("unsafe", List.of(new PlanStep("invented_system_control"))));
-        AssistantCore core = new AssistantCore(reflex, router, tools);
+        AssistantCore core = new AssistantCore(fixedBrain(), router, tools);
         core.handle("Hey Jarvis");
         BrainResponse response = core.handle("do something complicated for me");
         check(response.kind() != BrainResponse.Kind.ACTION_PLAN,
@@ -65,17 +69,15 @@ public final class AssistantProviderIntegrationTest {
                 new ProviderRoute(paid, ProviderTier.PAID_EXTERNAL, 1),
                 new ProviderRoute(free, ProviderTier.FREE_LOCAL, 1)
         ), false, 2);
-        BrainEngine reflex = BrainEngine.createDefault(Clock.fixed(Instant.parse("2026-08-27T23:30:00Z"), ZoneOffset.UTC));
-        AssistantCore core = new AssistantCore(reflex, policy, ToolRegistry.standard());
+        AssistantCore core = new AssistantCore(fixedBrain(), policy, ToolRegistry.standard());
         core.handle("Hey Jarvis");
         BrainResponse response = core.handle("figure out a hard problem for me");
         check(response.text().contains("Handled locally"), "assistant should accept cost-safe router as its cortex");
     }
 
     private static void unexpectedReasoningFailureBecomesTruthfulConversation() {
-        BrainEngine reflex = BrainEngine.createDefault(Clock.fixed(Instant.parse("2026-08-27T23:30:00Z"), ZoneOffset.UTC));
         ReasoningRouter failing = request -> { throw new IllegalStateException("provider transport exploded"); };
-        AssistantCore core = new AssistantCore(reflex, failing, ToolRegistry.standard());
+        AssistantCore core = new AssistantCore(fixedBrain(), failing, ToolRegistry.standard());
         core.handle("Hey Jarvis");
         BrainResponse response;
         try {
@@ -83,10 +85,27 @@ public final class AssistantProviderIntegrationTest {
         } catch (RuntimeException failure) {
             throw new AssertionError("provider/runtime failure must not escape the shared AssistantCore boundary", failure);
         }
+        assertTruthfulReasoningFailure(response, "thrown provider failure");
+    }
+
+    private static void nullReasoningResultBecomesTruthfulConversation() {
+        ReasoningRouter malformed = request -> null;
+        AssistantCore core = new AssistantCore(fixedBrain(), malformed, ToolRegistry.standard());
+        core.handle("Hey Jarvis");
+        BrainResponse response;
+        try {
+            response = core.handle("help me reason through another complicated decision");
+        } catch (RuntimeException failure) {
+            throw new AssertionError("null provider result must not escape the shared AssistantCore boundary", failure);
+        }
+        assertTruthfulReasoningFailure(response, "null provider result");
+    }
+
+    private static void assertTruthfulReasoningFailure(BrainResponse response, String source) {
         check(response.kind() == BrainResponse.Kind.CONVERSATION,
-                "unexpected reasoning failure should become a non-action conversational failure response");
+                source + " should become a non-action conversational failure response");
         check(response.text().toLowerCase().contains("couldn't") && response.text().toLowerCase().contains("safely"),
-                "reasoning failure must be reported truthfully without inventing an answer");
+                source + " must be reported truthfully without inventing an answer");
     }
 
     private static void check(boolean condition, String message) {
