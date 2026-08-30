@@ -12,6 +12,7 @@ public final class AndroidCortexSharedPlanContractTest {
         Path localCortexSmokePath = Path.of("../.github/scripts/local-cortex-smoke.sh");
         String runtime = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/AndroidBrainRuntime.java"));
         String diagnostics = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/DiagnosticsActivity.java"));
+        String settings = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/SettingsActivity.java"));
         String provider = Files.readString(providers.resolve("CortexProvider.java"));
         String openAi = Files.readString(providers.resolve("OpenAIResponsesProvider.java"));
         String anthropic = Files.readString(providers.resolve("AnthropicMessagesProvider.java"));
@@ -41,6 +42,8 @@ public final class AndroidCortexSharedPlanContractTest {
                 "user-visible local status must distinguish deterministic brain behavior from a configured reasoning model");
         check(!factory.contains("Local deterministic reasoning (offline)"),
                 "factory must not describe an empty provider as offline general reasoning");
+        check(settings.contains("CLEAR SAVED API KEY") && settings.contains("secrets.remove(\"provider_api_key\")"),
+                "provider settings must let the user explicitly remove a previously saved optional credential");
         check(!Files.exists(providers.resolve("CortexPlanAdapter.java")),
                 "retired cortex compatibility adapter must not ship");
         check(!Files.exists(providers.resolve("ProviderSchema.java")) && !Files.exists(providers.resolve("ProviderPlanFactory.java")),
