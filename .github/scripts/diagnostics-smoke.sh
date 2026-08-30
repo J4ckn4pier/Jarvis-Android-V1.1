@@ -5,6 +5,12 @@ OUTPUT="android/app/build/outputs/apk/debug"
 PACKAGE="com.jarvis.mobile"
 DIAGNOSTICS="$PACKAGE/com.jarvis.mobile.DiagnosticsActivity"
 
+# Earlier emulator smokes deliberately exercise assistant overlays. Clear the app process first so
+# a lingering JARVIS overlay cannot sit above DiagnosticsActivity and make uiautomator read the
+# previous surface instead of the screen this smoke is actually verifying.
+adb shell am force-stop "$PACKAGE"
+sleep 1
+
 # DiagnosticsActivity stays non-exported in production. The debug manifest alone exports it so
 # emulator CI can launch the real production screen directly instead of relying on a
 # BroadcastReceiver-to-Activity hop that Android 16 may background-launch-block.
