@@ -286,14 +286,22 @@ async def event_history(
     public_session_id = _validated_public_session_id(session_id)
     principal = _require_http_auth(authorization)
     internal_session_id = _scoped_session(principal, public_session_id)
-    recovered = await app.state.bus.history(
-        internal_session_id,
-        limit + 1,
-        after_event_id=after_event_id,
-    )
+
+    # FastAPI resolves Query(None) before HTTP invocation, but direct unit callers
+    # see the Query metadata object. Normalize that path and preserve compatibility
+    # with EventBus implementations that predate cursor support when no cursor is used.
+    cursor = after_event_id if isinstance(after_event_id, str) else None
+    if cursor is None:
+        recovered = await app.state.bus.history(internal_session_id, limit + 1)
+    else:
+        recovered = await app.state.bus.history(
+            internal_session_id,
+            limit + 1,
+            after_event_id=cursor,
+        )
     has_more = len(recovered) > limit
     events = recovered[:limit]
-    next_event_id = brain_event_id(events[-1]) if events else after_event_id
+    next_event_id = brain_event_id(events[-1]) if events else cursor
     return {
         "session_id": public_session_id,
         "events": [_event_payload(event, public_session_id) for event in events],
