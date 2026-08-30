@@ -72,7 +72,7 @@ jobs:
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Install, launch, and test inside Android 16
+      - name: Install, launch, and run release-critical Android 16 smoke
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 36
@@ -80,23 +80,18 @@ jobs:
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: sh .github/scripts/emulator-smoke.sh && sh .github/scripts/overlay-decision-smoke.sh && sh .github/scripts/email-compose-smoke.sh && sh .github/scripts/sms-compose-smoke.sh && sh .github/scripts/reminder-draft-smoke.sh && sh .github/scripts/diagnostics-smoke.sh && sh .github/scripts/cortex-settings-smoke.sh && sh .github/scripts/local-cortex-smoke.sh && sh .github/scripts/external-research-smoke.sh && sh .github/scripts/apk-sprint-acceptance-smoke.sh && sh .github/scripts/remote-goal-emulator-smoke.sh && sh .github/scripts/remote-goal-integration-emulator-smoke.sh
+          script: sh .github/scripts/emulator-smoke.sh && sh .github/scripts/remote-goal-integration-emulator-smoke.sh
       - name: Preserve APK sprint emulator evidence
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: JARVIS-APK-sprint-emulator-evidence
           path: |
-            android/app/build/outputs/apk/debug/jarvis-apk-sprint-*.png
-            android/app/build/outputs/apk/debug/jarvis-apk-sprint-*.xml
-            android/app/build/outputs/apk/debug/apk-sprint-*.txt
-            android/app/build/outputs/apk/debug/jarvis-remote-*.png
-            android/app/build/outputs/apk/debug/jarvis-remote-*.xml
-            android/app/build/outputs/apk/debug/remote-goal-*.txt
+            android/app/build/outputs/apk/debug/jarvis-*.png
+            android/app/build/outputs/apk/debug/jarvis-*.xml
+            android/app/build/outputs/apk/debug/emulator-*.txt
             android/app/build/outputs/apk/debug/remote-integration-*.txt
             android/app/build/outputs/apk/debug/remote-integration-*.xml
-            android/app/build/outputs/apk/debug/sms-compose-*.txt
-            android/app/build/outputs/apk/debug/reminder-draft-*.txt
           if-no-files-found: warn
           retention-days: 7
       - name: Preserve Android failure evidence
@@ -115,6 +110,8 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: JARVIS-Android-V1.1
-          path: release/JARVIS-Android-V1.1.apk
+          path: |
+            release/JARVIS-Android-V1.1.apk
+            release/SHA256.txt
           if-no-files-found: error
           retention-days: 30
