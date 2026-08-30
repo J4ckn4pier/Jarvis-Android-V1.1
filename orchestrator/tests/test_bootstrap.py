@@ -48,9 +48,12 @@ def test_bootstrap_locks_env_file_to_owner_only(tmp_path: Path):
     assert stat.S_IMODE(env_path.stat().st_mode) == 0o600
 
 
-def test_compose_passes_generated_persistent_identity_to_agent_zero():
+def test_compose_persists_generated_identity_in_agent_zero_own_env():
     compose = Path("compose.yaml").read_text()
     assert "A0_PERSISTENT_RUNTIME_ID: ${AGENT_ZERO_RUNTIME_ID:-}" in compose
+    assert "AGENT_ZERO_RUNTIME_ID: ${AGENT_ZERO_RUNTIME_ID:-}" in compose
+    assert "/a0/usr/.env" in compose
+    assert "A0_PERSISTENT_RUNTIME_ID=$AGENT_ZERO_RUNTIME_ID" in compose
 
 
 def test_generated_env_file_is_ignored_by_orchestrator_workstream():
