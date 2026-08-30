@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
@@ -43,7 +44,7 @@ class EvidenceStore(Protocol):
 
 
 class InMemoryEvidenceStore:
-    """Owner-isolated deterministic evidence store for tests and local development."""
+    """Owner-isolated deterministic evidence store for focused unit tests."""
 
     def __init__(self) -> None:
         self._artifacts: dict[tuple[str, str, str], EvidenceArtifact] = {}
@@ -60,6 +61,56 @@ class InMemoryEvidenceStore:
             ),
             key=lambda artifact: artifact.evidence_id,
         )
+
+
+class ProjectEvidenceStore:
+    """Persist verifier proof through the same owner-isolated ProjectStore as work state."""
+
+    def __init__(self, store: ProjectStore) -> None:
+        self.store = store
+
+    async def record(self, owner_id: str, artifact: EvidenceArtifact) -> None:
+        payload = json.dumps(
+            {
+                "evidence_id": artifact.evidence_id,
+                "project_id": artifact.project_id,
+                "task_id": artifact.task_id,
+                "criterion": artifact.criterion,
+                "kind": artifact.kind.value,
+                "passed": artifact.passed,
+                "detail": artifact.detail,
+                "source_worker_id": artifact.source_worker_id,
+                "created_at": artifact.created_at.isoformat(),
+            },
+            separators=(",", ":"),
+            sort_keys=True,
+        )
+        await self.store.save_verification_evidence(
+            owner_id,
+            artifact.project_id,
+            artifact.evidence_id,
+            payload,
+        )
+
+    async def list_for_project(self, owner_id: str, project_id: str) -> list[EvidenceArtifact]:
+        stored = await self.store.verification_evidence(owner_id, project_id)
+        artifacts: list[EvidenceArtifact] = []
+        for evidence_id in sorted(stored):
+            payload = json.loads(stored[evidence_id])
+            artifacts.append(
+                EvidenceArtifact(
+                    evidence_id=payload["evidence_id"],
+                    project_id=payload["project_id"],
+                    task_id=payload["task_id"],
+                    criterion=payload["criterion"],
+                    kind=EvidenceKind(payload["kind"]),
+                    passed=payload["passed"],
+                    detail=payload["detail"],
+                    source_worker_id=payload["source_worker_id"],
+                    created_at=datetime.fromisoformat(payload["created_at"]),
+                )
+            )
+        return artifacts
 
 
 @dataclass(frozen=True, slots=True)
