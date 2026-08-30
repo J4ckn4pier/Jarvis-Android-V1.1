@@ -13,7 +13,8 @@ public final class SemanticGoalInterpreter {
     private static final Set<String> VAGUE_DESTINATIONS = Set.of(
             "there", "somewhere", "somewhere good", "dinner", "food", "a restaurant", "restaurant", "a place");
     private static final Pattern TIMER = Pattern.compile("\\b(?:set|start) (?:a )?timer(?: for)? (\\d+) (second|seconds|minute|minutes|hour|hours)\\b");
-    private static final Pattern ALARM = Pattern.compile("\\b(?:set|make) (?:an )?alarm(?: for| at)? (\\d{1,2})(?::(\\d{2}))?(?: (am|pm))?\\b");
+    // normalize() turns 7:30 into "7 30", so accept either punctuation-preserved or normalized time forms.
+    private static final Pattern ALARM = Pattern.compile("\\b(?:set|make) (?:an )?alarm(?: for| at)? (\\d{1,2})(?:(?::| )(\\d{2}))?(?: (am|pm))?\\b");
 
     public Optional<Plan> interpret(String utterance) {
         String raw = utterance == null ? "" : utterance.trim();
