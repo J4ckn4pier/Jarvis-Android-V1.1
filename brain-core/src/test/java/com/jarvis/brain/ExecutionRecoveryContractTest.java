@@ -15,6 +15,7 @@ public final class ExecutionRecoveryContractTest {
         approvedToolExceptionFailsClosedAndConsumesApproval();
         approvedNullToolResultFailsClosedAndConsumesApproval();
         successfulStatusWithoutOutputFailsClosed();
+        failureStatusWithoutOutputHasDiagnostic();
         System.out.println("ExecutionRecoveryContractTest: " + checks + " assertions passed");
     }
 
@@ -143,6 +144,20 @@ public final class ExecutionRecoveryContractTest {
         check(report.failureDetail().toLowerCase().contains("output"),
                 "resumable missing success output should be reported as an invalid tool outcome");
         check(cursor.nextStepIndex() == 0, "invalid successful result must not advance the resumable cursor");
+    }
+
+    private static void failureStatusWithoutOutputHasDiagnostic() {
+        ToolRegistry registry = new ToolRegistry();
+        registry.register(new ToolSpec("lookup", false, Set.of(), Set.of(), "lookup"),
+                (args, ctx) -> ToolResult.failure(null));
+        ResumablePlanExecutor executor = new ResumablePlanExecutor(registry, new ApprovalGate());
+        ExecutionCursor cursor = executor.start(new Plan("lookup", List.of(new PlanStep("lookup"))));
+        ExecutionReport report = executor.run(cursor, new ExecutionContext());
+        check(report.status() == ExecutionReport.Status.FAILED,
+                "resumable malformed tool failure must fail closed");
+        check(report.failureDetail().toLowerCase().contains("output"),
+                "resumable malformed failure should explain that failure output was missing");
+        check(cursor.nextStepIndex() == 0, "malformed failure must not advance the cursor");
     }
 
     private static void check(boolean condition, String message) { checks++; if (!condition) throw new AssertionError(message); }
