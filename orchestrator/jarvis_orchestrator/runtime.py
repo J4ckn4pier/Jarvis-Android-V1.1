@@ -112,7 +112,7 @@ class AgentZeroRuntime:
             return False
 
     async def check_ready(self) -> bool:
-        response = await self.client.get(self.HEALTH_PATH)
+        response = await self.client.get(self.HEALTH_PATH, timeout=5.0)
         response.raise_for_status()
         return True
 
