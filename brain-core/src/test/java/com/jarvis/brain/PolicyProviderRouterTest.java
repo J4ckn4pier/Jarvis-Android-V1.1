@@ -11,6 +11,7 @@ public final class PolicyProviderRouterTest {
         repeatedFailuresOpenCircuit();
         availabilityProbeFailureFallsThroughToNextProvider();
         identityProbeFailureFallsThroughToNextProvider();
+        emptyProviderResultFallsThroughToNextProvider();
         System.out.println("PolicyProviderRouterTest: " + checks + " assertions passed");
     }
 
@@ -90,6 +91,20 @@ public final class PolicyProviderRouterTest {
         }
         check("fallback".equals(out.providerId()), "identity failure should fall through to the next permitted provider");
         check(fallback.calls == 1, "fallback should serve the request exactly once after identity failure");
+    }
+
+    private static void emptyProviderResultFallsThroughToNextProvider() {
+        StubProvider empty = new StubProvider("empty", new ReasoningResult("empty", "   ", null), false);
+        StubProvider fallback = new StubProvider("fallback", new ReasoningResult("fallback", "usable answer", null), false);
+        PolicyProviderRouter router = new PolicyProviderRouter(List.of(
+                new ProviderRoute(empty, ProviderTier.FREE_LOCAL, 1),
+                new ProviderRoute(fallback, ProviderTier.FREE_LOCAL, 2)
+        ), false, 2);
+        ReasoningResult out = router.reason(new ReasoningRequest("hi", "", List.of()));
+        check("fallback".equals(out.providerId()), "an empty response without a plan must not block a healthy fallback");
+        check(empty.calls == 1, "empty provider should be attempted once");
+        check(fallback.calls == 1, "fallback should serve after unusable empty response");
+        check(router.failureCount("empty") == 1, "unusable empty response should count toward circuit breaking");
     }
 
     private static void check(boolean condition, String message) {
