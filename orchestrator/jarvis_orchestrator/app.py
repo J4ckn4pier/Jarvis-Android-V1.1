@@ -29,14 +29,30 @@ def _auth_mode() -> str:
     return "open-development"
 
 
+def _auth_required() -> bool:
+    return os.getenv("JARVIS_REQUIRE_AUTH", "").strip().lower() in {"1", "true", "yes", "on"}
+
+
+def _validate_auth_configuration() -> None:
+    mode = _auth_mode()
+    if _auth_required() and mode == "open-development":
+        raise RuntimeError(
+            "JARVIS authentication is required but no API token or principal keys are configured"
+        )
+    if mode != "open-development":
+        _authenticator()
+
+
 def _bearer_token(authorization: str | None) -> str | None:
     return authorization.removeprefix("Bearer ") if authorization else None
 
 
 def _principal_for_token(token: str | None) -> Principal | None:
-    # Zero-configuration developer mode remains usable for the standalone
-    # prototype. Once any credential is configured, authentication is required.
+    # Zero-configuration developer mode remains usable only when authentication
+    # has not been marked mandatory by the packaged deployment configuration.
     if not os.getenv("JARVIS_API_KEYS_JSON") and not os.getenv("JARVIS_API_TOKEN"):
+        if _auth_required():
+            return None
         return Principal(principal_id="owner")
     return _authenticator().authenticate(token)
 
@@ -81,10 +97,9 @@ class Command(BaseModel):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Validate credential configuration at process start instead of waiting for
-    # the first authenticated request to reveal malformed JSON or empty keys.
-    if _auth_mode() != "open-development":
-        _authenticator()
+    # Fail at process start if a packaged/production deployment requires auth
+    # but credentials are missing or malformed.
+    _validate_auth_configuration()
 
     url = os.getenv("VALKEY_URL")
     if url:
@@ -117,7 +132,7 @@ async def lifespan(app: FastAPI):
         await app.state.valkey.aclose()
 
 
-app = FastAPI(title="JARVIS Orchestrator", version="0.10.0", lifespan=lifespan)
+app = FastAPI(title="JARVIS Orchestrator", version="0.10.1", lifespan=lifespan)
 
 
 @app.get("/health")
