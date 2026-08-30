@@ -24,7 +24,7 @@ public final class CortexProviderFactory {
         if (MODE_ANTHROPIC.equals(mode)) return new AnthropicMessagesProvider(endpoint, model, key);
         return new CortexProvider() {
             public String id() { return "local"; }
-            public boolean isConfigured() { return true; }
+            public boolean isConfigured() { return false; }
             public ReasoningResult proposeReasoning(ReasoningRequest request, ToolRegistry tools) {
                 return new ReasoningResult(id(), "", null);
             }
@@ -33,7 +33,7 @@ public final class CortexProviderFactory {
 
     public static String status(Context context) {
         CortexProvider provider = create(context);
-        if ("local".equals(provider.id())) return "Local deterministic reasoning (offline)";
+        if ("local".equals(provider.id())) return "Deterministic brain active; no general local cortex configured";
         if (MODE_OPENAI_COMPATIBLE.equals(provider.id())) {
             return provider.isConfigured() ? "OpenAI-compatible local cortex configured"
                     : "OpenAI-compatible local cortex needs a model";
