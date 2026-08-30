@@ -34,6 +34,7 @@ class EventBus(Protocol):
         limit: int = 100,
         after_event_id: str | None = None,
     ) -> list[BrainEvent]: ...
+    async def contains_event(self, session_id: str, event_id: str) -> bool: ...
 
 
 class InMemoryEventBus:
@@ -72,6 +73,12 @@ class InMemoryEventBus:
             if brain_event_id(event) == after_event_id:
                 return events[index + 1:index + 1 + limit]
         return []
+
+    async def contains_event(self, session_id: str, event_id: str) -> bool:
+        return any(
+            brain_event_id(event) == event_id
+            for event in self._history.get(session_id, [])
+        )
 
 
 class ValkeyEventBus:
@@ -136,6 +143,14 @@ class ValkeyEventBus:
             if brain_event_id(event) == after_event_id:
                 return events[index + 1:index + 1 + limit]
         return []
+
+    async def contains_event(self, session_id: str, event_id: str) -> bool:
+        stream = f"{self.STREAM_PREFIX}{session_id}"
+        rows = await self.client.xrange(stream, count=self.MAX_HISTORY)
+        return any(
+            brain_event_id(event) == event_id
+            for event in self._decode_rows(rows)
+        )
 
 
 class AgentRuntime(Protocol):
