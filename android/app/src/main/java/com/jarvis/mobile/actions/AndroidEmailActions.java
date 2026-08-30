@@ -8,6 +8,9 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.provider.ContactsContract;
 
+import java.util.LinkedHashSet;
+import java.util.Set;
+
 /** Typed email compose capability. Opens a user-visible draft/review surface and never sends silently. */
 public final class AndroidEmailActions {
     private final Context context;
@@ -28,7 +31,7 @@ public final class AndroidEmailActions {
             String address = looksLikeEmail(target) ? target : emailFor(target);
             if (address == null || address.isBlank()) {
                 return hasContactsPermission()
-                        ? "I couldn’t find an email address for " + target + " in your contacts."
+                        ? "I couldn’t uniquely resolve an email address for " + target + " in your contacts."
                         : "Enable Contacts permission so I can resolve that name to an email address.";
             }
 
@@ -59,19 +62,20 @@ public final class AndroidEmailActions {
                 ContactsContract.CommonDataKinds.Email.ADDRESS,
                 ContactsContract.CommonDataKinds.Email.DISPLAY_NAME
         };
+        Set<String> exactMatches = new LinkedHashSet<>();
         try (Cursor cursor = context.getContentResolver().query(filter, projection, null, null, null)) {
             if (cursor == null) return null;
             int addressIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Email.ADDRESS);
             int nameIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Email.DISPLAY_NAME);
-            String fallback = null;
             while (cursor.moveToNext()) {
                 String address = addressIndex < 0 ? null : cursor.getString(addressIndex);
                 if (address == null || address.isBlank()) continue;
-                if (fallback == null) fallback = address;
                 String displayName = nameIndex < 0 ? null : cursor.getString(nameIndex);
-                if (displayName != null && displayName.equalsIgnoreCase(name)) return address;
+                if (displayName != null && displayName.equalsIgnoreCase(name)) {
+                    exactMatches.add(address.trim());
+                }
             }
-            return fallback;
+            return exactMatches.size() == 1 ? exactMatches.iterator().next() : null;
         }
     }
 
