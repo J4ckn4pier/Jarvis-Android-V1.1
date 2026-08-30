@@ -12,6 +12,7 @@ public final class PlanRepairCoordinatorTest {
         generatorFailureFailsClosedWithoutExecutablePlan();
         validatorFailureFailsClosedWithoutExecutablePlan();
         nullValidatorResultFailsClosedWithoutExecutablePlan();
+        validVerdictWithoutPlanFailsClosed();
         System.out.println("PlanRepairCoordinatorTest: " + checks + " assertions passed");
     }
 
@@ -107,6 +108,21 @@ public final class PlanRepairCoordinatorTest {
         String explanation = out.clarification().toLowerCase();
         check(explanation.contains("couldn't") || explanation.contains("could not"),
                 "missing validator verdict should truthfully say safe planning could not complete");
+    }
+
+    private static void validVerdictWithoutPlanFailsClosed() {
+        ModelPlanGenerator generator = prompt -> "candidate-plan";
+        PlanTextValidator validator = json -> new PlanValidation(true, null, List.of());
+        PlanRepairResult out = new PlanRepairCoordinator(validator, 2)
+                .plan("send something", "", generator);
+
+        check(out.status() == PlanRepairResult.Status.NEEDS_CLARIFICATION,
+                "a valid verdict without an effective plan must fail closed");
+        check(out.plan() == null, "missing effective plan must never be reported as executable");
+        check(out.attempts() == 1, "missing effective plan should stop immediately");
+        String explanation = out.clarification().toLowerCase();
+        check(explanation.contains("couldn't") || explanation.contains("could not"),
+                "missing effective plan should truthfully say safe planning could not complete");
     }
 
     private static void check(boolean condition, String message) {
