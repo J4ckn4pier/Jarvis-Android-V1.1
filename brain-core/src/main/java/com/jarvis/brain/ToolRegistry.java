@@ -33,42 +33,17 @@ public final class ToolRegistry {
             aliases.addAll(spec.aliases());
         }
 
-        ToolSpec effectiveSpec = new ToolSpec(
-                spec.name(),
-                spec.consequential(),
-                aliases,
-                spec.requiredArguments(),
-                spec.description(),
-                spec.executionClass());
+        ToolSpec effectiveSpec = new ToolSpec(spec.name(), spec.consequential(), aliases, spec.requiredArguments(), spec.description(), spec.executionClass());
         RegisteredTool registered = new RegisteredTool(effectiveSpec, implementation);
         byKey.put(canonical, registered);
         for (String alias : aliases) byKey.put(normalize(alias), registered);
     }
 
     public Optional<RegisteredTool> resolve(String nameOrAlias) { return Optional.ofNullable(byKey.get(normalize(nameOrAlias))); }
-
-    public List<ToolSpec> specs() {
-        Set<RegisteredTool> unique = new HashSet<>(byKey.values()); ArrayList<ToolSpec> specs = new ArrayList<>();
-        for (RegisteredTool registered : unique) specs.add(registered.spec());
-        specs.sort(Comparator.comparing(ToolSpec::name)); return List.copyOf(specs);
-    }
-
-    public Set<String> incompleteTrailingTokens() {
-        Set<String> out = new HashSet<>(); Set<RegisteredTool> unique = new HashSet<>(byKey.values());
-        for (RegisteredTool registered : unique) {
-            ToolSpec spec = registered.spec(); if (spec.requiredArguments().isEmpty()) continue;
-            addFirstToken(out, spec.name().replace('_', ' ')); for (String alias : spec.aliases()) addFirstToken(out, alias);
-        }
-        return Set.copyOf(out);
-    }
-
-    public static ToolRegistry standard() {
-        return standard(ExternalResearchGateway.unavailable(), null);
-    }
-
-    public static ToolRegistry standard(ExternalResearchGateway research) {
-        return standard(research, null);
-    }
+    public List<ToolSpec> specs() { Set<RegisteredTool> unique = new HashSet<>(byKey.values()); ArrayList<ToolSpec> specs = new ArrayList<>(); for (RegisteredTool registered : unique) specs.add(registered.spec()); specs.sort(Comparator.comparing(ToolSpec::name)); return List.copyOf(specs); }
+    public Set<String> incompleteTrailingTokens() { Set<String> out = new HashSet<>(); Set<RegisteredTool> unique = new HashSet<>(byKey.values()); for (RegisteredTool registered : unique) { ToolSpec spec = registered.spec(); if (spec.requiredArguments().isEmpty()) continue; addFirstToken(out, spec.name().replace('_', ' ')); for (String alias : spec.aliases()) addFirstToken(out, alias); } return Set.copyOf(out); }
+    public static ToolRegistry standard() { return standard(ExternalResearchGateway.unavailable(), null); }
+    public static ToolRegistry standard(ExternalResearchGateway research) { return standard(research, null); }
 
     public static ToolRegistry standard(ExternalResearchGateway research, ConversationalCallTransport callTransport) {
         ExternalResearchGateway gateway = research == null ? ExternalResearchGateway.unavailable() : research;
@@ -80,9 +55,7 @@ public final class ToolRegistry {
         r.register(spec("resolve_business", false, Set.of(), Set.of("business"), "Resolve a named business/entity", ToolExecutionClass.AUTONOMOUS_RESEARCH), gateway::resolveBusiness);
         r.register(spec("get_menu", false, Set.of("menu", "menu prices", "dish prices"), Set.of("business"), "Read fresh menu items and prices with source provenance", ToolExecutionClass.AUTONOMOUS_RESEARCH), gateway::getMenu);
         r.register(spec("attempt_reservation", true, Set.of("book table", "reserve table", "online reservation"), Set.of("business", "party_size", "requested_time"), "Attempt an approved online reservation; return confirmed time, actual available alternatives, or failure reason", ToolExecutionClass.CONSEQUENTIAL), gateway::attemptReservation);
-        Tool conversationalCall = callTransport == null
-                ? (a,c) -> ToolResult.failure("telephony adapter not attached")
-                : (a,c) -> executeConversationalCall(callTransport, a);
+        Tool conversationalCall = callTransport == null ? (a,c) -> ToolResult.failure("telephony adapter not attached") : (a,c) -> executeConversationalCall(callTransport, a);
         r.register(spec("place_conversational_call", true, Set.of("call business", "phone agent"), Set.of("business", "destination", "represented_user", "preferred_time"), "Conduct an approved outbound conversational call using a resolved destination and explicit represented-user/time context", ToolExecutionClass.CONSEQUENTIAL), conversationalCall);
         r.register(spec("report_outcome", false, Set.of(), Set.of(), "Report an evidence-backed completed multi-step action", ToolExecutionClass.AUTONOMOUS_RESEARCH), gateway::reportOutcome);
         r.register(spec("weather_lookup", false, Set.of("weather", "forecast"), Set.of("when"), "Look up weather/forecast", ToolExecutionClass.AUTONOMOUS_RESEARCH), gateway::weatherLookup);
@@ -92,36 +65,27 @@ public final class ToolRegistry {
         r.register(spec("navigate", false, Set.of("directions", "navigation"), Set.of("destination"), "Navigate to a destination", ToolExecutionClass.DEVICE_REFLEX), ready("navigation-ready"));
         r.register(spec("media_play", false, Set.of("play music", "play media"), Set.of("query"), "Play requested media", ToolExecutionClass.DEVICE_REFLEX), ready("media-ready"));
         r.register(spec("media_control", false, Set.of("pause media", "resume media", "next track", "previous track"), Set.of("action"), "Control current media playback with pause/play/next/previous actions", ToolExecutionClass.DEVICE_REFLEX), ready("media-control-ready"));
+        r.register(spec("volume_control", false, Set.of("volume", "volume up", "volume down", "mute", "unmute"), Set.of("action"), "Control device volume with up/down/mute/unmute actions", ToolExecutionClass.DEVICE_REFLEX), ready("volume-control-ready"));
         r.register(spec("set_flashlight", false, Set.of("flashlight", "torch"), Set.of("state"), "Turn flashlight on/off", ToolExecutionClass.DEVICE_REFLEX), ready("flashlight-ready"));
         r.register(spec("calendar_query", false, Set.of("calendar", "schedule"), Set.of("when"), "Read calendar commitments", ToolExecutionClass.DEVICE_REFLEX), ready("calendar-ready"));
         r.register(spec("notification_query", false, Set.of("notifications"), Set.of(), "Read captured notifications", ToolExecutionClass.DEVICE_REFLEX), ready("notifications-ready"));
         r.register(spec("translate", false, Set.of("translation"), Set.of("request"), "Translate text through the provider-neutral language gateway", ToolExecutionClass.AUTONOMOUS_RESEARCH), gateway::translate);
-        r.register(spec("compose_email", false, Set.of("email", "compose email", "draft email"), Set.of("recipient", "subject", "body"), "Open an email draft for user review without sending it", ToolExecutionClass.DEVICE_REFLEX),
-                (args, ctx) -> ToolResult.failure("email adapter not attached"));
+        r.register(spec("compose_email", false, Set.of("email", "compose email", "draft email"), Set.of("recipient", "subject", "body"), "Open an email draft for user review without sending it", ToolExecutionClass.DEVICE_REFLEX), (args, ctx) -> ToolResult.failure("email adapter not attached"));
         r.register(spec("send_message", true, Set.of("text", "message"), Set.of("recipient", "message"), "Send an external message on the user's behalf", ToolExecutionClass.CONSEQUENTIAL), ready("message-ready"));
         return r;
     }
 
     private static ToolResult executeConversationalCall(ConversationalCallTransport transport, Map<String,String> args) {
-        ConversationalCallRequest request = new ConversationalCallRequest(
-                args.get("destination"),
-                args.get("business"),
-                args.get("represented_user"),
-                args.get("preferred_time"));
+        ConversationalCallRequest request = new ConversationalCallRequest(args.get("destination"), args.get("business"), args.get("represented_user"), args.get("preferred_time"));
         CallOutcome outcome = new ConversationalCallOrchestrator(8).execute(transport, request);
         return switch (outcome.status()) {
-            case CONFIRMED -> ToolResult.success(
-                    "status=CONFIRMED|confirmed_time=" + outcome.confirmedTime() + "|summary=" + outcome.summary());
-            case ALTERNATIVES_AVAILABLE -> ToolResult.success(
-                    "status=ALTERNATIVES_AVAILABLE|alternatives=" + String.join(",", outcome.alternatives()) + "|summary=" + outcome.summary());
+            case CONFIRMED -> ToolResult.success("status=CONFIRMED|confirmed_time=" + outcome.confirmedTime() + "|summary=" + outcome.summary());
+            case ALTERNATIVES_AVAILABLE -> ToolResult.success("status=ALTERNATIVES_AVAILABLE|alternatives=" + String.join(",", outcome.alternatives()) + "|summary=" + outcome.summary());
             case FAILED -> ToolResult.failure("status=FAILED|summary=" + outcome.summary());
             case IN_PROGRESS -> ToolResult.failure("status=FAILED|summary=Conversational call ended without a terminal outcome.");
         };
     }
-
-    private static ToolSpec spec(String name, boolean consequential, Set<String> aliases, Set<String> required, String description, ToolExecutionClass executionClass) {
-        return new ToolSpec(name, consequential, aliases, required, description, executionClass);
-    }
+    private static ToolSpec spec(String name, boolean consequential, Set<String> aliases, Set<String> required, String description, ToolExecutionClass executionClass) { return new ToolSpec(name, consequential, aliases, required, description, executionClass); }
     private static Tool ready(String value) { return (args, ctx) -> ToolResult.success(value); }
     private static void addFirstToken(Set<String> out, String phrase) { String normalized = normalize(phrase); if (normalized.isEmpty()) return; int space = normalized.indexOf(' '); out.add(space < 0 ? normalized : normalized.substring(0, space)); }
     private static String normalize(String value) { return value == null ? "" : value.trim().toLowerCase(Locale.ROOT).replaceAll("\\s+", " "); }
