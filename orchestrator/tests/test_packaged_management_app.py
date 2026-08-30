@@ -1,6 +1,6 @@
 import pytest
 
-from jarvis_orchestrator.app import app, lifespan
+from jarvis_orchestrator.app import app
 
 
 def test_packaged_fastapi_app_mounts_apk_management_contract():
@@ -26,7 +26,7 @@ async def test_packaged_process_initializes_management_service_without_external_
     monkeypatch.delenv("JARVIS_REQUIRE_AUTH", raising=False)
     monkeypatch.setenv("JARVIS_RUNTIME", "echo")
 
-    async with lifespan(app):
+    async with app.router.lifespan_context(app):
         service = getattr(app.state, "goal_service", None)
         assert service is not None
         assert service.store is not None
