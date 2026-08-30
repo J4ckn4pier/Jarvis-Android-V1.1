@@ -6,7 +6,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Header, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
 
-from .core import EchoRuntime, InMemoryEventBus, Orchestrator, ValkeyEventBus
+from .core import InMemoryEventBus, Orchestrator, ValkeyEventBus
+from .runtime import InMemoryAgentContextStore, ValkeyAgentContextStore, build_runtime
 
 
 def _authorized(token: str | None) -> bool:
@@ -28,21 +29,34 @@ async def lifespan(app: FastAPI):
         await client.ping()
         app.state.valkey = client
         app.state.bus = ValkeyEventBus(client)
+        context_store = ValkeyAgentContextStore(client)
     else:
         app.state.valkey = None
         app.state.bus = InMemoryEventBus()
-    app.state.orchestrator = Orchestrator(app.state.bus, EchoRuntime())
+        context_store = InMemoryAgentContextStore()
+
+    runtime = build_runtime(context_store)
+    app.state.runtime = runtime
+    app.state.orchestrator = Orchestrator(app.state.bus, runtime)
     yield
+
+    close_runtime = getattr(runtime, "aclose", None)
+    if close_runtime:
+        await close_runtime()
     if app.state.valkey:
         await app.state.valkey.aclose()
 
 
-app = FastAPI(title="JARVIS Orchestrator", version="0.2.0", lifespan=lifespan)
+app = FastAPI(title="JARVIS Orchestrator", version="0.3.0", lifespan=lifespan)
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ok", "state_backend": "valkey" if app.state.valkey else "memory"}
+    return {
+        "status": "ok",
+        "state_backend": "valkey" if app.state.valkey else "memory",
+        "runtime": os.getenv("JARVIS_RUNTIME", "echo"),
+    }
 
 
 @app.post("/v1/command")
