@@ -24,10 +24,15 @@ require 'Authorization' "$CLIENT"
 require 'Bearer ' "$CLIENT"
 
 # Exact request/reconnect fields. Cursor is a query parameter, so its source literal includes '='.
-for field in goal session_id constraints acceptance_criteria deadline approved response; do
-  require "\"$field\"" "$CLIENT"
-done
+for field in goal session_id constraints acceptance_criteria deadline approved response; do require "\"$field\"" "$CLIENT"; done
 require 'after_event_id=' "$CLIENT"
+
+# M13 identifiers are opaque exact strings. Default session only when absent; never rewrite a supplied value.
+require 'sessionId == null ? "primary" : sessionId' "$CLIENT"
+if grep -Fq 'sessionId.isBlank() ? "primary"' "$CLIENT"; then
+  echo 'Supplied session_id must not be normalized to primary' >&2
+  exit 1
+fi
 
 # Public responses must remain provider-neutral and explicitly reject accidental provider exposure.
 require 'provider_details_exposed' "$CLIENT"
