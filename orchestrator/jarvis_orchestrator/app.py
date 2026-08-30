@@ -127,6 +127,24 @@ def _scoped_session(principal: Principal, public_session_id: str) -> str:
     return scope_session_id(principal.principal_id, public_session_id)
 
 
+def _event_payload(event, public_session_id: str) -> dict[str, object]:
+    """Stable wire representation used by both history and live telemetry.
+
+    event_id lets phone/desktop clients merge a history replay with an already-open
+    WebSocket stream after reconnect without rendering the same brain event twice.
+    """
+    return {
+        "event_id": f"{event.task_id}:{event.sequence}",
+        "session_id": public_session_id,
+        "task_id": event.task_id,
+        "active_layer": event.active_layer,
+        "neurons_firing": event.neurons_firing,
+        "agent_ops_status": event.agent_ops_status,
+        "sequence": event.sequence,
+        "timestamp": event.timestamp,
+    }
+
+
 async def _submit(
     text: str,
     internal_session_id: str,
@@ -208,7 +226,7 @@ async def lifespan(app: FastAPI):
         await app.state.valkey.aclose()
 
 
-app = FastAPI(title="JARVIS Orchestrator", version="0.11.2", lifespan=lifespan)
+app = FastAPI(title="JARVIS Orchestrator", version="0.12.0", lifespan=lifespan)
 
 
 @app.get("/health")
@@ -267,18 +285,10 @@ async def event_history(
     principal = _require_http_auth(authorization)
     internal_session_id = _scoped_session(principal, public_session_id)
     events = await app.state.bus.history(internal_session_id, limit)
-    return {"session_id": public_session_id, "events": [
-        {
-            "session_id": public_session_id,
-            "task_id": event.task_id,
-            "active_layer": event.active_layer,
-            "neurons_firing": event.neurons_firing,
-            "agent_ops_status": event.agent_ops_status,
-            "sequence": event.sequence,
-            "timestamp": event.timestamp,
-        }
-        for event in events
-    ]}
+    return {
+        "session_id": public_session_id,
+        "events": [_event_payload(event, public_session_id) for event in events],
+    }
 
 
 @app.post("/v1/sessions/{session_id}/reset")
@@ -321,15 +331,7 @@ async def events(ws: WebSocket):
         async for event in app.state.bus.subscribe():
             if event.session_id != internal_session_id:
                 continue
-            await ws.send_json({
-                "session_id": public_session_id,
-                "task_id": event.task_id,
-                "active_layer": event.active_layer,
-                "neurons_firing": event.neurons_firing,
-                "agent_ops_status": event.agent_ops_status,
-                "sequence": event.sequence,
-                "timestamp": event.timestamp,
-            })
+            await ws.send_json(_event_payload(event, public_session_id))
     except (WebSocketDisconnect, RuntimeError):
         return
 
