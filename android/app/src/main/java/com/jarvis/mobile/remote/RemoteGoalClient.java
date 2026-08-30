@@ -24,7 +24,7 @@ public final class RemoteGoalClient {
     private static final int MAX_RESPONSE_BYTES = 1_048_576;
     private static final String GOALS_PATH = "/v1/goals";
     private static final String PROJECTS_PATH = "/v1/projects/";
-    private static final String AFTER_EVENT_ID = "after_event_id";
+    private static final String AFTER_EVENT_QUERY = "after_event_id=";
 
     private final String baseUrl;
     private final String bearerToken;
@@ -42,7 +42,7 @@ public final class RemoteGoalClient {
             String deadline) throws RemoteGoalException {
         JSONObject body = new JSONObject();
         body.put("goal", requireText(goal, "goal"));
-        body.put("session_id", sessionId == null || sessionId.isBlank() ? "primary" : sessionId);
+        body.put("session_id", sessionId == null ? "primary" : sessionId);
         body.put("constraints", stringArray(constraints));
         body.put("acceptance_criteria", stringArray(acceptanceCriteria));
         body.put("deadline", deadline == null ? JSONObject.NULL : deadline);
@@ -76,7 +76,7 @@ public final class RemoteGoalClient {
     public EventPage getEvents(String projectId, String afterEventId) throws RemoteGoalException {
         String query = null;
         if (afterEventId != null) {
-            query = AFTER_EVENT_ID + "=" + URLEncoder.encode(afterEventId, StandardCharsets.UTF_8);
+            query = AFTER_EVENT_QUERY + URLEncoder.encode(afterEventId, StandardCharsets.UTF_8);
         }
         JSONObject json = request("GET", projectPath(projectId) + "/events", query, null);
         JSONArray values = json.optJSONArray("events");
