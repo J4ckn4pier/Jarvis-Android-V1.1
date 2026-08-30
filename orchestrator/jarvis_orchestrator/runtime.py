@@ -9,6 +9,10 @@ import httpx
 from .core import AgentRuntime, EchoRuntime
 
 
+class WorkerUnavailableError(RuntimeError):
+    """Stable runtime boundary for temporary worker transport/server failures."""
+
+
 class AgentContextStore(Protocol):
     async def get(self, session_id: str) -> str | None: ...
     async def set(self, session_id: str, context_id: str, ttl_seconds: int | None = None) -> None: ...
@@ -98,11 +102,14 @@ class AgentZeroRuntime:
         return payload
 
     async def _send(self, text: str, context_id: str | None) -> httpx.Response:
-        return await self.client.post(
-            self.MESSAGE_PATH,
-            headers=self._headers,
-            json=self._payload(text, context_id),
-        )
+        try:
+            return await self.client.post(
+                self.MESSAGE_PATH,
+                headers=self._headers,
+                json=self._payload(text, context_id),
+            )
+        except httpx.RequestError as exc:
+            raise WorkerUnavailableError("Agent Zero unavailable") from exc
 
     @staticmethod
     def _context_not_found(response: httpx.Response) -> bool:
@@ -112,6 +119,12 @@ class AgentZeroRuntime:
             return response.json().get("error") == "Context not found"
         except (ValueError, AttributeError):
             return False
+
+    @staticmethod
+    def _raise_for_worker_status(response: httpx.Response) -> None:
+        if response.status_code >= 500:
+            raise WorkerUnavailableError("Agent Zero unavailable")
+        response.raise_for_status()
 
     async def check_ready(self) -> bool:
         response = await self.client.get(self.HEALTH_PATH, timeout=5.0)
@@ -129,7 +142,7 @@ class AgentZeroRuntime:
             await self.context_store.delete(session_id)
             response = await self._send(text, None)
 
-        response.raise_for_status()
+        self._raise_for_worker_status(response)
         body = response.json()
 
         new_context_id = body.get("context_id")
