@@ -8,12 +8,15 @@ public final class AndroidCortexSharedPlanContractTest {
     public static void main(String[] args) throws Exception {
         Path providers = Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/providers");
         Path legacyCore = Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/core");
+        Path diagnosticsSmokePath = Path.of("../.github/scripts/diagnostics-smoke.sh");
+        Path diagnosticsReceiverPath = Path.of("../android/app/src/debug/java/com/jarvis/mobile/JarvisDiagnosticsTestReceiver.java");
         String runtime = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/AndroidBrainRuntime.java"));
         String diagnostics = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/DiagnosticsActivity.java"));
         String provider = Files.readString(providers.resolve("CortexProvider.java"));
         String openAi = Files.readString(providers.resolve("OpenAIResponsesProvider.java"));
         String anthropic = Files.readString(providers.resolve("AnthropicMessagesProvider.java"));
         String factory = Files.readString(providers.resolve("CortexProviderFactory.java"));
+        String workflow = Files.readString(Path.of("../.github/workflows/build-apk.yml"));
 
         check(runtime.contains("reasonWithConfiguredCortex(app, request, tools)"),
                 "Android runtime must give provider reasoning the shared request and tool registry");
@@ -41,6 +44,16 @@ public final class AndroidCortexSharedPlanContractTest {
                 "user-visible diagnostics must not depend on the retired Android-local intent engine");
         check(diagnostics.contains("AndroidToolRegistryFactory.create") && diagnostics.contains("registry.resolve"),
                 "diagnostics must inspect the actual production typed tool registry without executing actions");
+        check(Files.exists(diagnosticsSmokePath) && Files.exists(diagnosticsReceiverPath),
+                "Android CI must include a debug-only route and emulator smoke for the real diagnostics screen");
+        String diagnosticsSmoke = Files.readString(diagnosticsSmokePath);
+        check(diagnosticsSmoke.contains("DEBUG_SHOW_DIAGNOSTICS")
+                        && diagnosticsSmoke.contains("Production typed-tool self-test")
+                        && diagnosticsSmoke.contains("Autonomous conversational calls")
+                        && diagnosticsSmoke.contains("Diagnostics inspect capability registration only"),
+                "diagnostics emulator smoke must prove truthful typed-tool and telephony status text is rendered");
+        check(workflow.contains("diagnostics-smoke.sh"),
+                "full APK workflow must launch the user-visible diagnostics screen on Android 16");
 
         System.out.println("AndroidCortexSharedPlanContractTest passed");
     }
