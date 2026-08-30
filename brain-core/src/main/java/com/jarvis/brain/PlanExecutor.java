@@ -16,22 +16,37 @@ public final class PlanExecutor {
         List<String> outputs = new ArrayList<>();
         for (PlanStep step : plan.steps()) {
             ToolRegistry.RegisteredTool tool = registry.resolve(step.tool()).orElse(null);
-            if (tool == null) return new ExecutionReport(ExecutionReport.Status.FAILED, outputs, step.tool());
+            if (tool == null) return new ExecutionReport(ExecutionReport.Status.FAILED, outputs, step.tool(),
+                    "Unknown tool: " + step.tool());
             boolean consequential = step.consequential() || tool.spec().consequential();
             if (consequential && !approvals.consume(tool.name())) {
-                return new ExecutionReport(ExecutionReport.Status.APPROVAL_REQUIRED, outputs, tool.name());
+                return new ExecutionReport(ExecutionReport.Status.APPROVAL_REQUIRED, outputs, tool.name(),
+                        "Fresh approval required before consequential execution attempt");
             }
-            ToolResult result = tool.implementation().execute(step.arguments(), context);
-            if (result.status() == ToolResult.Status.RETRYABLE_FAILURE) {
-                result = tool.implementation().execute(step.arguments(), context);
+
+            ToolResult result;
+            try {
+                result = normalizeToolResult(tool.implementation().execute(step.arguments(), context));
+                if (result.status() == ToolResult.Status.RETRYABLE_FAILURE) {
+                    result = normalizeToolResult(tool.implementation().execute(step.arguments(), context));
+                }
+            } catch (RuntimeException failure) {
+                String detail = failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage();
+                outputs.add(detail);
+                return new ExecutionReport(ExecutionReport.Status.FAILED, outputs, tool.name(), detail);
             }
+
             outputs.add(result.output());
             if (result.status() != ToolResult.Status.SUCCESS) {
-                return new ExecutionReport(ExecutionReport.Status.FAILED, outputs, tool.name());
+                return new ExecutionReport(ExecutionReport.Status.FAILED, outputs, tool.name(), result.output());
             }
             context.put("last_tool", tool.name());
             context.put("last_output", result.output());
         }
-        return new ExecutionReport(ExecutionReport.Status.COMPLETED, outputs, "");
+        return new ExecutionReport(ExecutionReport.Status.COMPLETED, outputs, "", "");
+    }
+
+    private static ToolResult normalizeToolResult(ToolResult result) {
+        return result == null ? ToolResult.failure("tool returned no result") : result;
     }
 }
