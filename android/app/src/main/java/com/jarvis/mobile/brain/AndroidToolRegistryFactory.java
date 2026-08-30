@@ -8,6 +8,7 @@ import com.jarvis.brain.ToolExecutionClass;
 import com.jarvis.brain.ToolRegistry;
 import com.jarvis.brain.ToolResult;
 import com.jarvis.brain.ToolSpec;
+import com.jarvis.mobile.actions.AndroidAccessibilityActions;
 import com.jarvis.mobile.actions.AndroidAlarmActions;
 import com.jarvis.mobile.actions.AndroidAppActions;
 import com.jarvis.mobile.actions.AndroidCalendarEventActions;
@@ -34,6 +35,7 @@ public final class AndroidToolRegistryFactory {
 
     public static ToolRegistry create(Context context, ExternalResearchGateway research, ConversationalCallTransport callTransport) {
         Context appContext = context.getApplicationContext();
+        AndroidAccessibilityActions accessibility = new AndroidAccessibilityActions();
         AndroidAlarmActions alarm = new AndroidAlarmActions(appContext);
         AndroidAppActions apps = new AndroidAppActions(appContext);
         AndroidCalendarEventActions calendarEvents = new AndroidCalendarEventActions(appContext);
@@ -56,6 +58,8 @@ public final class AndroidToolRegistryFactory {
         register(registry, "set_timer", false, Set.of("timer"), Set.of("amount", "unit"), "Set Android timer", ToolExecutionClass.DEVICE_REFLEX, args -> timer.setTimer(args.get("amount"), args.get("unit")));
         register(registry, "set_alarm", false, Set.of("alarm", "set alarm"), Set.of("hour", "minute"), "Set Android alarm using local 24-hour clock values", ToolExecutionClass.DEVICE_REFLEX, args -> alarm.setAlarm(args.get("hour"), args.get("minute")));
         register(registry, "navigate", false, Set.of("directions", "navigation"), Set.of("destination"), "Open navigation", ToolExecutionClass.DEVICE_REFLEX, args -> navigation.navigate(args.get("destination")));
+        register(registry, "device_navigation", false, Set.of("back", "go back", "home", "go home", "scroll down", "scroll up"), Set.of("action"), "Safely navigate the current Android interface", ToolExecutionClass.DEVICE_REFLEX, args -> accessibility.navigate(args.get("action")));
+        register(registry, "screen_read", false, Set.of("read screen", "what's on my screen", "what is on my screen"), Set.of(), "Read visible text from the current Android screen", ToolExecutionClass.DEVICE_REFLEX, args -> accessibility.readScreen());
         register(registry, "media_play", false, Set.of("play music", "play media"), Set.of("query"), "Play requested media", ToolExecutionClass.DEVICE_REFLEX, args -> media.playMediaQuery(args.get("query")));
         register(registry, "media_control", false, Set.of("pause media", "resume media", "next track", "previous track"), Set.of("action"), "Control current media playback", ToolExecutionClass.DEVICE_REFLEX, args -> media.control(args.get("action")));
         register(registry, "volume_control", false, Set.of("volume", "volume up", "volume down", "mute", "unmute"), Set.of("action"), "Control Android volume", ToolExecutionClass.DEVICE_REFLEX, args -> volume.control(args.get("action")));
