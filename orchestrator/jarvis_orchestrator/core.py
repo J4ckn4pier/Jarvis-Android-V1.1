@@ -6,7 +6,7 @@ import json
 import time
 import uuid
 from dataclasses import asdict, dataclass
-from typing import AsyncContextManager, AsyncIterator, Protocol
+from typing import AsyncContextManager, AsyncIterator, Awaitable, Callable, Protocol
 
 
 @dataclass(slots=True)
@@ -215,6 +215,15 @@ class Orchestrator:
         self.runtime = runtime
         self.session_locks = session_locks or InMemorySessionLockManager()
         self.idempotency = idempotency
+
+    async def run_session_operation(
+        self,
+        session_id: str,
+        operation: Callable[[], Awaitable[bool]],
+    ) -> bool:
+        """Serialize session lifecycle changes with ordinary conversation turns."""
+        async with self.session_locks.lock(session_id):
+            return bool(await operation())
 
     async def submit(
         self,
