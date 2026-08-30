@@ -18,6 +18,12 @@ public final class AndroidVoiceConversationContinuityContractTest {
         check(session.contains("presentation.state() == AssistantSurfaceState.NEEDS_INPUT"), "recovery state must remain explicit");
         check(!session.contains("if (!approval && !recovery)"), "approval/recovery prompts must not force a tap before the user can answer by voice");
         check(session.contains("resumeAfterSpeech = conversationWindowOpen();"), "spoken prompts must reopen recognition while the active conversation window remains open");
+        check(session.contains("Executors.newSingleThreadExecutor")
+                        && session.contains("brainExecutor.execute(")
+                        && session.contains("output.post(() -> deliver("),
+                "voice brain/provider/tool work must run off Android's main thread and marshal presentation back to the UI thread");
+        check(session.contains("brainExecutor.shutdownNow()"),
+                "voice-session destruction must stop its background brain executor");
         check(approval.contains("runtime.hasPendingApproval()")
                         && approval.contains("isApproval(n)")
                         && approval.contains("MIN_VOICE_APPROVAL_CONFIDENCE")
