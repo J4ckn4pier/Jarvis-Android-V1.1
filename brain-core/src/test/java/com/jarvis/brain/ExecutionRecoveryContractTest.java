@@ -13,6 +13,7 @@ public final class ExecutionRecoveryContractTest {
         approvalBoundaryStillPrecedesRecoveryExecution();
         recoveryOfConsequentialStepRequiresFreshApproval();
         approvedToolExceptionFailsClosedAndConsumesApproval();
+        approvedNullToolResultFailsClosedAndConsumesApproval();
         System.out.println("ExecutionRecoveryContractTest: " + checks + " assertions passed");
     }
 
@@ -96,6 +97,30 @@ public final class ExecutionRecoveryContractTest {
         check(withoutFreshApproval.status() == ExecutionReport.Status.APPROVAL_REQUIRED,
                 "an exception must consume the one-shot approval so retry cannot occur silently");
         check(calls[0] == 1, "failed consequential action must not retry without fresh approval");
+    }
+
+    private static void approvedNullToolResultFailsClosedAndConsumesApproval() {
+        ToolRegistry registry = new ToolRegistry(); ApprovalGate approvals = new ApprovalGate(); int[] calls = {0};
+        registry.register(new ToolSpec("send_external", true, Set.of(), Set.of("message"), "send"), (args, ctx) -> {
+            calls[0]++;
+            return null;
+        });
+        ResumablePlanExecutor executor = new ResumablePlanExecutor(registry, approvals);
+        ExecutionCursor cursor = executor.start(new Plan("send", List.of(new PlanStep("send_external", Map.of("message", "hello"), true))));
+        approvals.approve("send_external");
+        ExecutionReport first;
+        try {
+            first = executor.run(cursor, new ExecutionContext());
+        } catch (RuntimeException escaped) {
+            throw new AssertionError("null tool result must become a controlled failed execution report", escaped);
+        }
+        check(first.status() == ExecutionReport.Status.FAILED, "null tool result should fail closed");
+        check(first.failureDetail().toLowerCase().contains("no result"), "null failure should explain that no result was returned");
+        check(calls[0] == 1, "approved action should be attempted only once when it returns null");
+        ExecutionReport withoutFreshApproval = executor.run(cursor, new ExecutionContext());
+        check(withoutFreshApproval.status() == ExecutionReport.Status.APPROVAL_REQUIRED,
+                "null result must consume the one-shot approval so retry cannot occur silently");
+        check(calls[0] == 1, "null consequential action must not retry without fresh approval");
     }
 
     private static void check(boolean condition, String message) { checks++; if (!condition) throw new AssertionError(message); }
