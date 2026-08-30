@@ -122,8 +122,9 @@ public class SettingsActivity extends Activity {
         researchHelp.setPadding(dp(8), dp(4), dp(8), dp(8));
         body.addView(researchHelp, fullWrap());
         EditText researchEndpoint = textSetting("Research endpoint", researchSettings.get(SettingsStore.RESEARCH_ENDPOINT));
+        researchEndpoint.setContentDescription("JARVIS research endpoint");
         body.addView(researchEndpoint, fullWrap());
-        body.addView(action("SAVE RESEARCH ENDPOINT", () -> {
+        Button saveResearchEndpoint = action("SAVE RESEARCH ENDPOINT", () -> {
             String researchEndpointValue = researchEndpoint.getText().toString().trim();
             if (!researchEndpointValue.isEmpty() && !EndpointTransportPolicy.allows(researchEndpointValue)) {
                 Toast.makeText(this,
@@ -135,7 +136,9 @@ public class SettingsActivity extends Activity {
             Toast.makeText(this, researchEndpointValue.isEmpty()
                     ? "Live research endpoint cleared."
                     : "Live research endpoint saved.", Toast.LENGTH_SHORT).show();
-        }), fullWrap());
+        });
+        saveResearchEndpoint.setContentDescription("JARVIS save research endpoint");
+        body.addView(saveResearchEndpoint, fullWrap());
 
         body.addView(header("OPERATING MODE"), fullWrap());
         RadioGroup modes = new RadioGroup(this);
