@@ -17,6 +17,10 @@ public final class MainActivitySharedRuntimeContractTest {
                         && source.contains("brainExecutor.execute(")
                         && source.contains("ui.post(() -> deliverPresentation("),
                 "full-app provider/tool work must run off Android's main thread and marshal presentation back to the UI thread");
+        check(source.contains("private boolean destroyed;")
+                        && source.contains("if (destroyed) return;")
+                        && source.contains("destroyed = true;"),
+                "late background results must not update or speak through a destroyed full-app Activity");
         check(source.contains("brainExecutor.shutdownNow()"),
                 "MainActivity destruction must stop its background brain executor");
         check(!source.contains("brain.handle(command, this::deliverResult)"),"production command path must not call legacy JarvisBrain callback");
