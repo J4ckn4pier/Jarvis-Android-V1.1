@@ -1,3 +1,5 @@
+# Provider-qualified Ollama model names keep the preset compatible with Agent Zero
+# releases that pass model identifiers directly to LiteLLM.
 - name: Default
   chat:
     provider: ollama
