@@ -95,6 +95,13 @@ public class SettingsActivity extends Activity {
                 Toast.makeText(this, "Android Keystore could not save that key.", Toast.LENGTH_LONG).show();
             }
         }), fullWrap());
+        body.addView(action("CLEAR SAVED API KEY", () -> {
+            secrets.remove("provider_api_key");
+            apiKey.setText("");
+            apiKey.setHint("API key cleared; optional for local endpoint");
+            cortexStatus.setText(CortexProviderFactory.status(this));
+            Toast.makeText(this, "Saved cortex API key removed.", Toast.LENGTH_SHORT).show();
+        }), fullWrap());
         body.addView(action("RUN JARVIS DIAGNOSTICS", () -> startActivity(new Intent(this, DiagnosticsActivity.class))), fullWrap());
 
         body.addView(header("OPERATING MODE"), fullWrap());
