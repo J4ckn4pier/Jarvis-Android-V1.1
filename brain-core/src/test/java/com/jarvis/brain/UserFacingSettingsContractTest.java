@@ -11,6 +11,14 @@ public final class UserFacingSettingsContractTest {
         for (String title : new String[]{"Voice", "Wake Word", "Voice Model", "Language", "App Permissions", "AI Providers", "Backup & Sync", "Profile", "Default Apps", "Personality", "Widgets & Lock Screen"}) {
             check(settings.contains(title), "user Settings must include canonical group: " + title);
         }
+        check(settings.contains("showProviderConnections"),
+                "AI Providers must open a real user-facing connection surface instead of a status-only toast");
+        check(settings.contains("CONNECT / CHANGE") && settings.contains("DISCONNECT"),
+                "normal AI Providers must offer connect/change and disconnect actions");
+        check(settings.contains("CortexProviderFactory.MODE_LOCAL") && settings.contains("provider_api_key"),
+                "disconnect must return JARVIS to private local mode and remove the saved external credential");
+        check(settings.contains("DeveloperSettingsActivity.class"),
+                "connect/change may enter the explicitly advanced provider setup surface without exposing raw fields inline");
         check(!settings.contains("PREFRONTAL CORTEX"), "normal Settings must not expose internal cortex jargon");
         check(!settings.contains("API key"), "normal Settings must not expose a raw API-key field");
         check(!settings.contains("RESEARCH ENDPOINT"), "normal Settings must not expose raw research endpoint controls");
