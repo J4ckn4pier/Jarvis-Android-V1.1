@@ -19,17 +19,43 @@ public class JarvisVoiceInteractionService extends VoiceInteractionService {
     public void onReady() {
         super.onReady();
         activeInstance = this;
-        wakeWordDetector = AndroidWakeWordDetectorFactory.create(this);
-        boolean started = wakeWordDetector.start(this::showWakeSession);
-        Log.i(WAKE_TAG, started
-                ? "JARVIS_PASSIVE_WAKE_READY model=" + wakeWordDetector.modelDescriptor().identifier()
-                : "JARVIS_PASSIVE_WAKE_DISABLED reason=" + wakeWordDetector.status());
+        armPassiveWake("service ready");
         Log.i(TEST_TAG, "JARVIS_VOICE_SERVICE_READY");
     }
 
     private void showWakeSession() {
         showSession(new Bundle(), VoiceInteractionSession.SHOW_WITH_ASSIST);
         Log.i(WAKE_TAG, "JARVIS_PASSIVE_WAKE_TRIGGERED");
+    }
+
+    /**
+     * Active assistant speech recognition and passive wake recognition must never own the
+     * microphone at the same time. ManagedJarvisVoiceSession calls these hooks at the Android
+     * session boundary for both wake-phrase and side-key/default-assistant invocation paths.
+     */
+    static void pausePassiveWakeForSession() {
+        JarvisVoiceInteractionService service = activeInstance;
+        if (service != null) service.pausePassiveWake();
+    }
+
+    static void rearmPassiveWakeAfterSession() {
+        JarvisVoiceInteractionService service = activeInstance;
+        if (service != null) service.armPassiveWake("assistant session hidden");
+    }
+
+    private void pausePassiveWake() {
+        if (wakeWordDetector == null) return;
+        wakeWordDetector.stop();
+        Log.i(WAKE_TAG, "JARVIS_PASSIVE_WAKE_PAUSED_FOR_SESSION");
+    }
+
+    private void armPassiveWake(String reason) {
+        if (wakeWordDetector == null) wakeWordDetector = AndroidWakeWordDetectorFactory.create(this);
+        if (wakeWordDetector.isRunning()) return;
+        boolean started = wakeWordDetector.start(this::showWakeSession);
+        Log.i(WAKE_TAG, started
+                ? "JARVIS_PASSIVE_WAKE_READY model=" + wakeWordDetector.modelDescriptor().identifier() + " reason=" + reason
+                : "JARVIS_PASSIVE_WAKE_DISABLED reason=" + wakeWordDetector.status());
     }
 
     @Override
