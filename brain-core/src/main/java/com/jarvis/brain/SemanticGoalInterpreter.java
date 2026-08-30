@@ -16,6 +16,11 @@ public final class SemanticGoalInterpreter {
         String lower = normalize(raw);
         if (lower.isEmpty()) return Optional.empty();
 
+        // JARVIS Settings is an app-local destination. Recognize it anywhere in natural speech so
+        // polite/conversational lead-ins never force a cloud-provider round trip.
+        if (isJarvisSettingsRequest(lower)) return Optional.of(new Plan("Open JARVIS settings",
+                List.of(new PlanStep("open_jarvis_settings"))));
+
         if (isDialer(lower)) return Optional.of(new Plan("Open the phone dialer", List.of(new PlanStep("open_dialer"))));
 
         String calendarWhen = calendarWhen(lower);
@@ -44,6 +49,16 @@ public final class SemanticGoalInterpreter {
                             new PlanStep("present_options", Map.of("count", "3"), false))));
         }
         return Optional.empty();
+    }
+
+    private static boolean isJarvisSettingsRequest(String lower) {
+        if (!lower.contains("settings")) return false;
+        return lower.contains("open settings")
+                || lower.contains("open the settings")
+                || lower.contains("show settings")
+                || lower.contains("show me settings")
+                || lower.contains("go to settings")
+                || lower.contains("jarvis settings");
     }
 
     private static boolean isDialer(String lower) {
