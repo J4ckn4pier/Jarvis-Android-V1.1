@@ -74,10 +74,18 @@ public final class BrainRuntime {
     }
     private Result runPending(String assistantText){ExecutionReport report=executor.run(pending,new ExecutionContext());return switch(report.status()){
         case COMPLETED->{String text=lastNonBlank(report.outputs(),assistantText);recordCompletedPlan(pending.plan(),pendingRecommendedAt);clearPending();yield new Result(Status.COMPLETED,text,"",report.outputs());}
-        case APPROVAL_REQUIRED->{pendingTool=report.blockedTool();pendingStatus=Status.APPROVAL_REQUIRED;String text=assistantText==null||assistantText.isBlank()?"I need your approval before I do that.":assistantText;yield new Result(Status.APPROVAL_REQUIRED,text,pendingTool,report.outputs());}
+        case APPROVAL_REQUIRED->{pendingTool=report.blockedTool();pendingStatus=Status.APPROVAL_REQUIRED;String text=approvalText(report,assistantText);yield new Result(Status.APPROVAL_REQUIRED,text,pendingTool,report.outputs());}
         case RECOVERY_REQUIRED->{pendingTool=report.blockedTool();pendingStatus=Status.RECOVERY_REQUIRED;yield new Result(Status.RECOVERY_REQUIRED,report.failureDetail().isBlank()?"That action needs recovery before I retry it.":report.failureDetail(),pendingTool,report.outputs());}
         case FAILED->{String detail=report.failureDetail().isBlank()?"That action failed safely.":report.failureDetail();clearPending();yield new Result(Status.FAILED,detail,report.blockedTool(),report.outputs());}
     };}
+    private static String approvalText(ExecutionReport report,String assistantText){
+        if(assistantText!=null&&!assistantText.isBlank())return assistantText;
+        String lastOutput=lastNonBlank(report.outputs(),"");
+        if(!lastOutput.isBlank()&&report.failureDetail()!=null&&!report.failureDetail().isBlank()){
+            return lastOutput+" I need fresh approval before I retry that action.";
+        }
+        return "I need your approval before I do that.";
+    }
     private void recordCompletedPlan(Plan plan,Instant recommendedAt){
         if(plan==null||plan.steps()==null||plan.steps().isEmpty())return;
         Optional<PlanStep> actedStep=lastActedStep(plan);
