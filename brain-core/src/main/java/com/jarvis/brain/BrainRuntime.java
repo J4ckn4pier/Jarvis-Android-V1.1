@@ -3,6 +3,7 @@ package com.jarvis.brain;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 /** Single execution facade between conversational/executive reasoning and platform tools. */
@@ -12,6 +13,7 @@ public final class BrainRuntime {
         public Result { if(status==null)throw new IllegalArgumentException("status required"); text=text==null?"":text.trim(); blockedTool=blockedTool==null?"":blockedTool.trim(); outputs=outputs==null?List.of():List.copyOf(outputs); }
     }
     private final AssistantCore assistant;
+    private final ToolRegistry tools;
     private final ApprovalGate approvals=new ApprovalGate();
     private final ResumablePlanExecutor executor;
     private final PendingDecisionInterruptionPolicy pendingInterruptionPolicy;
@@ -32,6 +34,7 @@ public final class BrainRuntime {
         if(clock==null)throw new IllegalArgumentException("clock required");
         if(actedOnEpisodes==null)throw new IllegalArgumentException("acted-on episode sink required");
         this.assistant=assistant;
+        this.tools=tools;
         this.executor=new ResumablePlanExecutor(tools,approvals);
         this.pendingInterruptionPolicy=new PendingDecisionInterruptionPolicy(tools);
         this.clock=clock;
@@ -77,13 +80,24 @@ public final class BrainRuntime {
     };}
     private void recordCompletedPlan(Plan plan,Instant recommendedAt){
         if(plan==null||plan.steps()==null||plan.steps().isEmpty())return;
+        Optional<PlanStep> actedStep=lastActedStep(plan);
+        if(actedStep.isEmpty())return;
         Instant actedAt=clock.instant();
-        PlanStep terminal=plan.steps().get(plan.steps().size()-1);
-        String domain=terminal.tool()==null||terminal.tool().isBlank()?"action":terminal.tool().trim();
+        String domain=actedStep.get().tool().trim();
         String subject=plan.goal()==null||plan.goal().isBlank()?domain:plan.goal().trim();
         RecommendationEpisode episode=new RecommendationEpisode(
                 "runtime-"+UUID.randomUUID(),domain,subject,recommendedAt==null?actedAt:recommendedAt);
         try{actedOnEpisodes.recordActedOn(episode,actedAt);}catch(RuntimeException ignored){/* The action already happened; follow-up persistence must never rewrite execution truth. */}
+    }
+    private Optional<PlanStep> lastActedStep(Plan plan){
+        List<PlanStep> steps=plan.steps();
+        for(int i=steps.size()-1;i>=0;i--){
+            PlanStep step=steps.get(i);
+            if(step==null||step.tool()==null||step.tool().isBlank())continue;
+            Optional<ToolRegistry.RegisteredTool> registered=tools.resolve(step.tool());
+            if(registered.isPresent()&&registered.get().spec().executionClass()!=ToolExecutionClass.AUTONOMOUS_RESEARCH)return Optional.of(step);
+        }
+        return Optional.empty();
     }
     private void clearPending(){pending=null;pendingRecommendedAt=null;pendingTool="";pendingStatus=null;}
     private static String lastNonBlank(List<String> outputs,String fallback){if(outputs!=null)for(int i=outputs.size()-1;i>=0;i--){String v=outputs.get(i);if(v!=null&&!v.isBlank())return v.trim();}return fallback==null?"":fallback.trim();}
