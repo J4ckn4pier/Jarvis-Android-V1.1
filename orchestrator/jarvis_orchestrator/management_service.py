@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from typing import Callable, Mapping
 from uuid import uuid4
@@ -17,7 +16,7 @@ from .verification import (
     CompletionGate,
     EvidenceArtifact,
     EvidenceKind,
-    InMemoryEvidenceStore,
+    ProjectEvidenceStore,
 )
 from .worker_registry import WorkerRegistry
 
@@ -59,9 +58,8 @@ class ManagementService:
             stall_after,
             clock=clock,
         )
-        self.evidence_store = InMemoryEvidenceStore()
+        self.evidence_store = ProjectEvidenceStore(store)
         self.completion_gate = CompletionGate(store, self.evidence_store)
-        self._evidence_sequence = 0
 
     async def _project(self, owner_id: str, project_id: str):
         project = await self.store.get_project(owner_id, project_id)
@@ -206,8 +204,7 @@ class ManagementService:
         source_worker_id: str | None = None,
     ) -> dict:
         await self._project(owner_id, project_id)
-        self._evidence_sequence += 1
-        evidence_id = f"evidence-{self._evidence_sequence:08d}"
+        evidence_id = f"evidence-{uuid4().hex}"
         artifact = EvidenceArtifact(
             evidence_id=evidence_id,
             project_id=project_id,
