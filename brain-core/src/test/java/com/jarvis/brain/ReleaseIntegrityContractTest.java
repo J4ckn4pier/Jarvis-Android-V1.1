@@ -3,11 +3,12 @@ package com.jarvis.brain;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-/** Release builds must carry deterministic, non-UI provenance coverage for every shipped source/resource input. */
+/** Release builds must carry deterministic provenance and truthful clean-room project metadata. */
 public final class ReleaseIntegrityContractTest {
     public static void main(String[] args) throws Exception {
         String gradle = Files.readString(Path.of("../android/app/build.gradle"));
         String workflow = Files.readString(Path.of("../.github/workflows/build-apk.yml"));
+        String readme = Files.readString(Path.of("../README.md"));
 
         check(gradle.contains("brain-core/src"),
                 "release provenance must cover every shared-brain source/test input");
@@ -37,6 +38,14 @@ public final class ReleaseIntegrityContractTest {
                 "APK verification must require a cryptographic manifest root after packaging");
         check(!gradle.contains("setText(\"J4ckN4pier\")") && !gradle.contains("android:text=\"J4ckN4pier\""),
                 "ownership provenance must remain non-user-facing and must not alter frontend presentation");
+
+        String readmeLower = readme.toLowerCase();
+        check(!readmeLower.contains("donor-themed") && !readmeLower.contains("donor assets") && !readmeLower.contains("legacy visual resources"),
+                "README must not describe removed licensed donor assets as shipped product content");
+        check(readme.contains("brain-first-v1"),
+                "README must identify the active integrated product branch rather than implying main is the only verified path");
+        check(readmeLower.contains("conversational") && readmeLower.contains("phone") && readmeLower.contains("blocked"),
+                "README must disclose the one known unfinished conversational-phone transport boundary instead of implying the product is fully capable there");
 
         System.out.println("ReleaseIntegrityContractTest passed");
     }
