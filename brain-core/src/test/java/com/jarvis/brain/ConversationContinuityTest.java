@@ -17,6 +17,7 @@ public final class ConversationContinuityTest {
         cancelledClarificationRemainsVisibleToLaterReasoning();
         multiStepClarificationPromptsRemainVisibleToLaterReasoning();
         deterministicClarificationPromptRemainsVisibleToLaterReasoning();
+        autonomousResearchAnswerIsRememberedExactlyOnce();
         System.out.println("ConversationContinuityTest: " + checks + " assertions passed");
     }
 
@@ -137,6 +138,39 @@ public final class ConversationContinuityTest {
         check(requests.size() == 1, "fresh open-ended task should reach reasoning after deterministic clarification");
         check(requests.get(0).context().contains("JARVIS: " + clarification.text()),
                 "later reasoning must retain the first clarification prompt produced by the deterministic reflex path");
+    }
+
+    private static void autonomousResearchAnswerIsRememberedExactlyOnce() {
+        Clock clock = Clock.fixed(Instant.parse("2026-08-27T23:30:00Z"), ZoneOffset.UTC);
+        List<ReasoningRequest> requests = new ArrayList<>();
+        ReasoningRouter router = request -> {
+            requests.add(request);
+            if (requests.size() == 1) {
+                return new ReasoningResult("local", "I'll research that.",
+                        new Plan("Research", List.of(new PlanStep("research_topic", Map.of("topic", "orbital mechanics"), false))));
+            }
+            if (requests.size() == 2) return new ReasoningResult("local", "Research complete.", null);
+            return new ReasoningResult("local", "Fresh task acknowledged.", null);
+        };
+        ToolRegistry tools = ToolRegistry.standard();
+        tools.register(new ToolSpec("research_topic", false, Set.of(), Set.of("topic"),
+                        "Research a topic", ToolExecutionClass.AUTONOMOUS_RESEARCH),
+                (arguments, context) -> ToolResult.success("evidence:" + arguments.get("topic")));
+        AssistantCore core = new AssistantCore(BrainEngine.createDefault(clock), router, tools);
+
+        BrainResponse researched = core.handle("Jarvis investigate orbital mechanics");
+        check(researched.kind() == BrainResponse.Kind.CONVERSATION && researched.text().equals("Research complete."),
+                "autonomous research should synthesize a conversational answer");
+        core.handle("compare two unrelated ideas for me");
+        check(requests.size() == 3, "fresh reasoning should run after autonomous research completes");
+        check(occurrences(requests.get(2).context(), "JARVIS: Research complete.") == 1,
+                "one autonomous research answer must occupy exactly one assistant turn in later reasoning context");
+    }
+
+    private static int occurrences(String text, String needle) {
+        int count = 0;
+        for (int at = text.indexOf(needle); at >= 0; at = text.indexOf(needle, at + needle.length())) count++;
+        return count;
     }
 
     private static void check(boolean condition, String message) {
