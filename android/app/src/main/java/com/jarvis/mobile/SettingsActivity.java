@@ -19,6 +19,7 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.jarvis.brain.EndpointTransportPolicy;
 import com.jarvis.brain.SettingsStore;
 import com.jarvis.mobile.brain.AndroidSharedPreferencesSettingsPersistence;
 import com.jarvis.mobile.brain.providers.CortexProviderFactory;
@@ -116,8 +117,15 @@ public class SettingsActivity extends Activity {
         EditText researchEndpoint = textSetting("Research endpoint", researchSettings.get(SettingsStore.RESEARCH_ENDPOINT));
         body.addView(researchEndpoint, fullWrap());
         body.addView(action("SAVE RESEARCH ENDPOINT", () -> {
-            researchSettings.put(SettingsStore.RESEARCH_ENDPOINT, researchEndpoint.getText().toString().trim());
-            Toast.makeText(this, researchEndpoint.getText().toString().trim().isEmpty()
+            String researchEndpointValue = researchEndpoint.getText().toString().trim();
+            if (!researchEndpointValue.isEmpty() && !EndpointTransportPolicy.allows(researchEndpointValue)) {
+                Toast.makeText(this,
+                        "Use HTTPS, loopback HTTP, or a user-owned .local HTTP endpoint.",
+                        Toast.LENGTH_LONG).show();
+                return;
+            }
+            researchSettings.put(SettingsStore.RESEARCH_ENDPOINT, researchEndpointValue);
+            Toast.makeText(this, researchEndpointValue.isEmpty()
                     ? "Live research endpoint cleared."
                     : "Live research endpoint saved.", Toast.LENGTH_SHORT).show();
         }), fullWrap());
