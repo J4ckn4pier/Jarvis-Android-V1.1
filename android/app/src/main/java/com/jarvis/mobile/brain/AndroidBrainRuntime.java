@@ -46,10 +46,19 @@ public final class AndroidBrainRuntime {
                 new RuntimeEnvironmentContextSource(clock, devices),
                 notificationContext));
 
+        OutcomeFollowupStore followupStore = new EncryptedFileOutcomeFollowupStore(
+                app.getNoBackupFilesDir().toPath().resolve("jarvis").resolve("pending-outcome-followups.bin"),
+                new AndroidKeystoreMemoryCipher());
+        OutcomeFollowupCoordinator followupCoordinator = new OutcomeFollowupCoordinator(
+                new EpisodeFollowupPolicy(Duration.ofMinutes(30)),
+                new ProactiveExecutive(new AttentionGate(0.70), Duration.ZERO, true),
+                followupStore);
+        followups = new OutcomeFollowupRuntime(settings, followupCoordinator);
+
         BrainEngine brain = BrainEngine.createDefault(clock);
         brain.beginInvokedConversation();
         AssistantCore assistant = new AssistantCore(brain, reasoning, tools, runtimeContext);
-        runtime = new BrainRuntime(assistant, tools);
+        runtime = new BrainRuntime(assistant, tools, clock, followups::recordActedOn);
         conversation = new RuntimeApprovalConversation(runtime);
 
         DefaultAppPreferenceStore defaultApps = new DefaultAppPreferenceStore(
@@ -59,14 +68,6 @@ public final class AndroidBrainRuntime {
         ActivityLog activity = new ActivityLog(new AndroidActivityLogPersistence(app));
         MusicQueueStore music = new MusicQueueStore(new AndroidMusicQueueStorePersistence(app));
         uiBackend = new JarvisUiBackend(memory, tools, connections, settings, defaultApps, lists, routines, activity, devices, music);
-        OutcomeFollowupStore followupStore = new EncryptedFileOutcomeFollowupStore(
-                app.getNoBackupFilesDir().toPath().resolve("jarvis").resolve("pending-outcome-followups.bin"),
-                new AndroidKeystoreMemoryCipher());
-        OutcomeFollowupCoordinator followupCoordinator = new OutcomeFollowupCoordinator(
-                new EpisodeFollowupPolicy(Duration.ofMinutes(30)),
-                new ProactiveExecutive(new AttentionGate(0.70), Duration.ZERO, true),
-                followupStore);
-        followups = new OutcomeFollowupRuntime(settings, followupCoordinator);
     }
 
     public BrainRuntime.Result handle(String utterance) { return runtime.handle(utterance); }
@@ -94,7 +95,7 @@ public final class AndroidBrainRuntime {
     public RuntimeSurfacePresentation retryPresentation() { return conversation.retryPending(); }
     public RuntimeSurfacePresentation cancelPresentation() { return conversation.cancelPending(); }
 
-    /** Platform adapters call this only after a recommendation/action has actually been acted on. */
+    /** Compatibility hook for platform events that were acted on outside the shared plan executor. */
     public void recordActedOnEpisode(RecommendationEpisode episode, Instant actedAt) {
         followups.recordActedOn(episode, actedAt);
     }
