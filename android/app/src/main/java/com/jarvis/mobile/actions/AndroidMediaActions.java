@@ -9,7 +9,7 @@ import android.view.KeyEvent;
 
 import java.util.Locale;
 
-/** Typed Android media actions that preserve structured tool arguments. */
+/** Typed Android media actions that preserve structured tool arguments and truthful dispatch acknowledgements. */
 public final class AndroidMediaActions {
     private final Context context;
 
@@ -29,7 +29,7 @@ public final class AndroidMediaActions {
                 return "No compatible media app is available for that request.";
             }
             context.startActivity(intent);
-            return "Playing " + clean + ".";
+            return "Asked a media app to play " + clean + ".";
         } catch (SecurityException denied) {
             return "Android blocked that action because its permission is off.";
         } catch (Exception unavailable) {
@@ -44,19 +44,19 @@ public final class AndroidMediaActions {
         switch (clean) {
             case "pause" -> {
                 keyCode = KeyEvent.KEYCODE_MEDIA_PAUSE;
-                success = "Paused.";
+                success = "Sent pause command.";
             }
             case "play", "resume" -> {
                 keyCode = KeyEvent.KEYCODE_MEDIA_PLAY;
-                success = "Resumed.";
+                success = "Sent play command.";
             }
             case "next", "skip" -> {
                 keyCode = KeyEvent.KEYCODE_MEDIA_NEXT;
-                success = "Skipped to the next track.";
+                success = "Sent next-track command.";
             }
             case "previous", "back" -> {
                 keyCode = KeyEvent.KEYCODE_MEDIA_PREVIOUS;
-                success = "Went to the previous track.";
+                success = "Sent previous-track command.";
             }
             default -> {
                 return "Unsupported media action. Use pause, play, resume, next, skip, previous, or back.";
