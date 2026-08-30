@@ -31,6 +31,8 @@ jobs:
 
   prototype-smoke:
     runs-on: ubuntu-latest
+    env:
+      JARVIS_API_KEYS_JSON: '{"ci-user":"ci-token","other-user":"other-token"}'
     defaults:
       run:
         working-directory: orchestrator
@@ -39,8 +41,6 @@ jobs:
       - name: Validate Docker Compose
         run: docker compose config --quiet
       - name: Verify multi-principal auth reaches the container
-        env:
-          JARVIS_API_KEYS_JSON: '{"ci-user":"ci-token"}'
         run: |
           docker compose config --format json > /tmp/compose.json
           python3 - <<'PY'
@@ -48,7 +48,7 @@ jobs:
           with open('/tmp/compose.json') as handle:
               config = json.load(handle)
           environment = config['services']['orchestrator']['environment']
-          assert environment['JARVIS_API_KEYS_JSON'] == '{"ci-user":"ci-token"}', environment
+          assert environment['JARVIS_API_KEYS_JSON'] == '{"ci-user":"ci-token","other-user":"other-token"}', environment
           PY
       - name: Boot standalone prototype
         run: docker compose up -d --build valkey orchestrator
@@ -63,6 +63,7 @@ jobs:
               ready = json.load(handle)
           assert ready['status'] == 'ready', ready
           assert ready['state_backend'] == 'valkey', ready
+          assert ready['auth_mode'] == 'multi-principal', ready
           PY
               exit 0
             fi
@@ -70,31 +71,61 @@ jobs:
           done
           echo 'orchestrator did not become ready'
           exit 1
-      - name: Send prototype command
+      - name: Send first user's prototype command
         run: |
           curl -fsS -X POST http://127.0.0.1:8000/v1/command \
+            -H 'Authorization: Bearer ci-token' \
             -H 'Content-Type: application/json' \
-            -d '{"text":"prototype smoke test","session_id":"ci-prototype"}' \
+            -d '{"text":"prototype smoke test","session_id":"primary"}' \
             -o /tmp/command.json
           cat /tmp/command.json
           python3 - <<'PY'
           import json
           with open('/tmp/command.json') as handle:
               command = json.load(handle)
-          assert command['session_id'] == 'ci-prototype', command
+          assert command['session_id'] == 'primary', command
           assert command['response'] == 'JARVIS received: prototype smoke test', command
           PY
-      - name: Recover durable prototype history
+      - name: Prove same public session is isolated between users
         run: |
-          curl -fsS http://127.0.0.1:8000/v1/sessions/ci-prototype/events -o /tmp/history.json
-          cat /tmp/history.json
+          curl -fsS http://127.0.0.1:8000/v1/sessions/primary/events \
+            -H 'Authorization: Bearer ci-token' \
+            -o /tmp/first-history.json
+          curl -fsS http://127.0.0.1:8000/v1/sessions/primary/events \
+            -H 'Authorization: Bearer other-token' \
+            -o /tmp/other-history.json
+          cat /tmp/first-history.json
+          cat /tmp/other-history.json
           python3 - <<'PY'
           import json
-          with open('/tmp/history.json') as handle:
+          with open('/tmp/first-history.json') as handle:
+              first = json.load(handle)
+          with open('/tmp/other-history.json') as handle:
+              other = json.load(handle)
+          assert first['session_id'] == 'primary', first
+          assert [event['sequence'] for event in first['events']] == [1, 2, 3, 4], first
+          assert first['events'][-1]['agent_ops_status'] == 'Complete', first
+          assert other == {'session_id': 'primary', 'events': []}, other
+          PY
+      - name: Send second user's same-named session
+        run: |
+          curl -fsS -X POST http://127.0.0.1:8000/v1/command \
+            -H 'Authorization: Bearer other-token' \
+            -H 'Content-Type: application/json' \
+            -d '{"text":"second isolated user","session_id":"primary"}' \
+            -o /tmp/other-command.json
+          curl -fsS http://127.0.0.1:8000/v1/sessions/primary/events \
+            -H 'Authorization: Bearer other-token' \
+            -o /tmp/other-history-after.json
+          python3 - <<'PY'
+          import json
+          with open('/tmp/other-command.json') as handle:
+              command = json.load(handle)
+          with open('/tmp/other-history-after.json') as handle:
               history = json.load(handle)
-          assert history['session_id'] == 'ci-prototype', history
+          assert command['session_id'] == 'primary', command
+          assert command['response'] == 'JARVIS received: second isolated user', command
           assert [event['sequence'] for event in history['events']] == [1, 2, 3, 4], history
-          assert history['events'][-1]['agent_ops_status'] == 'Complete', history
           PY
       - name: Show prototype logs on failure
         if: failure()
