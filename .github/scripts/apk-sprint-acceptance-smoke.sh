@@ -91,3 +91,28 @@ test "$UI_READY" -eq 1
 ! grep -Eiq 'Scripted Scenarios|Scenario Picker|Demo Mode|Developer Sandbox|Sandbox' "$OUTPUT/jarvis-apk-sprint-home.xml"
 grep -Eiq 'JARVIS|Welcome Sir|Speak to JARVIS' "$OUTPUT/jarvis-apk-sprint-home.xml"
 adb exec-out screencap -p > "$OUTPUT/jarvis-apk-sprint-home.png"
+
+# Generic installed-app routing must traverse the live APK path and resolve one exact visible
+# launcher label. The shared contract suite separately supplies duplicate-label fakes and requires
+# AndroidAppActions to refuse ambiguous packages instead of picking whichever package appears first.
+adb shell am force-stop "$PACKAGE" || true
+adb logcat -c
+adb shell am start -W -n "$ACTIVITY" --es jarvis_test_command 'open JARVIS' \
+  | tee "$OUTPUT/apk-sprint-open-app-launch.txt"
+grep -q 'Status: ok' "$OUTPUT/apk-sprint-open-app-launch.txt"
+APP_OPENED=0
+for attempt in $(seq 1 20); do
+  adb logcat -d > "$OUTPUT/apk-sprint-open-app-logcat.txt" || true
+  adb shell dumpsys activity activities > "$OUTPUT/apk-sprint-open-app-activity.txt" || true
+  if grep -q 'JARVIS_COMMAND_RESULT Opened JARVIS.' "$OUTPUT/apk-sprint-open-app-logcat.txt" \
+      && grep -Eq 'topResumedActivity=.*com\.jarvis\.mobile/\.MainActivity' "$OUTPUT/apk-sprint-open-app-activity.txt"; then
+    APP_OPENED=1
+    break
+  fi
+  sleep 1
+done
+if [ "$APP_OPENED" -ne 1 ]; then
+  grep -E 'JARVIS_RUNTIME_INPUT|JARVIS_RUNTIME_OUTPUT|JARVIS_COMMAND_RESULT' "$OUTPUT/apk-sprint-open-app-logcat.txt" || true
+  cat "$OUTPUT/apk-sprint-open-app-activity.txt" || true
+fi
+test "$APP_OPENED" -eq 1
