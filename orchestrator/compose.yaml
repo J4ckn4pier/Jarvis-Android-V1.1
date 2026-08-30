@@ -30,6 +30,7 @@ services:
     environment:
       VALKEY_URL: redis://valkey:6379/0
       JARVIS_API_TOKEN: ${JARVIS_API_TOKEN:-}
+      JARVIS_API_KEYS_JSON: ${JARVIS_API_KEYS_JSON:-}
       JARVIS_RUNTIME: ${JARVIS_RUNTIME:-echo}
       AGENT_ZERO_URL: ${AGENT_ZERO_URL:-http://agent-zero}
       AGENT_ZERO_API_KEY: ${AGENT_ZERO_API_KEY:-}
