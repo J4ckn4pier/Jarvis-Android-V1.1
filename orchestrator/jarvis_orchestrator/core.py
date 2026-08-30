@@ -20,10 +20,20 @@ class BrainEvent:
     timestamp: float
 
 
+def brain_event_id(event: BrainEvent) -> str:
+    """Stable client-visible identity for one task telemetry transition."""
+    return f"{event.task_id}:{event.sequence}"
+
+
 class EventBus(Protocol):
     async def publish(self, event: BrainEvent) -> None: ...
     async def subscribe(self) -> AsyncIterator[BrainEvent]: ...
-    async def history(self, session_id: str, limit: int = 100) -> list[BrainEvent]: ...
+    async def history(
+        self,
+        session_id: str,
+        limit: int = 100,
+        after_event_id: str | None = None,
+    ) -> list[BrainEvent]: ...
 
 
 class InMemoryEventBus:
@@ -49,14 +59,26 @@ class InMemoryEventBus:
         finally:
             self._subscribers.discard(queue)
 
-    async def history(self, session_id: str, limit: int = 100) -> list[BrainEvent]:
-        return list(self._history.get(session_id, []))[-limit:]
+    async def history(
+        self,
+        session_id: str,
+        limit: int = 100,
+        after_event_id: str | None = None,
+    ) -> list[BrainEvent]:
+        events = list(self._history.get(session_id, []))
+        if after_event_id is None:
+            return events[-limit:]
+        for index, event in enumerate(events):
+            if brain_event_id(event) == after_event_id:
+                return events[index + 1:index + 1 + limit]
+        return []
 
 
 class ValkeyEventBus:
     """Live Pub/Sub plus durable per-session Valkey Streams history."""
     CHANNEL = "brain:state"
     STREAM_PREFIX = "brain:events:"
+    MAX_HISTORY = 10_000
 
     def __init__(self, client) -> None:
         self.client = client
@@ -64,7 +86,7 @@ class ValkeyEventBus:
     async def publish(self, event: BrainEvent) -> None:
         payload = json.dumps(asdict(event), separators=(",", ":"))
         stream = f"{self.STREAM_PREFIX}{event.session_id}"
-        await self.client.xadd(stream, {"event": payload}, maxlen=10_000, approximate=True)
+        await self.client.xadd(stream, {"event": payload}, maxlen=self.MAX_HISTORY, approximate=True)
         await self.client.expire(stream, 604800)
         await self.client.set(f"brain:session:{event.session_id}:latest", payload, ex=86400)
         await self.client.publish(self.CHANNEL, payload)
@@ -84,16 +106,36 @@ class ValkeyEventBus:
             await pubsub.unsubscribe(self.CHANNEL)
             await pubsub.aclose()
 
-    async def history(self, session_id: str, limit: int = 100) -> list[BrainEvent]:
-        rows = await self.client.xrevrange(f"{self.STREAM_PREFIX}{session_id}", count=limit)
+    @staticmethod
+    def _decode_rows(rows) -> list[BrainEvent]:
         events: list[BrainEvent] = []
-        for _, fields in reversed(rows):
+        for _, fields in rows:
             raw = fields.get(b"event") if b"event" in fields else fields.get("event")
             if isinstance(raw, bytes):
                 raw = raw.decode()
             if raw:
                 events.append(BrainEvent(**json.loads(raw)))
         return events
+
+    async def history(
+        self,
+        session_id: str,
+        limit: int = 100,
+        after_event_id: str | None = None,
+    ) -> list[BrainEvent]:
+        stream = f"{self.STREAM_PREFIX}{session_id}"
+        if after_event_id is None:
+            rows = await self.client.xrevrange(stream, count=limit)
+            return list(reversed(self._decode_rows(rows)))
+
+        # Streams are bounded to 10k entries. Scan that bounded durable window only
+        # when a reconnecting client supplies its stable JARVIS event cursor.
+        rows = await self.client.xrange(stream, count=self.MAX_HISTORY)
+        events = self._decode_rows(rows)
+        for index, event in enumerate(events):
+            if brain_event_id(event) == after_event_id:
+                return events[index + 1:index + 1 + limit]
+        return []
 
 
 class AgentRuntime(Protocol):
