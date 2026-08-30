@@ -9,6 +9,7 @@ import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UnsupportedEncodingException;
 import java.net.HttpURLConnection;
 import java.net.URI;
 import java.net.URLEncoder;
@@ -82,7 +83,7 @@ public final class RemoteGoalClient {
     public EventPage getEvents(String projectId, String afterEventId) throws RemoteGoalException {
         String query = null;
         if (afterEventId != null) {
-            query = AFTER_EVENT_QUERY + URLEncoder.encode(afterEventId, StandardCharsets.UTF_8);
+            query = AFTER_EVENT_QUERY + encodeUrl(afterEventId);
         }
         JSONObject json = request("GET", projectPath(projectId) + "/events", query, null);
         JSONArray values = json.optJSONArray("events");
@@ -211,7 +212,15 @@ public final class RemoteGoalClient {
     }
 
     private static String pathSegment(String value, String field) {
-        return URLEncoder.encode(requireText(value, field), StandardCharsets.UTF_8).replace("+", "%20");
+        return encodeUrl(requireText(value, field)).replace("+", "%20");
+    }
+
+    private static String encodeUrl(String value) {
+        try {
+            return URLEncoder.encode(value, "UTF-8");
+        } catch (UnsupportedEncodingException impossible) {
+            throw new IllegalStateException("UTF-8 unavailable", impossible);
+        }
     }
 
     private static String requireText(String value, String field) {
@@ -252,7 +261,7 @@ public final class RemoteGoalClient {
             if (total > MAX_RESPONSE_BYTES) throw new IllegalStateException("Remote response too large");
             out.write(buffer, 0, count);
         }
-        return out.toString(StandardCharsets.UTF_8);
+        return new String(out.toByteArray(), StandardCharsets.UTF_8);
     }
 
     public record GoalSubmission(String projectId, String sessionId, String state, String goal) {}
