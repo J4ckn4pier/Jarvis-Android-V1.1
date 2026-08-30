@@ -6,6 +6,7 @@ import com.jarvis.brain.*;
 import com.jarvis.mobile.brain.providers.CortexProvider;
 import com.jarvis.mobile.brain.providers.CortexProviderFactory;
 import com.jarvis.mobile.remote.RemoteGoalClient;
+import com.jarvis.mobile.remote.RemoteGoalCoordinator;
 import com.jarvis.mobile.remote.RemoteGoalStateStore;
 import java.time.Clock;
 import java.time.Duration;
@@ -24,9 +25,10 @@ public final class AndroidBrainRuntime {
     private final JarvisUiBackend uiBackend;
     private final MemoryConsolidator memoryConsolidator;
     private final Clock clock;
+    private final Context app;
 
     public AndroidBrainRuntime(Context context) {
-        Context app = context.getApplicationContext();
+        app = context.getApplicationContext();
         clock = Clock.systemDefaultZone();
         settings = new SettingsStore(new AndroidSharedPreferencesSettingsPersistence(app));
         ExternalResearchGateway research = AndroidExternalResearchGateway.create(app, settings);
@@ -88,6 +90,54 @@ public final class AndroidBrainRuntime {
         RuntimeSurfacePresentation presentation = conversation.handle(utterance, speechConfidence);
         Log.i(TRACE_TAG, "JARVIS_RUNTIME_OUTPUT state=" + presentation.state() + " text=" + presentation.text());
         return presentation;
+    }
+
+    /** Returns a normal JARVIS presentation only when a saved long-running goal has new visible state. */
+    public Optional<RuntimeSurfacePresentation> resumeRemoteGoalPresentation() {
+        RemoteGoalStateStore state = new RemoteGoalStateStore(app);
+        RemoteGoalStateStore.State saved = state.load();
+        if (!saved.hasProject()) return Optional.empty();
+        RemoteGoalStateStore.Connection connection = state.loadConnection();
+        if (connection == null) return Optional.empty();
+        try {
+            RemoteGoalClient client = new RemoteGoalClient(connection.baseUrl(), connection.token());
+            RemoteGoalCoordinator coordinator = new RemoteGoalCoordinator(client, state);
+            Optional<RemoteGoalCoordinator.Snapshot> resumed = coordinator.resumeActiveProject();
+            if (resumed.isEmpty()) return Optional.empty();
+            RemoteGoalCoordinator.Snapshot snapshot = resumed.get();
+            RemoteGoalClient.ProjectStatus project = snapshot.project();
+
+            if (snapshot.completed()) {
+                return Optional.of(new RuntimeSurfacePresentation(
+                        AssistantSurfaceState.ACTION_DONE,
+                        snapshot.result().result(),
+                        "Finished in the background.",
+                        RuntimeSurfaceAction.NONE,
+                        RuntimeSurfaceAction.NONE));
+            }
+            if ("failed".equalsIgnoreCase(project.state()) || "cancelled".equalsIgnoreCase(project.state())) {
+                return Optional.of(new RuntimeSurfacePresentation(
+                        AssistantSurfaceState.ERROR,
+                        "That background task stopped before it completed.",
+                        "",
+                        RuntimeSurfaceAction.NONE,
+                        RuntimeSurfaceAction.NONE));
+            }
+            if (snapshot.events().events().isEmpty()) return Optional.empty();
+
+            int completed = project.taskStates().getOrDefault("completed", 0);
+            String detail = project.taskCount() > 0
+                    ? "Progress: " + completed + " of " + project.taskCount() + " steps complete."
+                    : "I have new progress on that task.";
+            return Optional.of(new RuntimeSurfacePresentation(
+                    AssistantSurfaceState.RESPONDING,
+                    "I'm still working on that, sir.",
+                    detail,
+                    RuntimeSurfaceAction.NONE,
+                    RuntimeSurfaceAction.NONE));
+        } catch (RemoteGoalClient.RemoteGoalException | IllegalArgumentException unavailable) {
+            return Optional.empty();
+        }
     }
 
     public RuntimeSurfacePresentation approvePresentation() { return conversation.approvePending(); }
