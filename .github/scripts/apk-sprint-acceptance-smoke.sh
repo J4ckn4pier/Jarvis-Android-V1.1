@@ -24,7 +24,7 @@ SETTINGS_OPENED=0
 for attempt in $(seq 1 30); do
   adb shell dumpsys activity activities > "$OUTPUT/apk-sprint-settings-activity.txt" || true
   adb logcat -d > "$OUTPUT/apk-sprint-settings-logcat.txt" || true
-  if grep -Fq "JARVIS_RUNTIME_INPUT utterance=I'm good. Can you do me a favor and open settings, please?" "$OUTPUT/apk-sprint-settings-logcat.txt" \
+  if grep -Eq "JARVIS_RUNTIME_INPUT utterance=I'm good\. Can you do me a favor and open settings, please\?$" "$OUTPUT/apk-sprint-settings-logcat.txt" \
       && grep -Eq 'topResumedActivity=.*com\.jarvis\.mobile/\.SettingsActivity' "$OUTPUT/apk-sprint-settings-activity.txt"; then
     sleep 1
     adb shell dumpsys activity activities > "$OUTPUT/apk-sprint-settings-activity-stable.txt" || true
@@ -111,7 +111,7 @@ APP_OPENED=0
 for attempt in $(seq 1 20); do
   adb logcat -d > "$OUTPUT/apk-sprint-open-app-logcat.txt" || true
   adb shell dumpsys activity activities > "$OUTPUT/apk-sprint-open-app-activity.txt" || true
-  if grep -Fq 'JARVIS_RUNTIME_INPUT utterance=open JARVIS' "$OUTPUT/apk-sprint-open-app-logcat.txt" \
+  if grep -Eq 'JARVIS_RUNTIME_INPUT utterance=open JARVIS$' "$OUTPUT/apk-sprint-open-app-logcat.txt" \
       && grep -q 'JARVIS_COMMAND_RESULT Opened JARVIS.' "$OUTPUT/apk-sprint-open-app-logcat.txt" \
       && grep -Eq 'topResumedActivity=.*com\.jarvis\.mobile/\.MainActivity' "$OUTPUT/apk-sprint-open-app-activity.txt"; then
     APP_OPENED=1
