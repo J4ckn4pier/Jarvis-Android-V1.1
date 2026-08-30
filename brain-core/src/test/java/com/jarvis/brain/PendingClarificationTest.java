@@ -1,7 +1,9 @@
 package com.jarvis.brain;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
@@ -17,6 +19,7 @@ public final class PendingClarificationTest {
         harmlessResearchContinuesAfterClarification();
         clarificationResumePreservesWakeAcceptanceProvenance();
         explicitWakeCommandInterruptsPendingClarification();
+        expiredSessionCannotResumeClarificationWithoutWake();
         System.out.println("PendingClarificationTest: " + checks + " assertions passed");
     }
 
@@ -158,6 +161,33 @@ public final class PendingClarificationTest {
         check(interrupted.plan().steps().get(0).arguments().get("amount").equals("5"),
                 "interruption must preserve the new command arguments");
         check(!core.hasPendingPlan(), "interrupted clarification should be discarded rather than silently resumed later");
+    }
+
+    private static void expiredSessionCannotResumeClarificationWithoutWake() {
+        AdjustableClock clock = new AdjustableClock(Instant.parse("2026-08-27T23:30:00Z"));
+        ReasoningRouter router = request -> new ReasoningResult("planner", "Where should I send you?",
+                new Plan("Navigate", List.of(new PlanStep("navigate", Map.of(), false))));
+        AssistantCore core = new AssistantCore(BrainEngine.createDefault(clock), router, ToolRegistry.standard());
+
+        BrainResponse first = core.handle("Jarvis take me somewhere");
+        check(first.kind() == BrainResponse.Kind.CONVERSATION && core.hasPendingPlan(),
+                "clarification should begin while the addressed conversation is active");
+        clock.advance(Duration.ofMinutes(11));
+
+        BrainResponse staleAnswer = core.handle("Castle Cafe");
+        check(staleAnswer.kind() == BrainResponse.Kind.IGNORED_AMBIENT,
+                "an expired listening session must not let a stale clarification accept wake-free speech");
+        check(!core.hasPendingPlan(),
+                "expired clarification capability should be discarded instead of surviving beyond the wake window");
+    }
+
+    private static final class AdjustableClock extends Clock {
+        private Instant now;
+        private AdjustableClock(Instant now) { this.now = now; }
+        private void advance(Duration duration) { now = now.plus(duration); }
+        @Override public ZoneId getZone() { return ZoneOffset.UTC; }
+        @Override public Clock withZone(ZoneId zone) { return this; }
+        @Override public Instant instant() { return now; }
     }
 
     private static void check(boolean condition, String message) {
