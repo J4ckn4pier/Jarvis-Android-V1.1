@@ -18,6 +18,10 @@ public final class KnownBlockerWorkflowSeparationContractTest {
                 "APK workflow must opt in explicitly when it needs to continue into Android compile/emulator smoke");
         check(build.contains("bash brain-core/run-tests.sh"),
                 "APK workflow must still execute the shared regression suite");
+        check(build.contains("pull_request:"),
+                "APK workflow must verify pull-request branch updates, not only direct pushes");
+        check(build.contains("branches: [main]"),
+                "APK pull-request verification must target integration into main");
         check(!brain.contains("JARVIS_SKIP_KNOWN_BLOCKERS"),
                 "authoritative Brain Core workflow must never bypass known finished-product blockers");
         check(brain.contains("./run-tests.sh"),
