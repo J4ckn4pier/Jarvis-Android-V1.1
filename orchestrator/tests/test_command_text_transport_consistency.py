@@ -4,6 +4,7 @@ import pytest
 from fastapi import HTTPException, WebSocketDisconnect
 
 from jarvis_orchestrator import app as app_module
+from jarvis_orchestrator.identity import scope_session_id
 
 
 class RecordingOrchestrator:
@@ -54,7 +55,9 @@ async def test_input_socket_preserves_exact_command_text_for_cross_transport_ret
 
     await app_module.input_socket(ws)
 
-    assert orchestrator.calls == [(" hello ", "owner:primary", "phone-42")]
+    assert orchestrator.calls == [
+        (" hello ", scope_session_id("owner", "primary"), "phone-42")
+    ]
 
 
 @pytest.mark.asyncio
