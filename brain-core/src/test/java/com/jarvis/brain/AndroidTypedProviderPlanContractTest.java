@@ -48,6 +48,9 @@ public final class AndroidTypedProviderPlanContractTest {
                 "OpenAI-compatible local cortex must target the broadly supported chat-completions structured-output path");
         check(!compatible.contains("isEmpty() && !apiKey.isEmpty()"),
                 "local-compatible cortex must not require a paid-provider API key");
+        check(compatible.contains("EndpointTransportPolicy.allows(endpoint)")
+                        && compatible.contains("!model.isEmpty() && EndpointTransportPolicy.allows(endpoint)"),
+                "local-compatible cortex must not report itself configured when its endpoint violates the shared transport policy");
         check(cortexFactory.contains("MODE_OPENAI_COMPATIBLE") && cortexFactory.contains("new OpenAiCompatibleChatProvider"),
                 "Android provider factory must expose the free/local OpenAI-compatible cortex mode");
         check(settings.contains("MODE_OPENAI_COMPATIBLE") && settings.contains("OpenAI-compatible local endpoint"),
