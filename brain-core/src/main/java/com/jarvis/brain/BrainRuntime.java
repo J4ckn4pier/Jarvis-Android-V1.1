@@ -65,7 +65,7 @@ public final class BrainRuntime {
         return switch(report.status()){
             case COMPLETED->{recordCompletedPlan(response.plan(),recommendedAt);yield pendingDecisionResult(lastNonBlank(report.outputs(),response.text()),report.outputs());}
             case FAILED->pendingDecisionResult(sideFailureText(report,"That side request failed safely."),report.outputs());
-            case RECOVERY_REQUIRED->pendingDecisionResult(sideFailureText(report,"That side request needs recovery before it can continue."),report.outputs());
+            case RECOVERY_REQUIRED->pendingDecisionResult(sideRecoveryText(report,"That side request hit a temporary failure."),report.outputs());
             case APPROVAL_REQUIRED->pendingDecisionResult("I still need your decision on the original pending action before I start another consequential action. I did not queue the new request; resolve the pending action first, then ask me again.",report.outputs());
         };
     }
@@ -75,6 +75,9 @@ public final class BrainRuntime {
     }
     private static String sideFailureText(ExecutionReport report,String fallback){
         return failureText(report,fallback)+" Your previous action is still waiting for your decision.";
+    }
+    private static String sideRecoveryText(ExecutionReport report,String fallback){
+        return failureText(report,fallback)+" I did not queue that side request for retry; resolve your previous pending action first, then ask me again. Your previous action is still waiting for your decision.";
     }
     private Result runPending(String assistantText){ExecutionReport report=executor.run(pending,new ExecutionContext());return switch(report.status()){
         case COMPLETED->{String text=lastNonBlank(report.outputs(),assistantText);recordCompletedPlan(pending.plan(),pendingRecommendedAt);clearPending();yield new Result(Status.COMPLETED,text,"",report.outputs());}
