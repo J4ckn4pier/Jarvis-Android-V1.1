@@ -62,7 +62,7 @@ public final class ResumablePlanExecutor {
 
     private static ToolResult normalizeToolResult(ToolResult result) {
         if (result == null) return ToolResult.failure("tool returned no result");
-        if (result.output() != null) return result;
+        if (result.output() != null && !result.output().isBlank()) return result;
         if (result.status() == ToolResult.Status.SUCCESS) {
             return ToolResult.failure("tool reported success but returned no output");
         }
