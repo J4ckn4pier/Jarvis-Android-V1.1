@@ -102,8 +102,6 @@ if [ "$DECISION_PENDING" -ne 1 ]; then
 fi
 test "$DECISION_PENDING" -eq 1
 
-# Runtime state can become visible in logcat a few frames before Android publishes the updated
-# accessibility tree. Retry the real tree rather than treating that publication gap as a missing UI.
 DECISION_CONTROLS_READY=0
 for attempt in $(seq 1 15); do
   adb shell uiautomator dump /sdcard/jarvis-decision-ui.xml || true
@@ -182,8 +180,7 @@ dump_ui_retry /sdcard/jarvis-home-ui.xml "$OUTPUT/jarvis-home-ui.xml"
 ! grep -q 'PRIVATE ANDROID V1.1' "$OUTPUT/jarvis-home-ui.xml"
 adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-home.png"
 
-# Prove the secondary user-facing screens actually start and render on Android 16. This catches
-# resource/theme regressions that a Java compile alone cannot prove.
+# Prove the secondary user-facing screens actually start and render on Android 16.
 adb shell am start -W -n "$PACKAGE/.CommandsActivity" | tee "$OUTPUT/emulator-help-launch.txt"
 grep -q 'Status: ok' "$OUTPUT/emulator-help-launch.txt"
 dump_ui_retry /sdcard/jarvis-help-ui.xml "$OUTPUT/jarvis-help-ui.xml"
@@ -205,6 +202,68 @@ grep -q 'Research endpoint' "$OUTPUT/jarvis-settings-ui.xml"
 grep -q 'SAVE RESEARCH ENDPOINT' "$OUTPUT/jarvis-settings-ui.xml"
 adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-settings.png"
 
+# Prove a zero-cost local research endpoint actually saves and survives an Activity/process restart.
+RESEARCH_ENDPOINT='http://127.0.0.1:8765/research'
+RESEARCH_CONTROL_READY=0
+for attempt in $(seq 1 8); do
+  dump_ui_retry /sdcard/jarvis-research-controls.xml "$OUTPUT/jarvis-research-controls.xml"
+  if grep -q 'content-desc="JARVIS research endpoint"' "$OUTPUT/jarvis-research-controls.xml"; then
+    RESEARCH_CONTROL_READY=1
+    break
+  fi
+  adb shell input swipe 500 1500 500 300 250
+  sleep 1
+done
+test "$RESEARCH_CONTROL_READY" -eq 1
+python3 - "$OUTPUT/jarvis-research-controls.xml" 'JARVIS research endpoint' > "$OUTPUT/jarvis-research-endpoint-tap.txt" <<'PY'
+import re, sys, xml.etree.ElementTree as ET
+root = ET.parse(sys.argv[1]).getroot()
+for node in root.iter('node'):
+    if node.attrib.get('content-desc') == sys.argv[2]:
+        m = re.fullmatch(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', node.attrib['bounds'])
+        if not m: raise SystemExit('invalid research endpoint bounds')
+        x1,y1,x2,y2 = map(int,m.groups())
+        print((x1+x2)//2,(y1+y2)//2)
+        break
+else: raise SystemExit('research endpoint control missing')
+PY
+set -- $(cat "$OUTPUT/jarvis-research-endpoint-tap.txt")
+adb shell input tap "$1" "$2"
+adb shell input text "$RESEARCH_ENDPOINT"
+adb shell input keyevent KEYCODE_BACK
+sleep 1
+adb shell input swipe 500 1400 500 650 200 || true
+dump_ui_retry /sdcard/jarvis-research-save-controls.xml "$OUTPUT/jarvis-research-save-controls.xml"
+python3 - "$OUTPUT/jarvis-research-save-controls.xml" 'JARVIS save research endpoint' > "$OUTPUT/jarvis-research-save-tap.txt" <<'PY'
+import re, sys, xml.etree.ElementTree as ET
+root = ET.parse(sys.argv[1]).getroot()
+for node in root.iter('node'):
+    if node.attrib.get('content-desc') == sys.argv[2]:
+        m = re.fullmatch(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', node.attrib['bounds'])
+        if not m: raise SystemExit('invalid research save bounds')
+        x1,y1,x2,y2 = map(int,m.groups())
+        print((x1+x2)//2,(y1+y2)//2)
+        break
+else: raise SystemExit('research save control missing')
+PY
+set -- $(cat "$OUTPUT/jarvis-research-save-tap.txt")
+adb shell input tap "$1" "$2"
+sleep 1
+dump_ui_retry /sdcard/jarvis-settings-saved-ui.xml "$OUTPUT/jarvis-settings-saved-ui.xml"
+grep -q '127.0.0.1:8765/research' "$OUTPUT/jarvis-settings-saved-ui.xml"
+adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-settings-saved.png"
+adb shell am force-stop "$PACKAGE"
+adb shell am start -W -n "$PACKAGE/.SettingsActivity" | tee "$OUTPUT/emulator-settings-reopen-launch.txt"
+grep -q 'Status: ok' "$OUTPUT/emulator-settings-reopen-launch.txt"
+for attempt in $(seq 1 8); do
+  dump_ui_retry /sdcard/jarvis-settings-reopened-ui.xml "$OUTPUT/jarvis-settings-reopened-ui.xml"
+  if grep -q '127.0.0.1:8765/research' "$OUTPUT/jarvis-settings-reopened-ui.xml"; then break; fi
+  adb shell input swipe 500 1500 500 300 250
+  sleep 1
+done
+grep -q '127.0.0.1:8765/research' "$OUTPUT/jarvis-settings-reopened-ui.xml"
+adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-settings-reopened.png"
+
 # Prove Android owns the assistant selection and has bound JARVIS's VoiceInteractionService.
 adb shell input keyevent KEYCODE_HOME
 adb logcat -c
@@ -219,10 +278,6 @@ adb shell dumpsys package "$PACKAGE" | tee "$OUTPUT/emulator-package-dumpsys.txt
 adb logcat -d > "$OUTPUT/emulator-assistant-preinvoke-logcat.txt"
 grep -q 'JARVIS_VOICE_SERVICE_READY' "$OUTPUT/emulator-assistant-preinvoke-logcat.txt"
 
-# The Android 16 emulator shell is not privileged for `cmd voiceinteraction show`. Trigger the
-# already system-bound JARVIS service through a receiver that exists only in the debug source set,
-# then require Android to create/show the real VoiceInteractionSession. Production builds contain
-# neither the receiver nor this trigger; physical assistant-key/gesture routing remains a device test.
 adb shell input keyevent KEYCODE_HOME
 sleep 1
 adb logcat -c
