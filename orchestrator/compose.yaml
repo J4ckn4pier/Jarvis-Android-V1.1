@@ -11,7 +11,7 @@ services:
     restart: unless-stopped
     profiles: ["agent-zero"]
     ports:
-      - "5080:80"
+      - "127.0.0.1:5080:80"
     volumes:
       - agent-zero-data:/a0/usr
 
@@ -20,7 +20,7 @@ services:
     restart: unless-stopped
     profiles: ["local-ai"]
     ports:
-      - "11434:11434"
+      - "127.0.0.1:11434:11434"
     volumes:
       - ollama-data:/root/.ollama
 
