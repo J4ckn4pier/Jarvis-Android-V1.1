@@ -136,7 +136,7 @@ Normal Orchestrator CI has three independent layers:
 2. A Docker standalone smoke test that boots the packaged Orchestrator + Valkey path and sends real HTTP commands through two distinct principals using the same public session name.
 3. An Agent Zero adapter Docker harness that uses the real `AgentZeroRuntime` and Valkey mapping against a deterministic Agent Zero wire-protocol service. It proves Docker networking, worker-aware readiness, HTTP dispatch, and persisted Agent Zero context reuse without downloading a multi-gigabyte model on every commit.
 
-A separate gated workflow, **Orchestrator Live Local AI Proof**, exists specifically for expensive full-stack verification. It is not triggered for normal commits. When deliberately triggered, it runs `start-local.sh`, downloads the real Qwen3-4B model, boots the official Agent Zero and Ollama containers, and sends an authenticated JARVIS command that must produce a non-echo model response. This keeps everyday CI deterministic while retaining a real end-to-end inference proof path.
+A separate gated workflow, **Orchestrator Live Local AI Proof**, exists specifically for expensive full-stack verification. It is not triggered for normal commits. When deliberately triggered, it runs `start-local.sh`, downloads the real Qwen3-4B model, boots the official Agent Zero and Ollama containers, and sends an authenticated JARVIS command that must produce a non-echo model response. This keeps everyday CI deterministic while retaining a real end-to-end inference proof path. Maintainers may deliberately request the same proof from a branch push by including `[live-ai]` in that commit message.
 
 ## Persistence
 
