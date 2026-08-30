@@ -19,5 +19,8 @@
         <activity android:name="com.jarvis.mobile.actions.JarvisEmailCaptureActivity" android:exported="true" android:excludeFromRecents="true" android:noHistory="true">
             <intent-filter><action android:name="android.intent.action.SENDTO" /><category android:name="android.intent.category.DEFAULT" /><data android:scheme="mailto" /></intent-filter>
         </activity>
+        <activity android:name="com.jarvis.mobile.actions.JarvisSmsCaptureActivity" android:exported="true" android:excludeFromRecents="true" android:noHistory="true">
+            <intent-filter><action android:name="android.intent.action.SENDTO" /><category android:name="android.intent.category.DEFAULT" /><data android:scheme="smsto" /></intent-filter>
+        </activity>
     </application>
 </manifest>
