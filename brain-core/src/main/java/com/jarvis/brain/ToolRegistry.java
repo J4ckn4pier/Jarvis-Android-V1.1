@@ -90,6 +90,7 @@ public final class ToolRegistry {
         r.register(spec("create_reminder", false, Set.of("reminder", "remind me"), Set.of("request"), "Create a personal reminder", ToolExecutionClass.DEVICE_REFLEX), ready("reminder-ready"));
         r.register(spec("navigate", false, Set.of("directions", "navigation"), Set.of("destination"), "Navigate to a destination", ToolExecutionClass.DEVICE_REFLEX), ready("navigation-ready"));
         r.register(spec("media_play", false, Set.of("play music", "play media"), Set.of("query"), "Play requested media", ToolExecutionClass.DEVICE_REFLEX), ready("media-ready"));
+        r.register(spec("media_control", false, Set.of("pause media", "resume media", "next track", "previous track"), Set.of("action"), "Control current media playback with pause/play/next/previous actions", ToolExecutionClass.DEVICE_REFLEX), ready("media-control-ready"));
         r.register(spec("set_flashlight", false, Set.of("flashlight", "torch"), Set.of("state"), "Turn flashlight on/off", ToolExecutionClass.DEVICE_REFLEX), ready("flashlight-ready"));
         r.register(spec("calendar_query", false, Set.of("calendar", "schedule"), Set.of("when"), "Read calendar commitments", ToolExecutionClass.DEVICE_REFLEX), ready("calendar-ready"));
         r.register(spec("notification_query", false, Set.of("notifications"), Set.of(), "Read captured notifications", ToolExecutionClass.DEVICE_REFLEX), ready("notifications-ready"));
