@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public final class PendingClarificationTest {
     private static int checks;
@@ -13,6 +14,7 @@ public final class PendingClarificationTest {
         missingDestinationBecomesNaturalFollowupAndResumesPlan();
         consequentialFlagSurvivesClarificationResume();
         approvalAndClarificationRemainDistinctResumeCapabilities();
+        harmlessResearchContinuesAfterClarification();
         System.out.println("PendingClarificationTest: " + checks + " assertions passed");
     }
 
@@ -81,6 +83,43 @@ public final class PendingClarificationTest {
         ExecutionReport blocked = executor.run(cursor, new ExecutionContext());
         check(blocked.status() == ExecutionReport.Status.APPROVAL_REQUIRED,
                 "clarification answer must not be usable as approval for consequential execution");
+    }
+
+    private static void harmlessResearchContinuesAfterClarification() {
+        Clock clock = Clock.fixed(Instant.parse("2026-08-27T23:30:00Z"), ZoneOffset.UTC);
+        ToolRegistry tools = new ToolRegistry();
+        int[] researchCalls = {0};
+        tools.register(new ToolSpec("research_topic", false, Set.of(), Set.of("topic"), "Research a topic",
+                        ToolExecutionClass.AUTONOMOUS_RESEARCH),
+                (arguments, context) -> {
+                    researchCalls[0]++;
+                    return ToolResult.success("evidence for " + arguments.get("topic"));
+                });
+        int[] providerCalls = {0};
+        ReasoningRouter router = request -> {
+            providerCalls[0]++;
+            if (providerCalls[0] == 1) {
+                return new ReasoningResult("planner", "What should I research?",
+                        new Plan("Research", List.of(new PlanStep("research_topic", Map.of(), false))));
+            }
+            check(request.context().contains("evidence for orbital mechanics"),
+                    "research observation should be returned to reasoning after clarification");
+            return new ReasoningResult("planner", "I found the answer.", null);
+        };
+
+        AssistantCore core = new AssistantCore(BrainEngine.createDefault(clock), router, tools);
+        core.handle("Hey Jarvis");
+        BrainResponse first = core.handle("investigate something for me");
+        check(first.kind() == BrainResponse.Kind.CONVERSATION,
+                "missing harmless research input should ask for clarification");
+
+        BrainResponse resumed = core.handle("orbital mechanics");
+        check(resumed.kind() == BrainResponse.Kind.CONVERSATION,
+                "completed harmless research should continue automatically after clarification");
+        check(researchCalls[0] == 1,
+                "harmless research should execute once after the missing input is supplied");
+        check(providerCalls[0] == 2,
+                "clarification should continue the bounded research loop without replanning before execution");
     }
 
     private static void check(boolean condition, String message) {
