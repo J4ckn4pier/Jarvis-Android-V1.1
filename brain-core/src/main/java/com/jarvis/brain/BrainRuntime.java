@@ -59,7 +59,7 @@ public final class BrainRuntime {
         Instant recommendedAt=clock.instant();
         ExecutionReport report=executor.run(executor.start(response.plan()),new ExecutionContext());
         return switch(report.status()){
-            case COMPLETED->{recordCompletedPlan(response.plan(),recommendedAt);yield new Result(Status.COMPLETED,lastNonBlank(report.outputs(),response.text()),"",report.outputs());}
+            case COMPLETED->{recordCompletedPlan(response.plan(),recommendedAt);yield pendingDecisionResult(lastNonBlank(report.outputs(),response.text()),report.outputs());}
             case FAILED->pendingDecisionResult(sideFailureText(report,"That side request failed safely."),report.outputs());
             case RECOVERY_REQUIRED->pendingDecisionResult(sideFailureText(report,"That side request needs recovery before it can continue."),report.outputs());
             case APPROVAL_REQUIRED->pendingDecisionResult("I still need your decision on the original pending action before I start another consequential action. I did not queue the new request; resolve the pending action first, then ask me again.",report.outputs());
