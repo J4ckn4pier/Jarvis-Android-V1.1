@@ -13,6 +13,7 @@ public final class ExecutiveObservationLoopTest {
         approvalBoundaryDoesNotReturnAlreadyCompletedSafeSteps();
         loopStopsAtBoundedIterationCeiling();
         failedSafeToolBecomesObservationForRecoveryReasoning();
+        nullSafeToolResultBecomesFailureObservationForRecoveryReasoning();
         System.out.println("ExecutiveObservationLoopTest: " + checks + " assertions passed");
     }
 
@@ -130,6 +131,31 @@ public final class ExecutiveObservationLoopTest {
         ExecutiveOutcome outcome = loop.run("verify it", "");
         check(outcome.status() == ExecutiveOutcome.Status.ANSWERED, "safe tool failure may be reasoned about instead of dead-ending");
         check(recoveryContext[0].contains("FAILED") && recoveryContext[0].contains("offline"), "failure must become structured recovery observation");
+    }
+
+    private static void nullSafeToolResultBecomesFailureObservationForRecoveryReasoning() {
+        ToolRegistry registry = new ToolRegistry();
+        registry.register(new ToolSpec("lookup", false, Set.of(), Set.of(), "lookup"), (args, ctx) -> null);
+        final int[] reasons = {0};
+        final String[] recoveryContext = {""};
+        ReasoningRouter router = request -> {
+            reasons[0]++;
+            if (reasons[0] == 1) return new ReasoningResult("local", "checking",
+                    new Plan("lookup", List.of(new PlanStep("lookup", Map.of(), false))));
+            recoveryContext[0] = request.context();
+            return new ReasoningResult("local", "I can't verify that because the lookup returned no result.", null);
+        };
+        ExecutiveObservationLoop loop = new ExecutiveObservationLoop(router, registry, new ApprovalGate(), 3);
+        ExecutiveOutcome outcome;
+        try {
+            outcome = loop.run("verify it", "");
+        } catch (RuntimeException escaped) {
+            throw new AssertionError("null safe-tool result must become a failure observation instead of escaping", escaped);
+        }
+        check(outcome.status() == ExecutiveOutcome.Status.ANSWERED,
+                "null safe-tool result should be recoverable through another reasoning turn");
+        check(recoveryContext[0].contains("FAILED"),
+                "null safe-tool result must become a structured FAILED observation");
     }
 
     private static void check(boolean condition, String message) { checks++; if (!condition) throw new AssertionError(message); }
