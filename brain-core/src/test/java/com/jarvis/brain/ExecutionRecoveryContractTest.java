@@ -12,6 +12,7 @@ public final class ExecutionRecoveryContractTest {
         hardFailureRemainsFailed();
         approvalBoundaryStillPrecedesRecoveryExecution();
         recoveryOfConsequentialStepRequiresFreshApproval();
+        approvedToolExceptionFailsClosedAndConsumesApproval();
         System.out.println("ExecutionRecoveryContractTest: " + checks + " assertions passed");
     }
 
@@ -71,6 +72,30 @@ public final class ExecutionRecoveryContractTest {
         ExecutionReport afterFreshApproval = executor.run(cursor, new ExecutionContext());
         check(afterFreshApproval.status() == ExecutionReport.Status.COMPLETED, "fresh approval should permit resumed consequential attempt");
         check(calls[0] == 3, "fresh approval should authorize exactly the resumed attempt needed for success");
+    }
+
+    private static void approvedToolExceptionFailsClosedAndConsumesApproval() {
+        ToolRegistry registry = new ToolRegistry(); ApprovalGate approvals = new ApprovalGate(); int[] calls = {0};
+        registry.register(new ToolSpec("send_external", true, Set.of(), Set.of("message"), "send"), (args, ctx) -> {
+            calls[0]++;
+            throw new RuntimeException("transport crashed");
+        });
+        ResumablePlanExecutor executor = new ResumablePlanExecutor(registry, approvals);
+        ExecutionCursor cursor = executor.start(new Plan("send", List.of(new PlanStep("send_external", Map.of("message", "hello"), true))));
+        approvals.approve("send_external");
+        ExecutionReport first;
+        try {
+            first = executor.run(cursor, new ExecutionContext());
+        } catch (RuntimeException escaped) {
+            throw new AssertionError("tool exception must become a controlled failed execution report", escaped);
+        }
+        check(first.status() == ExecutionReport.Status.FAILED, "tool exception should fail closed");
+        check(first.failureDetail().contains("transport crashed"), "controlled failure should preserve useful exception detail");
+        check(calls[0] == 1, "approved action should be attempted only once when it throws");
+        ExecutionReport withoutFreshApproval = executor.run(cursor, new ExecutionContext());
+        check(withoutFreshApproval.status() == ExecutionReport.Status.APPROVAL_REQUIRED,
+                "an exception must consume the one-shot approval so retry cannot occur silently");
+        check(calls[0] == 1, "failed consequential action must not retry without fresh approval");
     }
 
     private static void check(boolean condition, String message) { checks++; if (!condition) throw new AssertionError(message); }
