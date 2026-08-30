@@ -76,7 +76,7 @@ public final class BrainRuntime {
     private Result runPending(String assistantText){ExecutionReport report=executor.run(pending,new ExecutionContext());return switch(report.status()){
         case COMPLETED->{String text=lastNonBlank(report.outputs(),assistantText);recordCompletedPlan(pending.plan(),pendingRecommendedAt);clearPending();yield new Result(Status.COMPLETED,text,"",report.outputs());}
         case APPROVAL_REQUIRED->{pendingTool=report.blockedTool();pendingStatus=Status.APPROVAL_REQUIRED;String text=approvalText(report,assistantText);yield new Result(Status.APPROVAL_REQUIRED,text,pendingTool,report.outputs());}
-        case RECOVERY_REQUIRED->{pendingTool=report.blockedTool();pendingStatus=Status.RECOVERY_REQUIRED;yield new Result(Status.RECOVERY_REQUIRED,report.failureDetail().isBlank()?"That action needs recovery before I retry it.":report.failureDetail(),pendingTool,report.outputs());}
+        case RECOVERY_REQUIRED->{pendingTool=report.blockedTool();pendingStatus=Status.RECOVERY_REQUIRED;String detail=failureText(report,"That action needs recovery before I retry it.");yield new Result(Status.RECOVERY_REQUIRED,detail,pendingTool,report.outputs());}
         case FAILED->{String detail=failureText(report,"That action failed safely.");clearPending();yield new Result(Status.FAILED,detail,report.blockedTool(),report.outputs());}
     };}
     private static String approvalText(ExecutionReport report,String assistantText){
