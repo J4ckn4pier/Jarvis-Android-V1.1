@@ -5,7 +5,7 @@ This directory is a standalone backend workstream. It does not require the Andro
 ## What runs
 
 - **JARVIS Orchestrator** — FastAPI service and the only client-facing backend protocol.
-- **Valkey** — shared phone/desktop state, durable event history, Agent Zero context mapping, and cross-process session locks.
+- **Valkey** — shared phone/desktop state, durable event history, Agent Zero context mapping, cross-process session locks, and retry-result storage.
 - **Agent Zero** — optional MIT-licensed agent worker behind the JARVIS adapter.
 - **Ollama** — optional MIT-licensed local model server.
 - **Qwen3-4B** — recommended local baseline model; upstream weights are Apache-2.0 licensed.
@@ -43,7 +43,7 @@ set +a
 curl -X POST http://127.0.0.1:8000/v1/command \
   -H "Authorization: Bearer $JARVIS_API_TOKEN" \
   -H 'Content-Type: application/json' \
-  -d '{"session_id":"primary","text":"Reply with the words orchestrator online."}'
+  -d '{"session_id":"primary","request_id":"manual-1","text":"Reply with the words orchestrator online."}'
 ```
 
 ## Core-only transport/state prototype
@@ -74,6 +74,8 @@ AGENT_ZERO_LIFETIME_HOURS=24
 AGENT_ZERO_PROJECT=
 ```
 
+Packaged Docker sets `JARVIS_REQUIRE_AUTH=1` by default. A missing JARVIS credential therefore prevents startup instead of silently exposing an unauthenticated backend. Zero-configuration open mode remains only for explicit developer/test use outside that packaged requirement.
+
 Agent Zero's external token is not a made-up JARVIS credential. On a fresh packaged stack, `bootstrap.py` reproduces Agent Zero's current upstream token derivation from `A0_PERSISTENT_RUNTIME_ID` with blank optional login/password fields, then gives the same runtime ID to the Agent Zero container. If a deployment intentionally enables different Agent Zero login/password settings, provide the corresponding external API token instead of relying on the fresh-stack derivation.
 
 The full Compose stack can also be managed directly:
@@ -87,11 +89,21 @@ Agent Zero's Web UI is available only on host loopback `http://127.0.0.1:5080`. 
 
 ## Session behavior
 
-JARVIS owns the stable public session identifier shared by phone/desktop clients. It scopes that identifier to the authenticated principal before using internal state, so two users may both call a session `primary` without sharing history, telemetry, locks, or worker context.
+JARVIS owns the stable public session identifier shared by phone/desktop clients. It scopes that identifier to the authenticated principal before using internal state, so two users may both call a session `primary` without sharing history, telemetry, locks, worker context, or retry records.
 
 Valkey maps the scoped JARVIS session to Agent Zero's temporary `context_id`. If an Agent Zero context expires, JARVIS removes the stale mapping and retries the request once as a new Agent Zero context. Other HTTP failures are not blindly retried because an agent operation may have side effects.
 
 Same-session work is serialized with a Valkey distributed lock. Different sessions can still run concurrently.
+
+### Phone/client retry contract
+
+Phone and desktop clients may include an optional `request_id` (1–128 characters) on `/v1/command` and `/v1/input`. The client should generate one stable unique ID for each logical user command and reuse that same ID if a connection timeout makes it necessary to retry that command.
+
+JARVIS stores successful request results in Valkey for 24 hours. A retry with the same authenticated user, session, `request_id`, and command text returns the original `task_id` and response without executing the worker again. This prevents common mobile-network retries from duplicating real-world side effects. The same `request_id` may safely be used in a different session because records are session-scoped.
+
+If a client reuses an existing `request_id` with different command text, HTTP returns `409 Conflict`; the WebSocket path returns `code: request_id_conflict`. Clients should generate a new request ID rather than retrying a different command under the old ID.
+
+This is an application-side interface contract only. No Android/application files are modified by the Orchestrator workstream.
 
 Lifecycle controls remain JARVIS-facing rather than exposing Agent Zero internals:
 
@@ -120,7 +132,7 @@ ws://127.0.0.1:8000/v1/events?session_id=primary&token=YOUR_TOKEN
 
 Normal Orchestrator CI has three independent layers:
 
-1. Python behavior tests covering routing, validation, principal/session isolation, recovery/history, distributed locking, Agent Zero protocol behavior, lifecycle operations, readiness, bootstrap behavior, and packaging contracts.
+1. Python behavior tests covering routing, validation, principal/session isolation, recovery/history, distributed locking, command retry deduplication, Agent Zero protocol behavior, lifecycle operations, readiness, bootstrap behavior, and packaging contracts.
 2. A Docker standalone smoke test that boots the packaged Orchestrator + Valkey path and sends real HTTP commands through two distinct principals using the same public session name.
 3. An Agent Zero adapter Docker harness that uses the real `AgentZeroRuntime` and Valkey mapping against a deterministic Agent Zero wire-protocol service. It proves Docker networking, worker-aware readiness, HTTP dispatch, and persisted Agent Zero context reuse without downloading a multi-gigabyte model on every commit.
 
@@ -130,7 +142,7 @@ A separate gated workflow, **Orchestrator Live Local AI Proof**, exists specific
 
 Docker volumes:
 
-- `valkey-data` — JARVIS event/session infrastructure.
+- `valkey-data` — JARVIS event/session infrastructure, locks, and 24-hour command retry results.
 - `agent-zero-data` — Agent Zero `/a0/usr` state and model presets.
 - `ollama-data` — downloaded local model files.
 
