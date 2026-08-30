@@ -10,19 +10,54 @@ start_test_command() {
   adb shell am start -W -n "$ACTIVITY" --es jarvis_test_command "\"$command\""
 }
 
-# Compiled-APK proof for SMS compose. The debug build owns a capture-only smsto: target so CI can
-# inspect the exact Android handoff without transmitting a real message. Production behavior remains
-# the normal ACTION_SENDTO compose flow and still requires the user to send from the messaging app.
+# Compiled-APK proof for the real SMS approval + compose handoff. CI must never transmit a message:
+# it approves only JARVIS's existing consequential-action gate, then a debug-only smsto: capture
+# target (added separately in the GREEN implementation) inspects what production hands to Android.
 adb shell am force-stop "$PACKAGE" || true
 adb logcat -c
 start_test_command "Text 5550100 saying I'm on my way" | tee "$OUTPUT/sms-compose-launch.txt"
 grep -q 'Status: ok' "$OUTPUT/sms-compose-launch.txt"
 
-SMS_PROVEN=0
-for attempt in $(seq 1 20); do
+APPROVAL_READY=0
+for attempt in $(seq 1 30); do
   adb logcat -d > "$OUTPUT/sms-compose-logcat.txt" || true
-  if grep -Eq "JARVIS_RUNTIME_INPUT utterance=Text 5550100 saying I'm on my way$" "$OUTPUT/sms-compose-logcat.txt" \
-      && grep -Eq "JARVIS_SMS_CAPTURE number=(5550100|555%200100|5550100) body=I'm on my way$" "$OUTPUT/sms-compose-logcat.txt"; then
+  if grep -Fq "JARVIS_RUNTIME_INPUT utterance=Text 5550100 saying I'm on my way" "$OUTPUT/sms-compose-logcat.txt" \
+      && grep -q 'JARVIS_RUNTIME_OUTPUT state=AWAITING_APPROVAL' "$OUTPUT/sms-compose-logcat.txt"; then
+    APPROVAL_READY=1
+    break
+  fi
+  sleep 1
+done
+if [ "$APPROVAL_READY" -ne 1 ]; then
+  grep -E 'JARVIS_RUNTIME_INPUT|JARVIS_RUNTIME_OUTPUT|JARVIS_COMMAND_RESULT|JARVIS_SMS_CAPTURE' "$OUTPUT/sms-compose-logcat.txt" || true
+fi
+test "$APPROVAL_READY" -eq 1
+
+adb shell uiautomator dump /sdcard/jarvis-sms-approval.xml
+adb pull /sdcard/jarvis-sms-approval.xml "$OUTPUT/sms-compose-approval.xml"
+python3 - "$OUTPUT/sms-compose-approval.xml" > "$OUTPUT/sms-compose-approve-tap.txt" <<'PY'
+import re
+import sys
+import xml.etree.ElementTree as ET
+root = ET.parse(sys.argv[1]).getroot()
+for node in root.iter('node'):
+    if node.attrib.get('content-desc') == 'JARVIS APPROVE action':
+        match = re.fullmatch(r'\[(\d+),(\d+)\]\[(\d+),(\d+)\]', node.attrib['bounds'])
+        if not match:
+            raise SystemExit('SMS APPROVE control has invalid bounds')
+        x1, y1, x2, y2 = map(int, match.groups())
+        print((x1 + x2) // 2, (y1 + y2) // 2)
+        break
+else:
+    raise SystemExit('SMS APPROVE control missing from UI tree')
+PY
+set -- $(cat "$OUTPUT/sms-compose-approve-tap.txt")
+adb shell input tap "$1" "$2"
+
+SMS_PROVEN=0
+for attempt in $(seq 1 30); do
+  adb logcat -d > "$OUTPUT/sms-compose-logcat.txt" || true
+  if grep -Fq "JARVIS_SMS_CAPTURE number=5550100 body=I'm on my way" "$OUTPUT/sms-compose-logcat.txt"; then
     SMS_PROVEN=1
     break
   fi
