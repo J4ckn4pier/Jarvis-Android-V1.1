@@ -10,7 +10,7 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
-/** Donor Help & Features screen, updated for the transplanted command system. */
+/** Help & Features screen for the shared JARVIS command system. */
 public class CommandsActivity extends Activity {
     private static final String[] COMMANDS = {
             "Call Mom", "Dial 555 0100", "Text Alex saying I’m on my way",
@@ -30,22 +30,22 @@ public class CommandsActivity extends Activity {
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
         body.setPadding(dp(18), dp(18), dp(18), dp(28));
-        body.setBackgroundColor(Color.rgb(3, 12, 17));
+        body.setBackgroundColor(getColor(R.color.jarvis_bg));
 
-        TextView title = label("JARVIS COMMANDS", 24, Color.rgb(80, 225, 245));
+        TextView title = label("JARVIS COMMANDS", 24, getColor(R.color.jarvis_cyan));
         title.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
         title.setGravity(Gravity.CENTER);
         body.addView(title, fullWrap());
 
         TextView hint = label("Tap the reactor and speak naturally. Long-press it to type.",
-                14, Color.WHITE);
+                14, getColor(R.color.jarvis_text_dim));
         hint.setGravity(Gravity.CENTER);
         hint.setPadding(0, dp(8), 0, dp(18));
         body.addView(hint, fullWrap());
 
         for (String command : COMMANDS) {
-            TextView row = label("›  " + command, 16, Color.rgb(210, 245, 250));
-            row.setBackgroundColor(Color.rgb(5, 31, 40));
+            TextView row = label("›  " + command, 16, Color.WHITE);
+            row.setBackgroundColor(getColor(R.color.jarvis_bg_panel));
             row.setPadding(dp(12), dp(13), dp(12), dp(13));
             LinearLayout.LayoutParams params = fullWrap();
             params.setMargins(0, 0, 0, dp(2));
@@ -53,6 +53,7 @@ public class CommandsActivity extends Activity {
         }
 
         ScrollView scroll = new ScrollView(this);
+        scroll.setBackgroundColor(getColor(R.color.jarvis_bg));
         scroll.addView(body);
         setContentView(scroll);
     }
