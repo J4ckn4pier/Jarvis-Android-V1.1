@@ -18,6 +18,10 @@ public final class BrainExitGateCompositionContractTest {
                 "conversational-call tool inputs, approval classification, and fail-closed fallback must be part of the composed brain gate");
         require(gate, "ConversationalCallToolTransportAdapterTest.class",
                 "transport-backed conversational-call tool execution must be part of the composed brain gate");
+        require(gate, "ExecutedPlanFollowupBridgeTest.class",
+                "successful shared-plan execution must automatically feed the predictive follow-up system");
+        require(gate, "AndroidExecutedPlanFollowupCompositionContractTest.class",
+                "Android production must wire completed shared plans into its durable privacy-gated follow-up runtime");
         require(gate, "ResponseStyleContractTest.class",
                 "central beta response style must be part of the composed brain gate");
         require(gate, "CommercialWakeWordPolicyTest.class",
