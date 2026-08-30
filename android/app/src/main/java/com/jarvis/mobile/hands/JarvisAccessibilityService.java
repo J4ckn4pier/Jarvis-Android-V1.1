@@ -5,6 +5,9 @@ import android.os.Bundle;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 
+import com.jarvis.brain.UniqueNamedTargetResolver;
+
+import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
@@ -70,20 +73,34 @@ public class JarvisAccessibilityService extends AccessibilityService {
         AccessibilityNodeInfo root = root();
         if (root == null || text == null || text.trim().isEmpty()) return false;
         List<AccessibilityNodeInfo> matches = root.findAccessibilityNodeInfosByText(text.trim());
+        List<AccessibilityNodeInfo> clickableTargets = new ArrayList<>();
+        List<UniqueNamedTargetResolver.Candidate> candidates = new ArrayList<>();
         for (AccessibilityNodeInfo match : matches) {
-            AccessibilityNodeInfo candidate = match;
-            while (candidate != null) {
-                if (candidate.isClickable() && candidate.performAction(AccessibilityNodeInfo.ACTION_CLICK)) {
-                    return true;
-                }
-                candidate = candidate.getParent();
+            AccessibilityNodeInfo clickable = clickableAncestor(match);
+            if (clickable == null) continue;
+            int targetIndex = indexOfNode(clickableTargets, clickable);
+            if (targetIndex < 0) {
+                clickableTargets.add(clickable);
+                targetIndex = clickableTargets.size() - 1;
             }
+            String targetId = Integer.toString(targetIndex);
+            addLabelCandidate(candidates, match.getText(), targetId);
+            addLabelCandidate(candidates, match.getContentDescription(), targetId);
+            addLabelCandidate(candidates, match.getHintText(), targetId);
         }
-        return false;
+        String resolved = UniqueNamedTargetResolver.resolve(text, candidates).orElse(null);
+        if (resolved == null) return false;
+        try {
+            int index = Integer.parseInt(resolved);
+            return index >= 0 && index < clickableTargets.size()
+                    && clickableTargets.get(index).performAction(AccessibilityNodeInfo.ACTION_CLICK);
+        } catch (NumberFormatException ignored) {
+            return false;
+        }
     }
 
     public static boolean typeText(String text) {
-        AccessibilityNodeInfo field = findEditable(root());
+        AccessibilityNodeInfo field = uniqueEditable(root());
         if (field == null) return false;
         Bundle arguments = new Bundle();
         arguments.putCharSequence(
@@ -106,15 +123,44 @@ public class JarvisAccessibilityService extends AccessibilityService {
         return result.toString().trim();
     }
 
-    private static AccessibilityNodeInfo findEditable(AccessibilityNodeInfo node) {
-        if (node == null) return null;
-        if (node.isEditable() && (node.isFocused() || node.isAccessibilityFocused())) return node;
-        for (int i = 0; i < node.getChildCount(); i++) {
-            AccessibilityNodeInfo result = findEditable(node.getChild(i));
-            if (result != null) return result;
+    private static AccessibilityNodeInfo clickableAncestor(AccessibilityNodeInfo node) {
+        AccessibilityNodeInfo candidate = node;
+        while (candidate != null) {
+            if (candidate.isClickable()) return candidate;
+            candidate = candidate.getParent();
         }
-        if (node.isEditable()) return node;
         return null;
+    }
+
+    private static int indexOfNode(List<AccessibilityNodeInfo> nodes, AccessibilityNodeInfo candidate) {
+        for (int i = 0; i < nodes.size(); i++) {
+            if (nodes.get(i).equals(candidate)) return i;
+        }
+        return -1;
+    }
+
+    private static void addLabelCandidate(List<UniqueNamedTargetResolver.Candidate> candidates, CharSequence label, String targetId) {
+        if (label == null) return;
+        String clean = label.toString().trim().replaceAll("\\s+", " ");
+        if (!clean.isEmpty()) candidates.add(new UniqueNamedTargetResolver.Candidate(clean, targetId));
+    }
+
+    private static AccessibilityNodeInfo uniqueEditable(AccessibilityNodeInfo node) {
+        List<AccessibilityNodeInfo> editableFields = new ArrayList<>();
+        collectEditables(node, editableFields);
+        List<AccessibilityNodeInfo> focusedEditables = new ArrayList<>();
+        for (AccessibilityNodeInfo field : editableFields) {
+            if (field.isFocused() || field.isAccessibilityFocused()) focusedEditables.add(field);
+        }
+        if (focusedEditables.size() == 1) return focusedEditables.get(0);
+        if (!focusedEditables.isEmpty()) return null;
+        return editableFields.size() == 1 ? editableFields.get(0) : null;
+    }
+
+    private static void collectEditables(AccessibilityNodeInfo node, List<AccessibilityNodeInfo> output) {
+        if (node == null) return;
+        if (node.isEditable() && indexOfNode(output, node) < 0) output.add(node);
+        for (int i = 0; i < node.getChildCount(); i++) collectEditables(node.getChild(i), output);
     }
 
     private static void collectText(AccessibilityNodeInfo node, Set<String> output) {
