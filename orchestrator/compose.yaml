@@ -33,7 +33,7 @@ services:
         fi
 
   agent-zero:
-    image: agent0ai/agent-zero:latest
+    image: agent0ai/agent-zero:v2.11
     restart: unless-stopped
     profiles: ["agent-zero"]
     environment:
@@ -48,7 +48,7 @@ services:
         condition: service_completed_successfully
 
   ollama:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.33.2
     restart: unless-stopped
     profiles: ["local-ai"]
     ports:
@@ -57,7 +57,7 @@ services:
       - ollama-data:/root/.ollama
 
   ollama-model-bootstrap:
-    image: ollama/ollama:latest
+    image: ollama/ollama:0.33.2
     restart: "no"
     profiles: ["local-ai"]
     environment:
