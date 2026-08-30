@@ -20,8 +20,9 @@ public final class EmailCompositionToolContractTest {
         ToolResult unattached = email.implementation().execute(
                 Map.of("recipient", "person@example.com", "subject", "Hello", "body", "Draft body"),
                 new ExecutionContext());
-        check(!unattached.success(), "provider-neutral registry must fail closed until a platform email adapter is attached");
-        check(unattached.message().toLowerCase().contains("email adapter not attached"),
+        check(unattached.status() != ToolResult.Status.SUCCESS,
+                "provider-neutral registry must fail closed until a platform email adapter is attached");
+        check(unattached.output().toLowerCase().contains("email adapter not attached"),
                 "unattached result must truthfully identify missing platform email adapter");
 
         System.out.println("EmailCompositionToolContractTest passed");
