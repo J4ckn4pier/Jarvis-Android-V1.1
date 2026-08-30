@@ -19,6 +19,7 @@ public final class ExecutedPlanFollowupBridgeTest {
         completedPlanRecordsExactlyOneActedOnEpisode();
         approvalRecordsOnlyAfterConsequentialExecutionActuallyCompletes();
         failedPlanDoesNotRecordActedOnEpisode();
+        episodeIdsStayUniqueAcrossRuntimeRestarts();
         System.out.println("ExecutedPlanFollowupBridgeTest: " + checks + " assertions passed");
     }
 
@@ -84,6 +85,28 @@ public final class ExecutedPlanFollowupBridgeTest {
         BrainRuntime.Result result = runtime.handle("Jarvis, attempt the broken workflow");
         check(result.status() != BrainRuntime.Status.COMPLETED, "failed tool does not produce completed plan status");
         check(episodes.isEmpty(), "failed plan never records an acted-on episode");
+    }
+
+    private static void episodeIdsStayUniqueAcrossRuntimeRestarts() {
+        Instant now = Instant.parse("2026-08-29T23:53:00Z");
+        Clock clock = Clock.fixed(now, ZoneOffset.UTC);
+        ToolRegistry tools = new ToolRegistry();
+        tools.register(new ToolSpec("restart_safe_action", false, Set.of(), Set.of(),
+                "perform restart-safe action", ToolExecutionClass.DEVICE_REFLEX),
+                (args, context) -> ToolResult.success("complete"));
+        Plan plan = new Plan("Complete restart-safe workflow",
+                List.of(new PlanStep("restart_safe_action", Map.of(), false)));
+        List<RecommendationEpisode> first = new ArrayList<>();
+        List<RecommendationEpisode> second = new ArrayList<>();
+
+        runtime(tools, clock, (episode, at) -> first.add(episode), plan)
+                .handle("Jarvis, run restart-safe workflow one");
+        runtime(tools, clock, (episode, at) -> second.add(episode), plan)
+                .handle("Jarvis, run restart-safe workflow two");
+
+        check(first.size() == 1 && second.size() == 1, "both restarted runtimes record their completed action");
+        check(!first.get(0).id().equals(second.get(0).id()),
+                "episode ids must not collide when Android process/runtime restarts within the same millisecond");
     }
 
     private static BrainRuntime runtime(ToolRegistry tools, Clock clock, ActedOnEpisodeSink sink, Plan plan) {
