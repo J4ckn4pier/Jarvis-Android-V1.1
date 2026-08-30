@@ -391,6 +391,19 @@ async def events(ws: WebSocket):
             if event.session_id != internal_session_id:
                 continue
             await ws.send_json(_event_payload(event, public_session_id))
+    except RedisError:
+        try:
+            await ws.send_json(
+                {
+                    "error": "State backend unavailable",
+                    "code": "state_backend_unavailable",
+                    "retryable": True,
+                }
+            )
+            await ws.close(code=1013)
+        except (WebSocketDisconnect, RuntimeError):
+            pass
+        return
     except (WebSocketDisconnect, RuntimeError):
         return
 
