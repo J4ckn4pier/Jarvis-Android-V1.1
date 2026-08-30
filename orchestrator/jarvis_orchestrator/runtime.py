@@ -111,6 +111,18 @@ class AgentZeroRuntime:
         except httpx.RequestError as exc:
             raise WorkerUnavailableError("Agent Zero unavailable") from exc
 
+    async def _lifecycle_post(self, path: str, context_id: str) -> httpx.Response:
+        try:
+            response = await self.client.post(
+                path,
+                headers=self._headers,
+                json={"context_id": context_id},
+            )
+        except httpx.RequestError as exc:
+            raise WorkerUnavailableError("Agent Zero unavailable") from exc
+        self._raise_for_worker_status(response)
+        return response
+
     @staticmethod
     def _context_not_found(response: httpx.Response) -> bool:
         if response.status_code != 404:
@@ -162,30 +174,20 @@ class AgentZeroRuntime:
         context_id = await self.context_store.get(session_id)
         if not context_id:
             return False
-        response = await self.client.post(
-            self.RESET_PATH,
-            headers=self._headers,
-            json={"context_id": context_id},
-        )
+        response = await self._lifecycle_post(self.RESET_PATH, context_id)
         if response.status_code == 404:
             await self.context_store.delete(session_id)
             return False
-        response.raise_for_status()
         return bool(response.json().get("success"))
 
     async def terminate(self, session_id: str) -> bool:
         context_id = await self.context_store.get(session_id)
         if not context_id:
             return False
-        response = await self.client.post(
-            self.TERMINATE_PATH,
-            headers=self._headers,
-            json={"context_id": context_id},
-        )
+        response = await self._lifecycle_post(self.TERMINATE_PATH, context_id)
         if response.status_code == 404:
             await self.context_store.delete(session_id)
             return False
-        response.raise_for_status()
         success = bool(response.json().get("success"))
         if success:
             await self.context_store.delete(session_id)
