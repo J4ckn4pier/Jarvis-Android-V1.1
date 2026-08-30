@@ -112,7 +112,7 @@ for attempt in $(seq 1 20); do
   adb logcat -d > "$OUTPUT/apk-sprint-open-app-logcat.txt" || true
   adb shell dumpsys activity activities > "$OUTPUT/apk-sprint-open-app-activity.txt" || true
   if grep -Eq 'JARVIS_RUNTIME_INPUT utterance=open JARVIS$' "$OUTPUT/apk-sprint-open-app-logcat.txt" \
-      && grep -q 'JARVIS_COMMAND_RESULT Opened JARVIS.' "$OUTPUT/apk-sprint-open-app-logcat.txt" \
+      && grep -Eiq 'JARVIS_COMMAND_RESULT Opened JARVIS\.$' "$OUTPUT/apk-sprint-open-app-logcat.txt" \
       && grep -Eq 'topResumedActivity=.*com\.jarvis\.mobile/\.MainActivity' "$OUTPUT/apk-sprint-open-app-activity.txt"; then
     APP_OPENED=1
     break
