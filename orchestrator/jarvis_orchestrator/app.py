@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Header, HTTPException, Query, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel, Field
+from redis.exceptions import RedisError
 
 from .core import (
     IdempotencyConflict,
@@ -175,6 +176,8 @@ async def _submit(
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except WorkerUnavailableError as exc:
         raise HTTPException(status_code=503, detail="Worker runtime unavailable") from exc
+    except RedisError as exc:
+        raise HTTPException(status_code=503, detail="State backend unavailable") from exc
 
 
 async def _run_lifecycle_operation(operation: str, session_id: str) -> bool:
@@ -194,6 +197,8 @@ async def _run_lifecycle_operation(operation: str, session_id: str) -> bool:
         changed = bool(await serializer(session_id, invoke)) if callable(serializer) else await invoke()
     except WorkerUnavailableError as exc:
         raise HTTPException(status_code=503, detail="Worker runtime unavailable") from exc
+    except RedisError as exc:
+        raise HTTPException(status_code=503, detail="State backend unavailable") from exc
     if not changed:
         raise HTTPException(status_code=404, detail="Worker session not found")
     return changed
@@ -311,35 +316,38 @@ async def event_history(
     principal = _require_http_auth(authorization)
     internal_session_id = _scoped_session(principal, public_session_id)
 
-    # FastAPI resolves Query(None) before HTTP invocation, but direct unit callers
-    # see the Query metadata object. Normalize that path and preserve compatibility
-    # with EventBus implementations that predate cursor support when no cursor is used.
-    cursor = after_event_id if isinstance(after_event_id, str) else None
-    if cursor is None:
-        events = await app.state.bus.history(internal_session_id, limit)
+    try:
+        # FastAPI resolves Query(None) before HTTP invocation, but direct unit callers
+        # see the Query metadata object. Normalize that path and preserve compatibility
+        # with EventBus implementations that predate cursor support when no cursor is used.
+        cursor = after_event_id if isinstance(after_event_id, str) else None
+        if cursor is None:
+            events = await app.state.bus.history(internal_session_id, limit)
+            return {
+                "session_id": public_session_id,
+                "events": [_event_payload(event, public_session_id) for event in events],
+            }
+
+        contains_event = getattr(app.state.bus, "contains_event", None)
+        if callable(contains_event) and not await contains_event(internal_session_id, cursor):
+            raise HTTPException(status_code=410, detail="Recovery cursor is no longer available")
+
+        recovered = await app.state.bus.history(
+            internal_session_id,
+            limit + 1,
+            after_event_id=cursor,
+        )
+        has_more = len(recovered) > limit
+        events = recovered[:limit]
+        next_event_id = brain_event_id(events[-1]) if events else cursor
         return {
             "session_id": public_session_id,
             "events": [_event_payload(event, public_session_id) for event in events],
+            "next_event_id": next_event_id,
+            "has_more": has_more,
         }
-
-    contains_event = getattr(app.state.bus, "contains_event", None)
-    if callable(contains_event) and not await contains_event(internal_session_id, cursor):
-        raise HTTPException(status_code=410, detail="Recovery cursor is no longer available")
-
-    recovered = await app.state.bus.history(
-        internal_session_id,
-        limit + 1,
-        after_event_id=cursor,
-    )
-    has_more = len(recovered) > limit
-    events = recovered[:limit]
-    next_event_id = brain_event_id(events[-1]) if events else cursor
-    return {
-        "session_id": public_session_id,
-        "events": [_event_payload(event, public_session_id) for event in events],
-        "next_event_id": next_event_id,
-        "has_more": has_more,
-    }
+    except RedisError as exc:
+        raise HTTPException(status_code=503, detail="State backend unavailable") from exc
 
 
 @app.post("/v1/sessions/{session_id}/reset")
@@ -428,6 +436,17 @@ async def input_socket(ws: WebSocket):
                     {
                         "error": "Worker runtime unavailable",
                         "code": "worker_unavailable",
+                        "request_id": request_id,
+                        "session_id": public_session_id,
+                        "retryable": True,
+                    }
+                )
+                continue
+            except RedisError:
+                await ws.send_json(
+                    {
+                        "error": "State backend unavailable",
+                        "code": "state_backend_unavailable",
                         "request_id": request_id,
                         "session_id": public_session_id,
                         "retryable": True,
