@@ -7,8 +7,8 @@ import java.nio.file.Path;
 public final class DeterministicPlanValidationContractTest {
     public static void main(String[] args) throws Exception {
         String source = Files.readString(Path.of("src/main/java/com/jarvis/brain/AssistantCore.java"));
-        check(source.contains("if(!v.valid())return validatedPlanResponse(response.plan(),response.text()"),
-                "deterministic ACTION_PLAN responses must not bypass failed PlanValidator results");
+        check(source.contains("if(!v.valid())return rememberedResponse(validatedPlanResponse(response.plan(),response.text()"),
+                "deterministic ACTION_PLAN responses must preserve validation while retaining any clarification response");
         check(source.contains("executionClassifier.isPureAutonomousResearch(v.effectivePlan())"),
                 "valid deterministic research plans must keep their autonomous executive path");
         System.out.println("DeterministicPlanValidationContractTest passed");
