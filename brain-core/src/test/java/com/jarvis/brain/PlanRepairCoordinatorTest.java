@@ -10,6 +10,7 @@ public final class PlanRepairCoordinatorTest {
         repairsInvalidPlanWithValidationFeedback();
         refusesInvalidPlanAfterBudget();
         generatorFailureFailsClosedWithoutExecutablePlan();
+        validatorFailureFailsClosedWithoutExecutablePlan();
         System.out.println("PlanRepairCoordinatorTest: " + checks + " assertions passed");
     }
 
@@ -69,6 +70,24 @@ public final class PlanRepairCoordinatorTest {
         check(out.attempts() == 1, "provider failure should stop immediately rather than repeatedly hammering the same failed source");
         check(out.clarification().toLowerCase().contains("couldn't") || out.clarification().toLowerCase().contains("could not"),
                 "provider failure should truthfully say that planning could not complete");
+    }
+
+    private static void validatorFailureFailsClosedWithoutExecutablePlan() {
+        ModelPlanGenerator generator = prompt -> "candidate-plan";
+        PlanTextValidator validator = json -> { throw new RuntimeException("plan parser crashed"); };
+        PlanRepairResult out;
+        try {
+            out = new PlanRepairCoordinator(validator, 2).plan("send something", "", generator);
+        } catch (RuntimeException escaped) {
+            throw new AssertionError("plan validation failure must not escape the repair boundary", escaped);
+        }
+        check(out.status() == PlanRepairResult.Status.NEEDS_CLARIFICATION,
+                "validator failure should yield a non-executable safe result");
+        check(out.plan() == null, "validator failure must never leak an unvalidated executable plan");
+        check(out.attempts() == 1, "validator failure should stop immediately instead of retrying an unavailable validator");
+        String explanation = out.clarification().toLowerCase();
+        check(explanation.contains("couldn't") || explanation.contains("could not"),
+                "validator failure should truthfully say safe planning could not complete");
     }
 
     private static void check(boolean condition, String message) {
