@@ -88,9 +88,9 @@ public final class ExecutiveObservationLoop {
 
                 ToolResult toolResult;
                 try {
-                    toolResult = tool.implementation().execute(step.arguments(), executionContext);
+                    toolResult = normalizeToolResult(tool.implementation().execute(step.arguments(), executionContext));
                     if (toolResult.status() == ToolResult.Status.RETRYABLE_FAILURE) {
-                        toolResult = tool.implementation().execute(step.arguments(), executionContext);
+                        toolResult = normalizeToolResult(tool.implementation().execute(step.arguments(), executionContext));
                     }
                 } catch (RuntimeException failure) {
                     toolResult = ToolResult.failure(failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage());
@@ -112,6 +112,10 @@ public final class ExecutiveObservationLoop {
 
         return outcome(ExecutiveOutcome.Status.ITERATION_LIMIT,
                 iterationLimitText(lastText, context), null, maxIterations, context, latestStateDelta);
+    }
+
+    private static ToolResult normalizeToolResult(ToolResult result) {
+        return result == null ? ToolResult.failure("tool returned no result") : result;
     }
 
     private static ExecutiveOutcome outcome(ExecutiveOutcome.Status status, String text, Plan pendingPlan,
