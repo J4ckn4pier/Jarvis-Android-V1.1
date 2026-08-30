@@ -9,6 +9,7 @@ import com.jarvis.brain.ToolRegistry;
 import com.jarvis.brain.ToolResult;
 import com.jarvis.brain.ToolSpec;
 import com.jarvis.mobile.actions.AndroidDialerActions;
+import com.jarvis.mobile.actions.AndroidEmailActions;
 import com.jarvis.mobile.actions.AndroidFlashlightActions;
 import com.jarvis.mobile.actions.AndroidMediaActions;
 import com.jarvis.mobile.actions.AndroidMessagingActions;
@@ -32,6 +33,7 @@ public final class AndroidToolRegistryFactory {
     public static ToolRegistry create(Context context, ExternalResearchGateway research, ConversationalCallTransport callTransport) {
         Context appContext = context.getApplicationContext();
         AndroidDialerActions dialer = new AndroidDialerActions(appContext);
+        AndroidEmailActions email = new AndroidEmailActions(appContext);
         AndroidFlashlightActions flashlight = new AndroidFlashlightActions(appContext);
         AndroidMediaActions media = new AndroidMediaActions(appContext);
         AndroidMessagingActions messaging = new AndroidMessagingActions(appContext);
@@ -69,6 +71,9 @@ public final class AndroidToolRegistryFactory {
                     String notifications = JarvisDatabase.get(appContext).recentNotifications(10);
                     return notifications.isBlank() ? "No captured notifications." : notifications;
                 });
+        register(registry, "compose_email", false, Set.of("email", "compose email", "draft email"), Set.of("recipient", "subject", "body"),
+                "Open an Android email draft for user review without sending it", ToolExecutionClass.DEVICE_REFLEX,
+                args -> email.prepareEmail(args.get("recipient"), args.get("subject"), args.get("body")));
         register(registry, "send_message", true, Set.of("text", "message"), Set.of("recipient", "message"),
                 "Prepare external message after approval", ToolExecutionClass.CONSEQUENTIAL,
                 args -> messaging.prepareMessage(args.get("recipient"), args.get("message")));
