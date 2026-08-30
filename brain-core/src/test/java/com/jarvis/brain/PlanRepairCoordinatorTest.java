@@ -11,6 +11,7 @@ public final class PlanRepairCoordinatorTest {
         refusesInvalidPlanAfterBudget();
         generatorFailureFailsClosedWithoutExecutablePlan();
         validatorFailureFailsClosedWithoutExecutablePlan();
+        nullValidatorResultFailsClosedWithoutExecutablePlan();
         System.out.println("PlanRepairCoordinatorTest: " + checks + " assertions passed");
     }
 
@@ -88,6 +89,24 @@ public final class PlanRepairCoordinatorTest {
         String explanation = out.clarification().toLowerCase();
         check(explanation.contains("couldn't") || explanation.contains("could not"),
                 "validator failure should truthfully say safe planning could not complete");
+    }
+
+    private static void nullValidatorResultFailsClosedWithoutExecutablePlan() {
+        ModelPlanGenerator generator = prompt -> "candidate-plan";
+        PlanTextValidator validator = json -> null;
+        PlanRepairResult out;
+        try {
+            out = new PlanRepairCoordinator(validator, 2).plan("send something", "", generator);
+        } catch (RuntimeException escaped) {
+            throw new AssertionError("missing plan validation verdict must not escape the repair boundary", escaped);
+        }
+        check(out.status() == PlanRepairResult.Status.NEEDS_CLARIFICATION,
+                "missing validator verdict should yield a non-executable safe result");
+        check(out.plan() == null, "missing validator verdict must never leak an unvalidated executable plan");
+        check(out.attempts() == 1, "missing validator verdict should stop immediately");
+        String explanation = out.clarification().toLowerCase();
+        check(explanation.contains("couldn't") || explanation.contains("could not"),
+                "missing validator verdict should truthfully say safe planning could not complete");
     }
 
     private static void check(boolean condition, String message) {
