@@ -10,6 +10,7 @@ public final class AndroidTimerToolBindingContractTest {
         Path timerPath = Path.of("../android/app/src/main/java/com/jarvis/mobile/actions/AndroidTimerActions.java");
         check(Files.exists(timerPath), "Android production must provide a typed timer action adapter");
         String timer = Files.readString(timerPath);
+        String manifest = Files.readString(Path.of("../android/app/src/main/AndroidManifest.xml"));
 
         check(factory.contains("AndroidTimerActions timer = new AndroidTimerActions(appContext)"),
                 "Android tool registry must compose the typed timer adapter");
@@ -25,6 +26,10 @@ public final class AndroidTimerToolBindingContractTest {
                 "typed timer action must fail closed when no timer app resolves the intent");
         check(timer.contains("Math.multiplyExact"),
                 "typed timer conversion must reject overflow rather than silently wrap");
+        check(manifest.contains("android:name=\"com.android.alarm.permission.SET_ALARM\""),
+                "Android manifest must request the Clock intent SET_ALARM permission used by ACTION_SET_TIMER");
+        check(!manifest.contains("android:name=\"android.permission.SET_ALARM\""),
+                "Android manifest must not use the non-existent android.permission.SET_ALARM permission name");
 
         System.out.println("AndroidTimerToolBindingContractTest passed");
     }
