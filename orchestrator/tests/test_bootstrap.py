@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from bootstrap import compute_agent_zero_api_key, ensure_env
+from jarvis_orchestrator.bootstrap import compute_agent_zero_api_key, ensure_env
 
 
 def test_agent_zero_api_key_matches_upstream_token_derivation():
