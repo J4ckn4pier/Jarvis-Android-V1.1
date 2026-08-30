@@ -22,6 +22,14 @@ public final class KnownBlockerWorkflowSeparationContractTest {
                 "APK workflow must verify pull-request branch updates, not only direct pushes");
         check(build.contains("branches: [main]"),
                 "APK pull-request verification must target integration into main");
+        check(build.contains("name: Preserve Android failure evidence"),
+                "APK workflow must preserve emulator evidence when Android verification fails");
+        check(build.contains("if: failure()"),
+                "failure-evidence upload must execute even after an earlier Android verification failure");
+        check(build.contains("android/app/build/outputs/apk/debug/"),
+                "failure-evidence upload must retain generated Android logs, UI trees, screenshots, and launch traces");
+        check(build.contains("if-no-files-found: warn"),
+                "failure-evidence upload must not hide the original failure when only partial evidence exists");
         check(!brain.contains("JARVIS_SKIP_KNOWN_BLOCKERS"),
                 "authoritative Brain Core workflow must never bypass known finished-product blockers");
         check(brain.contains("./run-tests.sh"),
