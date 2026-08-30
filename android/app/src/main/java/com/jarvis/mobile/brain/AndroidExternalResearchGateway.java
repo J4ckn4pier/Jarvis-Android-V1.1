@@ -2,6 +2,7 @@ package com.jarvis.mobile.brain;
 
 import android.content.Context;
 
+import com.jarvis.brain.EndpointTransportPolicy;
 import com.jarvis.brain.ExecutionContext;
 import com.jarvis.brain.ExternalResearchGateway;
 import com.jarvis.brain.ResearchEvidence;
@@ -23,7 +24,7 @@ import java.util.Map;
  *
  * The commercial baseline intentionally ships with no public hosted research provider baked in.
  * A user/business deployment may point this adapter at an HTTPS service it is licensed to use,
- * or at a loopback/self-hosted service. Responses must carry explicit provenance so the shared
+ * or at a loopback/user-owned mDNS service. Responses must carry explicit provenance so the shared
  * brain never treats an unqualified network string as fresh evidence.
  */
 public final class AndroidExternalResearchGateway implements ExternalResearchGateway {
@@ -82,15 +83,10 @@ public final class AndroidExternalResearchGateway implements ExternalResearchGat
         if (endpoint.isEmpty()) return ToolResult.failure("research endpoint not configured");
         HttpURLConnection connection = null;
         try {
-            URI uri = URI.create(endpoint);
-            String host = uri.getHost() == null ? "" : uri.getHost();
-            boolean loopback = host.equalsIgnoreCase("localhost")
-                    || host.equals("127.0.0.1")
-                    || host.equals("10.0.2.2");
-            if (!"https".equalsIgnoreCase(uri.getScheme()) && !loopback) {
-                return ToolResult.failure("research endpoint must use HTTPS or loopback transport");
+            if (!EndpointTransportPolicy.allows(endpoint)) {
+                return ToolResult.failure("research endpoint must use HTTPS or local mDNS/loopback transport");
             }
-
+            URI uri = URI.create(endpoint);
             connection = (HttpURLConnection) uri.toURL().openConnection();
             connection.setInstanceFollowRedirects(false);
             connection.setRequestMethod("POST");
