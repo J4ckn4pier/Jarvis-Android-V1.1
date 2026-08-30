@@ -7,10 +7,13 @@ from fastapi import FastAPI, Header, HTTPException, Query, WebSocket, WebSocketD
 from pydantic import BaseModel, Field
 
 from .core import (
+    IdempotencyConflict,
     InMemoryEventBus,
+    InMemoryIdempotencyStore,
     InMemorySessionLockManager,
     Orchestrator,
     ValkeyEventBus,
+    ValkeyIdempotencyStore,
     ValkeySessionLockManager,
 )
 from .identity import Authenticator, Principal, scope_session_id
@@ -48,8 +51,6 @@ def _bearer_token(authorization: str | None) -> str | None:
 
 
 def _principal_for_token(token: str | None) -> Principal | None:
-    # Zero-configuration developer mode remains usable only when authentication
-    # has not been marked mandatory by the packaged deployment configuration.
     if not os.getenv("JARVIS_API_KEYS_JSON") and not os.getenv("JARVIS_API_TOKEN"):
         if _auth_required():
             return None
@@ -73,8 +74,35 @@ def _validated_public_session_id(session_id: str) -> str:
     return session_id
 
 
+def _validated_request_id(request_id: object | None) -> str | None:
+    if request_id is None:
+        return None
+    value = str(request_id).strip()
+    if not value or len(value) > 128:
+        raise HTTPException(
+            status_code=422,
+            detail="request_id must be between 1 and 128 characters",
+        )
+    return value
+
+
 def _scoped_session(principal: Principal, public_session_id: str) -> str:
     return scope_session_id(principal.principal_id, public_session_id)
+
+
+async def _submit(
+    text: str,
+    internal_session_id: str,
+    request_id: str | None,
+) -> dict[str, str]:
+    try:
+        return await app.state.orchestrator.submit(
+            text,
+            internal_session_id,
+            request_id=request_id,
+        )
+    except IdempotencyConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
 
 
 async def _run_lifecycle_operation(operation: str, session_id: str) -> bool:
@@ -93,12 +121,11 @@ async def _run_lifecycle_operation(operation: str, session_id: str) -> bool:
 class Command(BaseModel):
     text: str = Field(min_length=1, max_length=100_000)
     session_id: str = Field(default="primary", min_length=1, max_length=128)
+    request_id: str | None = Field(default=None, min_length=1, max_length=128)
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Fail at process start if a packaged/production deployment requires auth
-    # but credentials are missing or malformed.
     _validate_auth_configuration()
 
     url = os.getenv("VALKEY_URL")
@@ -110,11 +137,13 @@ async def lifespan(app: FastAPI):
         app.state.bus = ValkeyEventBus(client)
         context_store = ValkeyAgentContextStore(client)
         session_locks = ValkeySessionLockManager(client)
+        idempotency = ValkeyIdempotencyStore(client)
     else:
         app.state.valkey = None
         app.state.bus = InMemoryEventBus()
         context_store = InMemoryAgentContextStore()
         session_locks = InMemorySessionLockManager()
+        idempotency = InMemoryIdempotencyStore()
 
     runtime = build_runtime(context_store)
     app.state.runtime = runtime
@@ -122,6 +151,7 @@ async def lifespan(app: FastAPI):
         app.state.bus,
         runtime,
         session_locks=session_locks,
+        idempotency=idempotency,
     )
     yield
 
@@ -132,12 +162,11 @@ async def lifespan(app: FastAPI):
         await app.state.valkey.aclose()
 
 
-app = FastAPI(title="JARVIS Orchestrator", version="0.10.1", lifespan=lifespan)
+app = FastAPI(title="JARVIS Orchestrator", version="0.11.0", lifespan=lifespan)
 
 
 @app.get("/health")
 async def health():
-    """Cheap liveness check: the API process is running."""
     return {
         "status": "ok",
         "state_backend": "valkey" if app.state.valkey else "memory",
@@ -148,7 +177,6 @@ async def health():
 
 @app.get("/ready")
 async def ready():
-    """Readiness check: required shared state and worker runtime are reachable."""
     valkey = getattr(app.state, "valkey", None)
     if valkey is not None:
         try:
@@ -178,7 +206,7 @@ async def ready():
 async def command(body: Command, authorization: str | None = Header(default=None)):
     principal = _require_http_auth(authorization)
     internal_session_id = _scoped_session(principal, body.session_id)
-    result = await app.state.orchestrator.submit(body.text, internal_session_id)
+    result = await _submit(body.text, internal_session_id, body.request_id)
     result["session_id"] = body.session_id
     return result
 
@@ -189,7 +217,6 @@ async def event_history(
     limit: int = Query(default=100, ge=1, le=1000),
     authorization: str | None = Header(default=None),
 ):
-    """Recover state missed while a phone/desktop client was disconnected."""
     public_session_id = _validated_public_session_id(session_id)
     principal = _require_http_auth(authorization)
     internal_session_id = _scoped_session(principal, public_session_id)
@@ -213,7 +240,6 @@ async def reset_session(
     session_id: str,
     authorization: str | None = Header(default=None),
 ):
-    """Reset the configured worker's conversation while preserving JARVIS session identity."""
     public_session_id = _validated_public_session_id(session_id)
     principal = _require_http_auth(authorization)
     await _run_lifecycle_operation("reset", _scoped_session(principal, public_session_id))
@@ -225,7 +251,6 @@ async def terminate_session(
     session_id: str,
     authorization: str | None = Header(default=None),
 ):
-    """Terminate the configured worker session and clear its runtime context mapping."""
     public_session_id = _validated_public_session_id(session_id)
     principal = _require_http_auth(authorization)
     await _run_lifecycle_operation("terminate", _scoped_session(principal, public_session_id))
@@ -265,7 +290,6 @@ async def events(ws: WebSocket):
 
 @app.websocket("/v1/input")
 async def input_socket(ws: WebSocket):
-    """Phone/desktop text stream. Audio/STT plugs into this same submit() path after transcription."""
     principal = _principal_for_token(ws.query_params.get("token"))
     if principal is None:
         await ws.close(code=4401)
@@ -282,8 +306,24 @@ async def input_socket(ws: WebSocket):
             if not public_session_id or len(public_session_id) > 128:
                 await ws.send_json({"error": "session_id must be between 1 and 128 characters"})
                 continue
+            raw_request_id = message.get("request_id")
+            if raw_request_id is not None:
+                request_id = str(raw_request_id).strip()
+                if not request_id or len(request_id) > 128:
+                    await ws.send_json({"error": "request_id must be between 1 and 128 characters"})
+                    continue
+            else:
+                request_id = None
             internal_session_id = _scoped_session(principal, public_session_id)
-            result = await app.state.orchestrator.submit(text, internal_session_id)
+            try:
+                result = await app.state.orchestrator.submit(
+                    text,
+                    internal_session_id,
+                    request_id=request_id,
+                )
+            except IdempotencyConflict as exc:
+                await ws.send_json({"error": str(exc), "code": "request_id_conflict"})
+                continue
             result["session_id"] = public_session_id
             await ws.send_json(result)
     except WebSocketDisconnect:
