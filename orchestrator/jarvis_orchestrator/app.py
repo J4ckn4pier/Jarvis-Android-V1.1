@@ -16,6 +16,7 @@ from .core import (
     ValkeyEventBus,
     ValkeyIdempotencyStore,
     ValkeySessionLockManager,
+    brain_event_id,
 )
 from .identity import Authenticator, Principal, scope_session_id
 from .runtime import InMemoryAgentContextStore, ValkeyAgentContextStore, build_runtime
@@ -134,7 +135,7 @@ def _event_payload(event, public_session_id: str) -> dict[str, object]:
     WebSocket stream after reconnect without rendering the same brain event twice.
     """
     return {
-        "event_id": f"{event.task_id}:{event.sequence}",
+        "event_id": brain_event_id(event),
         "session_id": public_session_id,
         "task_id": event.task_id,
         "active_layer": event.active_layer,
@@ -226,7 +227,7 @@ async def lifespan(app: FastAPI):
         await app.state.valkey.aclose()
 
 
-app = FastAPI(title="JARVIS Orchestrator", version="0.12.0", lifespan=lifespan)
+app = FastAPI(title="JARVIS Orchestrator", version="0.13.0", lifespan=lifespan)
 
 
 @app.get("/health")
@@ -279,15 +280,25 @@ async def command(body: Command, authorization: str | None = Header(default=None
 async def event_history(
     session_id: str,
     limit: int = Query(default=100, ge=1, le=1000),
+    after_event_id: str | None = Query(default=None, min_length=1, max_length=128),
     authorization: str | None = Header(default=None),
 ):
     public_session_id = _validated_public_session_id(session_id)
     principal = _require_http_auth(authorization)
     internal_session_id = _scoped_session(principal, public_session_id)
-    events = await app.state.bus.history(internal_session_id, limit)
+    recovered = await app.state.bus.history(
+        internal_session_id,
+        limit + 1,
+        after_event_id=after_event_id,
+    )
+    has_more = len(recovered) > limit
+    events = recovered[:limit]
+    next_event_id = brain_event_id(events[-1]) if events else after_event_id
     return {
         "session_id": public_session_id,
         "events": [_event_payload(event, public_session_id) for event in events],
+        "next_event_id": next_event_id,
+        "has_more": has_more,
     }
 
 
