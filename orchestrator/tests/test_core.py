@@ -83,6 +83,20 @@ async def test_history_is_session_scoped_and_limit_applies():
     assert all(event.session_id == "desktop" for event in desktop)
 
 
+async def test_history_can_page_forward_after_last_seen_event():
+    bus = InMemoryEventBus()
+    orchestrator = Orchestrator(bus, EchoRuntime())
+    first = await orchestrator.submit("first", "phone")
+    await orchestrator.submit("second", "phone")
+
+    after = f"{first['task_id']}:4"
+    recovered = await bus.history("phone", limit=4, after_event_id=after)
+
+    assert len(recovered) == 4
+    assert all(event.task_id != first["task_id"] for event in recovered)
+    assert [event.sequence for event in recovered] == [1, 2, 3, 4]
+
+
 async def test_retry_with_same_request_id_executes_runtime_once():
     class Runtime:
         def __init__(self):
