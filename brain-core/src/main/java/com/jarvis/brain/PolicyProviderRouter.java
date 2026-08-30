@@ -80,7 +80,10 @@ public final class PolicyProviderRouter implements ReasoningRouter {
     }
 
     private static boolean isUsable(ReasoningResult result) {
-        return result != null && (!result.text().isBlank() || result.plan() != null);
+        if (result == null) return false;
+        if (result.plan() != null) return true;
+        String text = result.text();
+        return text != null && !text.isBlank();
     }
 
     private boolean eligibleForAttempt(String providerId, Instant now) {
