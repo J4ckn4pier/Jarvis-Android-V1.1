@@ -6,10 +6,17 @@ APK="$OUTPUT/app-debug.apk"
 PACKAGE="com.jarvis.mobile"
 ACTIVITY="$PACKAGE/com.jarvis.mobile.MainActivity"
 
+# adb joins arguments into a remote shell command. Wrap the extra value in literal double-quotes
+# so the device-side shell strips only those transport quotes and delivers the exact command text.
+start_test_command() {
+  command="$1"
+  adb shell am start -W -n "$ACTIVITY" --es jarvis_test_command "\"$command\""
+}
+
 # Fixed APK-sprint regression: natural conversational lead-in must still execute the settings request.
 adb shell am force-stop "$PACKAGE" || true
 adb logcat -c
-adb shell am start -W -n "$ACTIVITY" --es jarvis_test_command '"I'"'"'m good. Can you do me a favor and open settings, please?'"'"'"' \
+start_test_command "I'm good. Can you do me a favor and open settings, please?" \
   | tee "$OUTPUT/apk-sprint-settings-command-launch.txt"
 grep -q 'Status: ok' "$OUTPUT/apk-sprint-settings-command-launch.txt"
 
@@ -17,7 +24,8 @@ SETTINGS_OPENED=0
 for attempt in $(seq 1 30); do
   adb shell dumpsys activity activities > "$OUTPUT/apk-sprint-settings-activity.txt" || true
   adb logcat -d > "$OUTPUT/apk-sprint-settings-logcat.txt" || true
-  if grep -Eq 'topResumedActivity=.*com\.jarvis\.mobile/\.SettingsActivity' "$OUTPUT/apk-sprint-settings-activity.txt"; then
+  if grep -Fq "JARVIS_RUNTIME_INPUT utterance=I'm good. Can you do me a favor and open settings, please?" "$OUTPUT/apk-sprint-settings-logcat.txt" \
+      && grep -Eq 'topResumedActivity=.*com\.jarvis\.mobile/\.SettingsActivity' "$OUTPUT/apk-sprint-settings-activity.txt"; then
     sleep 1
     adb shell dumpsys activity activities > "$OUTPUT/apk-sprint-settings-activity-stable.txt" || true
     if grep -Eq 'topResumedActivity=.*com\.jarvis\.mobile/\.SettingsActivity' "$OUTPUT/apk-sprint-settings-activity-stable.txt"; then
@@ -97,15 +105,14 @@ adb exec-out screencap -p > "$OUTPUT/jarvis-apk-sprint-home.png"
 # AndroidAppActions to refuse ambiguous packages instead of picking whichever package appears first.
 adb shell am force-stop "$PACKAGE" || true
 adb logcat -c
-# adb joins arguments into a remote shell command, so preserve quotes for the remote parser too.
-adb shell am start -W -n "$ACTIVITY" --es jarvis_test_command '"open JARVIS"' \
-  | tee "$OUTPUT/apk-sprint-open-app-launch.txt"
+start_test_command 'open JARVIS' | tee "$OUTPUT/apk-sprint-open-app-launch.txt"
 grep -q 'Status: ok' "$OUTPUT/apk-sprint-open-app-launch.txt"
 APP_OPENED=0
 for attempt in $(seq 1 20); do
   adb logcat -d > "$OUTPUT/apk-sprint-open-app-logcat.txt" || true
   adb shell dumpsys activity activities > "$OUTPUT/apk-sprint-open-app-activity.txt" || true
-  if grep -q 'JARVIS_COMMAND_RESULT Opened JARVIS.' "$OUTPUT/apk-sprint-open-app-logcat.txt" \
+  if grep -Fq 'JARVIS_RUNTIME_INPUT utterance=open JARVIS' "$OUTPUT/apk-sprint-open-app-logcat.txt" \
+      && grep -q 'JARVIS_COMMAND_RESULT Opened JARVIS.' "$OUTPUT/apk-sprint-open-app-logcat.txt" \
       && grep -Eq 'topResumedActivity=.*com\.jarvis\.mobile/\.MainActivity' "$OUTPUT/apk-sprint-open-app-activity.txt"; then
     APP_OPENED=1
     break
