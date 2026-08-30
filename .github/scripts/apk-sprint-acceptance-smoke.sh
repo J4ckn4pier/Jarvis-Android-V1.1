@@ -180,3 +180,44 @@ if [ "$VOLUME_PROVEN" -ne 1 ]; then
   cat "$OUTPUT/apk-sprint-volume-before.txt" "$OUTPUT/apk-sprint-volume-after.txt" || true
 fi
 test "$VOLUME_PROVEN" -eq 1
+
+# Natural local time commands must reach Android's real Clock integration without a reasoning or
+# remote-brain dependency. A success response is emitted only after the typed Android intent resolves
+# and is dispatched, so these checks exercise the installed APK and platform capability together.
+adb shell am force-stop "$PACKAGE" || true
+adb logcat -c
+start_test_command 'set a timer for 5 minutes' | tee "$OUTPUT/apk-sprint-timer-launch.txt"
+grep -q 'Status: ok' "$OUTPUT/apk-sprint-timer-launch.txt"
+TIMER_PROVEN=0
+for attempt in $(seq 1 20); do
+  adb logcat -d > "$OUTPUT/apk-sprint-timer-logcat.txt" || true
+  if grep -Eq 'JARVIS_RUNTIME_INPUT utterance=set a timer for 5 minutes$' "$OUTPUT/apk-sprint-timer-logcat.txt" \
+      && grep -q 'JARVIS_COMMAND_RESULT Timer set for 5 minutes.' "$OUTPUT/apk-sprint-timer-logcat.txt"; then
+    TIMER_PROVEN=1
+    break
+  fi
+  sleep 1
+done
+if [ "$TIMER_PROVEN" -ne 1 ]; then
+  grep -E 'JARVIS_RUNTIME_INPUT|JARVIS_RUNTIME_OUTPUT|JARVIS_COMMAND_RESULT' "$OUTPUT/apk-sprint-timer-logcat.txt" || true
+fi
+test "$TIMER_PROVEN" -eq 1
+
+adb shell am force-stop "$PACKAGE" || true
+adb logcat -c
+start_test_command 'set an alarm for 7:30' | tee "$OUTPUT/apk-sprint-alarm-launch.txt"
+grep -q 'Status: ok' "$OUTPUT/apk-sprint-alarm-launch.txt"
+ALARM_PROVEN=0
+for attempt in $(seq 1 20); do
+  adb logcat -d > "$OUTPUT/apk-sprint-alarm-logcat.txt" || true
+  if grep -Eq 'JARVIS_RUNTIME_INPUT utterance=set an alarm for 7:30$' "$OUTPUT/apk-sprint-alarm-logcat.txt" \
+      && grep -q 'JARVIS_COMMAND_RESULT Alarm set for 07:30.' "$OUTPUT/apk-sprint-alarm-logcat.txt"; then
+    ALARM_PROVEN=1
+    break
+  fi
+  sleep 1
+done
+if [ "$ALARM_PROVEN" -ne 1 ]; then
+  grep -E 'JARVIS_RUNTIME_INPUT|JARVIS_RUNTIME_OUTPUT|JARVIS_COMMAND_RESULT' "$OUTPUT/apk-sprint-alarm-logcat.txt" || true
+fi
+test "$ALARM_PROVEN" -eq 1
