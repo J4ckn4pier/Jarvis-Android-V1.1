@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import os
 from contextlib import asynccontextmanager
 
@@ -44,6 +45,42 @@ def _validate_auth_configuration() -> None:
         )
     if mode != "open-development":
         _authenticator()
+
+
+def _session_lock_timeout_seconds() -> int:
+    """Return a distributed lock lease long enough to cover one worker turn.
+
+    Agent Zero's request timeout is configurable because local inference speed
+    varies dramatically by hardware. The Valkey lock must outlive that request
+    or another process could enter the same conversation while the first turn
+    is still executing. Keep a one-minute cleanup margin after the HTTP timeout.
+    """
+    runtime_mode = os.getenv("JARVIS_RUNTIME", "echo").strip().lower()
+    minimum = 300
+    if runtime_mode in {"agent-zero", "agent_zero"}:
+        timeout_raw = os.getenv("AGENT_ZERO_TIMEOUT_SECONDS", "300").strip()
+        try:
+            inference_timeout = float(timeout_raw)
+        except ValueError as exc:
+            raise RuntimeError("AGENT_ZERO_TIMEOUT_SECONDS must be a number") from exc
+        if inference_timeout <= 0:
+            raise RuntimeError("AGENT_ZERO_TIMEOUT_SECONDS must be greater than zero")
+        minimum = math.ceil(inference_timeout) + 60
+
+    explicit_raw = os.getenv("JARVIS_SESSION_LOCK_TIMEOUT_SECONDS", "").strip()
+    if not explicit_raw:
+        return minimum
+    try:
+        explicit = int(explicit_raw)
+    except ValueError as exc:
+        raise RuntimeError("JARVIS_SESSION_LOCK_TIMEOUT_SECONDS must be an integer") from exc
+    if explicit <= 0:
+        raise RuntimeError("JARVIS_SESSION_LOCK_TIMEOUT_SECONDS must be greater than zero")
+    if explicit < minimum:
+        raise RuntimeError(
+            f"JARVIS session lock timeout must be at least {minimum} seconds for the configured runtime"
+        )
+    return explicit
 
 
 def _bearer_token(authorization: str | None) -> str | None:
@@ -136,7 +173,10 @@ async def lifespan(app: FastAPI):
         app.state.valkey = client
         app.state.bus = ValkeyEventBus(client)
         context_store = ValkeyAgentContextStore(client)
-        session_locks = ValkeySessionLockManager(client)
+        session_locks = ValkeySessionLockManager(
+            client,
+            timeout_seconds=_session_lock_timeout_seconds(),
+        )
         idempotency = ValkeyIdempotencyStore(client)
     else:
         app.state.valkey = None
@@ -162,7 +202,7 @@ async def lifespan(app: FastAPI):
         await app.state.valkey.aclose()
 
 
-app = FastAPI(title="JARVIS Orchestrator", version="0.11.0", lifespan=lifespan)
+app = FastAPI(title="JARVIS Orchestrator", version="0.11.1", lifespan=lifespan)
 
 
 @app.get("/health")
