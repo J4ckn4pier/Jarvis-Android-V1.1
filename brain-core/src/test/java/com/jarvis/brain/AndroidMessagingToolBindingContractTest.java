@@ -16,10 +16,12 @@ public final class AndroidMessagingToolBindingContractTest {
         check(adapter.contains("Intent.ACTION_SENDTO"), "messaging adapter must use Android SMS compose intent");
         check(adapter.contains("sms_body"), "messaging adapter must preserve message body as structured intent data");
         check(adapter.contains("ContactsContract.CommonDataKinds.Phone"), "messaging adapter must resolve named contacts when permitted");
-        check(adapter.contains("Set<String> exactMatches"),
-                "contact phone lookup must collect exact-name matches instead of selecting the first partial match");
-        check(adapter.contains("return exactMatches.size() == 1 ? exactMatches.iterator().next() : null;"),
-                "contact phone lookup must fail closed unless exactly one unique number is resolved");
+        check(adapter.contains("UniqueNamedTargetResolver.Candidate"),
+                "contact phone lookup must delegate exact-name ambiguity handling to the shared resolver");
+        check(adapter.contains("UniqueNamedTargetResolver.resolve(name, candidates)"),
+                "contact phone lookup must use the shared fail-closed resolver instead of duplicating selection logic");
+        check(!adapter.contains("Set<String> exactMatches"),
+                "contact phone lookup must not keep a second independent ambiguity implementation");
         check(!adapter.contains("String fallback = null"),
                 "contact phone lookup must not retain first-match fallback behavior");
         check(adapter.contains("couldn’t uniquely resolve a phone number"),
