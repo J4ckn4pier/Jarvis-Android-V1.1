@@ -12,7 +12,10 @@ public final class AndroidOnDeviceWakeDetectorContractTest {
         check(Files.exists(detectorPath), "production must include a real Android on-device wake detector");
         String detector = Files.readString(detectorPath);
         String service = Files.readString(assistant.resolve("JarvisVoiceInteractionService.java"));
-        String session = Files.readString(assistant.resolve("JarvisVoiceSession.java"));
+        Path managedSessionPath = assistant.resolve("ManagedJarvisVoiceSession.java");
+        check(Files.exists(managedSessionPath), "assistant must include a lifecycle-managed voice session");
+        String managedSession = Files.readString(managedSessionPath);
+        String sessionService = Files.readString(assistant.resolve("JarvisVoiceSessionService.java"));
 
         check(factory.contains("AndroidOnDeviceWakeWordDetector.isAvailable(app)"),
                 "factory must prefer an Android on-device detector when the platform exposes one");
@@ -31,18 +34,19 @@ public final class AndroidOnDeviceWakeDetectorContractTest {
         check(detector.contains("postDelayed") || detector.contains("startListening(intent)"),
                 "wake detector must continue listening after a non-wake utterance");
 
-        // The passive recognizer and the active conversation recognizer must never fight over the
-        // microphone. A wake match intentionally releases the passive recognizer; side-key/default
-        // assistant invocation must do the same, and closing the assistant must arm wake again so
-        // Jarvis/Hey Jarvis works more than once per service lifetime.
+        // Passive wake and active conversation recognition must not compete for the microphone.
+        // The managed Android session pauses the idle detector on show and re-arms it on hide,
+        // which also makes Jarvis / Hey Jarvis reusable after a successful wake.
         check(service.contains("pausePassiveWakeForSession"),
                 "voice service must expose a session hook that pauses passive wake while the assistant is active");
         check(service.contains("rearmPassiveWakeAfterSession"),
                 "voice service must expose a session hook that re-arms passive wake after the assistant closes");
-        check(session.contains("JarvisVoiceInteractionService.pausePassiveWakeForSession()"),
+        check(managedSession.contains("JarvisVoiceInteractionService.pausePassiveWakeForSession()"),
                 "assistant session must pause passive wake when shown to avoid microphone contention");
-        check(session.contains("JarvisVoiceInteractionService.rearmPassiveWakeAfterSession()"),
+        check(managedSession.contains("JarvisVoiceInteractionService.rearmPassiveWakeAfterSession()"),
                 "assistant session must re-arm passive wake when hidden so a second wake phrase can work");
+        check(sessionService.contains("new ManagedJarvisVoiceSession(this)"),
+                "Android must actually create the lifecycle-managed session in production");
 
         System.out.println("AndroidOnDeviceWakeDetectorContractTest passed");
     }
