@@ -8,6 +8,7 @@ import com.jarvis.brain.ToolExecutionClass;
 import com.jarvis.brain.ToolRegistry;
 import com.jarvis.brain.ToolResult;
 import com.jarvis.brain.ToolSpec;
+import com.jarvis.mobile.actions.AndroidAlarmActions;
 import com.jarvis.mobile.actions.AndroidDialerActions;
 import com.jarvis.mobile.actions.AndroidEmailActions;
 import com.jarvis.mobile.actions.AndroidFlashlightActions;
@@ -32,6 +33,7 @@ public final class AndroidToolRegistryFactory {
 
     public static ToolRegistry create(Context context, ExternalResearchGateway research, ConversationalCallTransport callTransport) {
         Context appContext = context.getApplicationContext();
+        AndroidAlarmActions alarm = new AndroidAlarmActions(appContext);
         AndroidDialerActions dialer = new AndroidDialerActions(appContext);
         AndroidEmailActions email = new AndroidEmailActions(appContext);
         AndroidFlashlightActions flashlight = new AndroidFlashlightActions(appContext);
@@ -49,6 +51,9 @@ public final class AndroidToolRegistryFactory {
         register(registry, "set_timer", false, Set.of("timer"), Set.of("amount", "unit"),
                 "Set Android timer", ToolExecutionClass.DEVICE_REFLEX,
                 args -> timer.setTimer(args.get("amount"), args.get("unit")));
+        register(registry, "set_alarm", false, Set.of("alarm", "set alarm"), Set.of("hour", "minute"),
+                "Set Android alarm using local 24-hour clock values", ToolExecutionClass.DEVICE_REFLEX,
+                args -> alarm.setAlarm(args.get("hour"), args.get("minute")));
         register(registry, "navigate", false, Set.of("directions", "navigation"), Set.of("destination"),
                 "Open navigation", ToolExecutionClass.DEVICE_REFLEX,
                 args -> navigation.navigate(args.get("destination")));
