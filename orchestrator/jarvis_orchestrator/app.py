@@ -149,7 +149,12 @@ async def _run_lifecycle_operation(operation: str, session_id: str) -> bool:
             status_code=501,
             detail=f"Configured runtime does not support session {operation}",
         )
-    changed = bool(await handler(session_id))
+
+    async def invoke() -> bool:
+        return bool(await handler(session_id))
+
+    serializer = getattr(app.state.orchestrator, "run_session_operation", None)
+    changed = bool(await serializer(session_id, invoke)) if callable(serializer) else await invoke()
     if not changed:
         raise HTTPException(status_code=404, detail="Worker session not found")
     return changed
@@ -202,7 +207,7 @@ async def lifespan(app: FastAPI):
         await app.state.valkey.aclose()
 
 
-app = FastAPI(title="JARVIS Orchestrator", version="0.11.1", lifespan=lifespan)
+app = FastAPI(title="JARVIS Orchestrator", version="0.11.2", lifespan=lifespan)
 
 
 @app.get("/health")
