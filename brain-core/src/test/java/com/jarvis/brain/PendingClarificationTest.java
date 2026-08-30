@@ -16,6 +16,7 @@ public final class PendingClarificationTest {
         approvalAndClarificationRemainDistinctResumeCapabilities();
         harmlessResearchContinuesAfterClarification();
         clarificationResumePreservesWakeAcceptanceProvenance();
+        explicitWakeCommandInterruptsPendingClarification();
         System.out.println("PendingClarificationTest: " + checks + " assertions passed");
     }
 
@@ -137,6 +138,26 @@ public final class PendingClarificationTest {
                 "clarification resume must preserve the original session-active provenance");
         check(resumed.acceptedWithoutWakeWord() == first.acceptedWithoutWakeWord(),
                 "clarification resume must not silently upgrade an explicit-wake request into a wake-free acceptance");
+    }
+
+    private static void explicitWakeCommandInterruptsPendingClarification() {
+        Clock clock = Clock.fixed(Instant.parse("2026-08-27T23:30:00Z"), ZoneOffset.UTC);
+        ReasoningRouter router = request -> new ReasoningResult("planner", "Where should I send you?",
+                new Plan("Navigate", List.of(new PlanStep("navigate", Map.of(), false))));
+        AssistantCore core = new AssistantCore(BrainEngine.createDefault(clock), router, ToolRegistry.standard());
+
+        BrainResponse first = core.handle("Jarvis take me somewhere");
+        check(first.kind() == BrainResponse.Kind.CONVERSATION, "missing destination should establish a pending clarification");
+        check(core.hasPendingPlan(), "navigation clarification should remain pending before interruption");
+
+        BrainResponse interrupted = core.handle("Jarvis set a timer for 5 minutes");
+        check(interrupted.kind() == BrainResponse.Kind.ACTION_PLAN,
+                "a new explicit wake command should interrupt clarification instead of being consumed as its answer");
+        check(interrupted.plan() != null && interrupted.plan().steps().get(0).tool().equals("set_timer"),
+                "interruption should route the new command normally");
+        check(interrupted.plan().steps().get(0).arguments().get("amount").equals("5"),
+                "interruption must preserve the new command arguments");
+        check(!core.hasPendingPlan(), "interrupted clarification should be discarded rather than silently resumed later");
     }
 
     private static void check(boolean condition, String message) {
