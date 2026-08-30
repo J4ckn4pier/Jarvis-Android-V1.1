@@ -62,7 +62,6 @@ class RecordingGoalService:
 
 
 @pytest.fixture
-
 def goal_service(monkeypatch):
     monkeypatch.setenv("JARVIS_API_KEYS_JSON", '{"alice":"token-a","bob":"token-b"}')
     monkeypatch.delenv("JARVIS_API_TOKEN", raising=False)
@@ -121,6 +120,25 @@ async def test_approval_and_cancel_are_owner_scoped(goal_service):
     assert approval["accepted"] is True
     assert cancelled["state"] == "cancelled"
     assert ("cancel", "alice", "project-1") in goal_service.calls
+
+
+@pytest.mark.asyncio
+async def test_stale_or_unknown_approval_is_not_found(goal_service, monkeypatch):
+    async def missing(*args, **kwargs):
+        raise KeyError("approval-expired")
+
+    monkeypatch.setattr(goal_service, "approve", missing)
+
+    with pytest.raises(HTTPException) as exc:
+        await app_module.project_approval(
+            "project-1",
+            "approval-expired",
+            app_module.ApprovalResponse(approved=True, response="late retry"),
+            authorization="Bearer token-a",
+        )
+
+    assert exc.value.status_code == 404
+    assert exc.value.detail == "Approval not found or no longer pending"
 
 
 @pytest.mark.asyncio
