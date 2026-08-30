@@ -37,4 +37,4 @@ def test_apk_integration_contract_is_explicit_and_provider_neutral():
 
     assert "Authorization: Bearer <token>" in text
     assert "after_event_id" in text
-    assert "provider details are never part of the APK contract" in text.lower()
+    assert "provider details are never part of the apk contract" in text.lower()
