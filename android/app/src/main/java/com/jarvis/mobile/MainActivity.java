@@ -36,6 +36,7 @@ import android.widget.LinearLayout;
 import android.widget.PopupMenu;
 import android.widget.TextView;
 
+import com.jarvis.brain.AssistantSurfaceState;
 import com.jarvis.brain.FullAppRuntimeViewState;
 import com.jarvis.brain.RuntimeSurfaceAction;
 import com.jarvis.brain.RuntimeSurfacePresentation;
@@ -63,6 +64,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private static final String COMMAND_TEST_TAG = "JARVIS_COMMAND_TEST";
     private static final String UI_TEST_TAG = "JARVIS_UI_TEST";
     private static final String SHARED_BRAIN_TAG = "JARVIS_SHARED_BRAIN_ACTIVE";
+    private static final String RUNTIME_FAILURE_TAG = "JARVIS_RUNTIME_FAILURE";
 
     private final android.os.Handler ui = new android.os.Handler(android.os.Looper.getMainLooper());
     private final ExecutorService brainExecutor = Executors.newSingleThreadExecutor();
@@ -343,8 +345,19 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
     private void submitBrainWork(Supplier<RuntimeSurfacePresentation> work) {
         brainExecutor.execute(() -> {
-            RuntimeSurfacePresentation presentation = work.get();
-            ui.post(() -> deliverPresentation(presentation));
+            try {
+                RuntimeSurfacePresentation presentation = work.get();
+                ui.post(() -> deliverPresentation(presentation));
+            } catch (RuntimeException failure) {
+                Log.e(RUNTIME_FAILURE_TAG, "Unexpected shared brain runtime failure", failure);
+                RuntimeSurfacePresentation presentation = new RuntimeSurfacePresentation(
+                        AssistantSurfaceState.ERROR,
+                        "I hit an unexpected problem while handling that.",
+                        RUNTIME_FAILURE_TAG,
+                        RuntimeSurfaceAction.NONE,
+                        RuntimeSurfaceAction.NONE);
+                ui.post(() -> deliverPresentation(presentation));
+            }
         });
     }
 
