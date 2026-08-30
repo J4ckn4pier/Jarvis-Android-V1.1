@@ -114,7 +114,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                 getIntent().hasExtra("jarvis_test_command")) {
             commandTestMode = true;
             String testCommand = getIntent().getStringExtra("jarvis_test_command");
-            ui.postDelayed(() -> runCommand(testCommand), 350L);
+            ui.postDelayed(() -> runCommand(testCommand, 1.0), 350L);
             return;
         }
         if ((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
@@ -319,28 +319,31 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             String command = input.getText().toString().trim();
             if (command.isEmpty()) return;
             dialog.dismiss();
-            runCommand(command);
+            runCommand(command, 1.0);
         }));
         dialog.show();
         input.requestFocus();
         dialog.getWindow().setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE);
     }
 
-    private void runCommand(String raw) {
+    private void runCommand(String raw, double speechConfidence) {
         String command = raw == null ? "" : raw.trim();
         if (command.isEmpty()) { setActive(false, "I’m listening."); return; }
         setActive(true, "Processing ...");
         if (decisionPanel != null) decisionPanel.setVisibility(View.GONE);
         status.setText("Heard you say, “" + command + "”");
-        ui.postDelayed(() -> submitBrainWork(() -> runtime.handlePresentation(command)), 120L);
+        ui.postDelayed(() -> submitBrainWork(() -> runtime.handlePresentation(command, speechConfidence)), 120L);
     }
 
-    private void runCandidates(ArrayList<String> candidates) {
+    private void runCandidates(ArrayList<String> candidates, float[] scores) {
         if (candidates == null || candidates.isEmpty()) {
             setActive(false, "I didn’t catch that. Tap the core to try again.");
             return;
         }
-        runCommand(candidates.get(0));
+        double confidence = scores != null && scores.length > 0 && scores[0] >= 0.0f
+                ? Math.min(1.0, scores[0])
+                : 0.0;
+        runCommand(candidates.get(0), confidence);
     }
 
     private void submitBrainWork(Supplier<RuntimeSurfacePresentation> work) {
@@ -459,7 +462,8 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                     setActive(false, "I didn’t catch that. Tap the core to try again.");
                     return;
                 }
-                runCandidates(matches);
+                float[] scores = results.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES);
+                runCandidates(matches, scores);
             }
             @Override public void onPartialResults(Bundle partialResults) {
                 ArrayList<String> partial = partialResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
