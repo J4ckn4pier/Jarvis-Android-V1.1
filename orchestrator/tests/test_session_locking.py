@@ -1,6 +1,7 @@
 import asyncio
 from contextlib import asynccontextmanager
 
+from jarvis_orchestrator import app as app_module
 from jarvis_orchestrator.core import (
     InMemoryEventBus,
     InMemorySessionLockManager,
@@ -61,3 +62,28 @@ async def test_valkey_lock_manager_uses_stable_per_session_lock_key():
         "inside",
         "exit",
     ]
+
+
+def test_agent_zero_session_lock_outlives_inference_timeout(monkeypatch):
+    monkeypatch.setenv("JARVIS_RUNTIME", "agent-zero")
+    monkeypatch.setenv("AGENT_ZERO_TIMEOUT_SECONDS", "900")
+    monkeypatch.delenv("JARVIS_SESSION_LOCK_TIMEOUT_SECONDS", raising=False)
+
+    resolver = getattr(app_module, "_session_lock_timeout_seconds", lambda: None)
+
+    assert resolver() == 960
+
+
+def test_explicit_session_lock_cannot_expire_before_agent_zero_timeout(monkeypatch):
+    monkeypatch.setenv("JARVIS_RUNTIME", "agent-zero")
+    monkeypatch.setenv("AGENT_ZERO_TIMEOUT_SECONDS", "900")
+    monkeypatch.setenv("JARVIS_SESSION_LOCK_TIMEOUT_SECONDS", "600")
+
+    resolver = getattr(app_module, "_session_lock_timeout_seconds", lambda: None)
+
+    try:
+        resolver()
+    except RuntimeError as exc:
+        assert "session lock timeout" in str(exc).lower()
+    else:
+        raise AssertionError("short session lock timeout must be rejected")
