@@ -32,6 +32,8 @@ class Authenticator:
             for principal_id, token in parsed.items():
                 if not isinstance(principal_id, str) or not principal_id.strip():
                     raise ValueError("principal ids must be non-empty strings")
+                if principal_id != principal_id.strip():
+                    raise ValueError("principal ids must not have leading or trailing whitespace")
                 if not isinstance(token, str) or not token:
                     raise ValueError("API tokens must be non-empty strings")
                 if token in seen_tokens:
