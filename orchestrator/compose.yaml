@@ -89,7 +89,7 @@ services:
       AGENT_ZERO_LIFETIME_HOURS: ${AGENT_ZERO_LIFETIME_HOURS:-24}
       AGENT_ZERO_PROJECT: ${AGENT_ZERO_PROJECT:-}
     ports:
-      - "127.0.0.1:8000:8000"
+      - "${JARVIS_BIND_ADDRESS:-127.0.0.1}:8000:8000"
     depends_on:
       - valkey
     healthcheck:
