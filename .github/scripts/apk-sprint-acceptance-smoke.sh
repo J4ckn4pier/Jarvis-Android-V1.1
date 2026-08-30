@@ -152,8 +152,8 @@ test "$DIALER_OPENED" -eq 1
 adb exec-out screencap -p > "$OUTPUT/jarvis-apk-sprint-dialer.png"
 
 # Truthfulness regression: when media volume is already at zero, "volume down" must not claim
-# that Android lowered it. This intentionally starts RED against any unconditional success string.
-adb shell media volume --stream 3 --set 0 > "$OUTPUT/apk-sprint-volume-before.txt"
+# that Android lowered it. Modern Android exposes this through the media_session shell service.
+adb shell cmd media_session volume --stream 3 --set 0 > "$OUTPUT/apk-sprint-volume-before.txt"
 adb shell am force-stop "$PACKAGE" || true
 adb logcat -c
 start_test_command 'volume down' | tee "$OUTPUT/apk-sprint-volume-launch.txt"
@@ -161,7 +161,7 @@ grep -q 'Status: ok' "$OUTPUT/apk-sprint-volume-launch.txt"
 VOLUME_TRUTHFUL=0
 for attempt in $(seq 1 20); do
   adb logcat -d > "$OUTPUT/apk-sprint-volume-logcat.txt" || true
-  adb shell media volume --stream 3 --get > "$OUTPUT/apk-sprint-volume-after.txt" || true
+  adb shell cmd media_session volume --stream 3 --get > "$OUTPUT/apk-sprint-volume-after.txt" || true
   if grep -Eq 'JARVIS_RUNTIME_INPUT utterance=volume down$' "$OUTPUT/apk-sprint-volume-logcat.txt"; then
     if grep -q 'JARVIS_COMMAND_RESULT Volume lowered.' "$OUTPUT/apk-sprint-volume-logcat.txt"; then
       VOLUME_TRUTHFUL=0
