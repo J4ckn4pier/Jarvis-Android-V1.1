@@ -49,7 +49,12 @@ public final class PolicyProviderRouter implements ReasoningRouter {
             if (attempts >= maxAttemptsPerRequest) break;
             if (route.tier() == ProviderTier.PAID_EXTERNAL && !allowPaid) continue;
             ReasoningProvider provider = route.provider();
-            String providerId = provider.id();
+            String providerId;
+            try {
+                providerId = provider.id();
+            } catch (RuntimeException identityFailure) {
+                continue;
+            }
             if (!eligibleForAttempt(providerId, now)) continue;
             boolean available;
             try {
