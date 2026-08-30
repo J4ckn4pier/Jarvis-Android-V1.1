@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import time
 import uuid
@@ -135,6 +136,72 @@ class ValkeySessionLockManager:
         )
 
 
+@dataclass(slots=True)
+class IdempotencyRecord:
+    fingerprint: str
+    result: dict[str, str]
+
+
+class IdempotencyConflict(Exception):
+    """A client reused a request ID for a different command payload."""
+
+
+class IdempotencyStore(Protocol):
+    async def get(self, session_id: str, request_id: str) -> IdempotencyRecord | None: ...
+    async def put(self, session_id: str, request_id: str, record: IdempotencyRecord) -> None: ...
+
+
+class InMemoryIdempotencyStore:
+    def __init__(self) -> None:
+        self._records: dict[tuple[str, str], IdempotencyRecord] = {}
+
+    async def get(self, session_id: str, request_id: str) -> IdempotencyRecord | None:
+        return self._records.get((session_id, request_id))
+
+    async def put(self, session_id: str, request_id: str, record: IdempotencyRecord) -> None:
+        self._records[(session_id, request_id)] = record
+
+
+class ValkeyIdempotencyStore:
+    """Durable retry results shared across orchestrator workers for 24 hours."""
+    KEY_PREFIX = "brain:idempotency:"
+
+    def __init__(self, client, ttl_seconds: int = 86400) -> None:
+        self.client = client
+        self.ttl_seconds = ttl_seconds
+
+    def _key(self, session_id: str, request_id: str) -> str:
+        request_hash = hashlib.sha256(request_id.encode()).hexdigest()
+        return f"{self.KEY_PREFIX}{session_id}:{request_hash}"
+
+    async def get(self, session_id: str, request_id: str) -> IdempotencyRecord | None:
+        raw = await self.client.get(self._key(session_id, request_id))
+        if raw is None:
+            return None
+        if isinstance(raw, bytes):
+            raw = raw.decode()
+        payload = json.loads(raw)
+        return IdempotencyRecord(
+            fingerprint=str(payload["fingerprint"]),
+            result={str(key): str(value) for key, value in payload["result"].items()},
+        )
+
+    async def put(self, session_id: str, request_id: str, record: IdempotencyRecord) -> None:
+        payload = json.dumps(
+            {"fingerprint": record.fingerprint, "result": record.result},
+            separators=(",", ":"),
+        )
+        await self.client.set(
+            self._key(session_id, request_id),
+            payload,
+            ex=self.ttl_seconds,
+        )
+
+
+def _command_fingerprint(text: str) -> str:
+    return hashlib.sha256(text.encode()).hexdigest()
+
+
 class Orchestrator:
     """The one authoritative execution path used by phone, desktop, CLI, and future clients."""
     def __init__(
@@ -142,14 +209,31 @@ class Orchestrator:
         bus: EventBus,
         runtime: AgentRuntime,
         session_locks: SessionLockManager | None = None,
+        idempotency: IdempotencyStore | None = None,
     ) -> None:
         self.bus = bus
         self.runtime = runtime
         self.session_locks = session_locks or InMemorySessionLockManager()
+        self.idempotency = idempotency
 
-    async def submit(self, text: str, session_id: str) -> dict[str, str]:
-        task_id = str(uuid.uuid4())
+    async def submit(
+        self,
+        text: str,
+        session_id: str,
+        request_id: str | None = None,
+    ) -> dict[str, str]:
         async with self.session_locks.lock(session_id):
+            fingerprint = _command_fingerprint(text)
+            if request_id and self.idempotency:
+                previous = await self.idempotency.get(session_id, request_id)
+                if previous is not None:
+                    if previous.fingerprint != fingerprint:
+                        raise IdempotencyConflict(
+                            "request_id was already used for a different command"
+                        )
+                    return dict(previous.result)
+
+            task_id = str(uuid.uuid4())
             await self._emit(session_id, task_id, "PREFRONTAL", 32, "Routing request", 1)
             await self._emit(session_id, task_id, "AGENT_OPS", 96, "Dispatching worker", 2)
             try:
@@ -159,7 +243,16 @@ class Orchestrator:
                 raise
             await self._emit(session_id, task_id, "LANGUAGE", 48, "Preparing response", 3)
             await self._emit(session_id, task_id, "IDLE", 0, "Complete", 4)
-            return {"session_id": session_id, "task_id": task_id, "response": result}
+            response = {"session_id": session_id, "task_id": task_id, "response": result}
+            if request_id:
+                response["request_id"] = request_id
+                if self.idempotency:
+                    await self.idempotency.put(
+                        session_id,
+                        request_id,
+                        IdempotencyRecord(fingerprint=fingerprint, result=dict(response)),
+                    )
+            return response
 
     async def _emit(self, session_id: str, task_id: str, layer: str, neurons: int, status: str, sequence: int) -> None:
         await self.bus.publish(BrainEvent(session_id, task_id, layer, neurons, status, sequence, time.time()))
