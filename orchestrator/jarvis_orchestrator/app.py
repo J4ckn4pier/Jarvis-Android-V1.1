@@ -190,7 +190,10 @@ async def _run_lifecycle_operation(operation: str, session_id: str) -> bool:
 
     orchestrator = getattr(app.state, "orchestrator", None)
     serializer = getattr(orchestrator, "run_session_operation", None)
-    changed = bool(await serializer(session_id, invoke)) if callable(serializer) else await invoke()
+    try:
+        changed = bool(await serializer(session_id, invoke)) if callable(serializer) else await invoke()
+    except WorkerUnavailableError as exc:
+        raise HTTPException(status_code=503, detail="Worker runtime unavailable") from exc
     if not changed:
         raise HTTPException(status_code=404, detail="Worker session not found")
     return changed
