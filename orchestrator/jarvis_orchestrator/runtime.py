@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 import httpx
 
 from .core import AgentRuntime, EchoRuntime
+from .management import Task
 
 
 class WorkerUnavailableError(RuntimeError):
@@ -197,6 +198,31 @@ class AgentZeroRuntime:
     async def aclose(self) -> None:
         if self._owns_client:
             await self.client.aclose()
+
+
+class AgentZeroTaskWorker:
+    """Adapt the supported Agent Zero runtime to the provider-neutral task graph."""
+
+    def __init__(self, worker_id: str, runtime: AgentZeroRuntime) -> None:
+        self.worker_id = worker_id
+        self.runtime = runtime
+
+    @staticmethod
+    def _task_prompt(task: Task) -> str:
+        lines = [f"Goal: {task.goal}"]
+        if task.constraints:
+            lines.append("Constraints:")
+            lines.extend(f"- {item}" for item in task.constraints)
+        if task.acceptance_criteria:
+            lines.append("Acceptance criteria:")
+            lines.extend(f"- {item}" for item in task.acceptance_criteria)
+        return "\n".join(lines)
+
+    async def execute_task(self, task: Task, owner_id: str) -> str:
+        # The context key is an internal JARVIS identity only. Agent Zero's
+        # context_id never crosses the public APK contract.
+        management_session = f"{owner_id}:{task.project_id}:{self.worker_id}"
+        return await self.runtime.execute(self._task_prompt(task), management_session)
 
 
 def build_runtime(context_store: AgentContextStore) -> AgentRuntime:
