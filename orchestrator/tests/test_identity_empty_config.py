@@ -12,3 +12,12 @@ def test_multi_principal_configuration_rejects_empty_credentials(monkeypatch):
 
     with pytest.raises(ValueError, match="at least one principal"):
         Authenticator.from_env()
+
+
+def test_multi_principal_configuration_rejects_whitespace_padded_principal(monkeypatch):
+    """Ownership namespaces must not depend on invisible whitespace in config."""
+    monkeypatch.setenv("JARVIS_API_KEYS_JSON", '{" alice ":"token-a"}')
+    monkeypatch.delenv("JARVIS_API_TOKEN", raising=False)
+
+    with pytest.raises(ValueError, match="leading or trailing whitespace"):
+        Authenticator.from_env()
