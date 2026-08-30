@@ -18,7 +18,7 @@ A box may be checked only after behavior is evidenced through a freshly compiled
 13. [ ] Notification-awareness path works when Android notification access is enabled.
 14. [ ] Accessibility/screen-read/navigation controls work when Android accessibility access is enabled; consequential click/type remain approval-gated.
 15. [ ] Persistent memory/context and multi-turn memory ingestion work through the Android runtime.
-16. [ ] Assistant-role onboarding/invocation path is present and can launch JARVIS through Android Assistant intents.
+16. [x] Assistant-role onboarding/invocation path is present and can launch JARVIS through Android Assistant intents.
 17. [ ] Multi-turn clarification/approval/recovery continuity works through the compiled Android surface.
 18. [ ] `Jarvis` / `Hey Jarvis` passive wake path uses an enabled real detector/model path rather than a disabled detector stub; final acoustic behavior is Samsung-hardware validation when emulator audio cannot prove it.
 19. [ ] Separate orchestration protocol and autonomous two-way remote phone-agent runtime are not wired into the shipped APK; source/history remain preserved.
@@ -26,4 +26,4 @@ A box may be checked only after behavior is evidenced through a freshly compiled
 
 **Completion percentage = checked items / 20 × 100.**
 
-Current compiled-proof checkpoint: **20% (4/20)** at Android code head `451eb688e102ecc8463f33f1c5e9006ad850b66e`, Android build run `33330104862`. Item 3 is evidenced by the compiled command regression entering `MainActivity`, traversing `AndroidBrainRuntime`, and producing the runtime input/output trace before opening the real Settings activity. This records only items with fresh emulator evidence; it is not a claim that the remaining behavior is absent or broken.
+Current compiled-proof checkpoint: **25% (5/20)** at Android code head `451eb688e102ecc8463f33f1c5e9006ad850b66e`, Android build run `33330104862`. Item 3 is evidenced by the compiled command regression entering `MainActivity`, traversing `AndroidBrainRuntime`, and producing the runtime input/output trace before opening the real Settings activity. Item 16 is evidenced in the same fresh Android 16 run by assigning the Android ASSISTANT role to `com.jarvis.mobile`, verifying the bound `VoiceInteractionService`, requesting a real JARVIS voice session, observing `JARVIS_SESSION_SERVICE_NEW_SESSION` and `JARVIS_ASSISTANT_READY`, and capturing the shown assistant UI. This records only items with fresh emulator evidence; it is not a claim that the remaining behavior is absent or broken.
