@@ -36,9 +36,10 @@ public final class PlanRepairCoordinator {
                 String detail = validationFailure.getMessage() == null
                         ? validationFailure.getClass().getSimpleName()
                         : validationFailure.getMessage();
-                return new PlanRepairResult(PlanRepairResult.Status.NEEDS_CLARIFICATION,
-                        null, attempt, List.of("Plan validation failed: " + detail),
-                        "I couldn't validate a safe plan right now, so I did not prepare any action.");
+                return validationUnavailable(attempt, detail);
+            }
+            if (validation == null) {
+                return validationUnavailable(attempt, "validator returned no verdict");
             }
             if (validation.valid()) {
                 return new PlanRepairResult(PlanRepairResult.Status.VALID,
@@ -52,6 +53,12 @@ public final class PlanRepairCoordinator {
             }
         }
         throw new IllegalStateException("unreachable");
+    }
+
+    private static PlanRepairResult validationUnavailable(int attempt, String detail) {
+        return new PlanRepairResult(PlanRepairResult.Status.NEEDS_CLARIFICATION,
+                null, attempt, List.of("Plan validation failed: " + detail),
+                "I couldn't validate a safe plan right now, so I did not prepare any action.");
     }
 
     private static String initialPrompt(String goal, String context) {
