@@ -2,6 +2,7 @@ package com.jarvis.brain;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -76,7 +77,7 @@ public final class BrainRuntime {
         case COMPLETED->{String text=lastNonBlank(report.outputs(),assistantText);recordCompletedPlan(pending.plan(),pendingRecommendedAt);clearPending();yield new Result(Status.COMPLETED,text,"",report.outputs());}
         case APPROVAL_REQUIRED->{pendingTool=report.blockedTool();pendingStatus=Status.APPROVAL_REQUIRED;String text=approvalText(report,assistantText);yield new Result(Status.APPROVAL_REQUIRED,text,pendingTool,report.outputs());}
         case RECOVERY_REQUIRED->{pendingTool=report.blockedTool();pendingStatus=Status.RECOVERY_REQUIRED;yield new Result(Status.RECOVERY_REQUIRED,report.failureDetail().isBlank()?"That action needs recovery before I retry it.":report.failureDetail(),pendingTool,report.outputs());}
-        case FAILED->{String detail=report.failureDetail().isBlank()?"That action failed safely.":report.failureDetail();clearPending();yield new Result(Status.FAILED,detail,report.blockedTool(),report.outputs());}
+        case FAILED->{String detail=failureText(report,"That action failed safely.");clearPending();yield new Result(Status.FAILED,detail,report.blockedTool(),report.outputs());}
     };}
     private static String approvalText(ExecutionReport report,String assistantText){
         if(assistantText!=null&&!assistantText.isBlank())return assistantText;
@@ -85,6 +86,22 @@ public final class BrainRuntime {
             return lastOutput+" I need fresh approval before I retry that action.";
         }
         return "I need your approval before I do that.";
+    }
+    private static String failureText(ExecutionReport report,String fallback){
+        String detail=report.failureDetail()==null||report.failureDetail().isBlank()?fallback:report.failureDetail().trim();
+        List<String> completed=new ArrayList<>();
+        List<String> outputs=report.outputs();
+        if(outputs!=null){
+            for(int i=0;i<outputs.size();i++){
+                String output=outputs.get(i);
+                if(output==null||output.isBlank())continue;
+                String normalized=output.trim();
+                boolean finalFailure=i==outputs.size()-1&&normalized.equals(detail);
+                if(!finalFailure)completed.add(normalized);
+            }
+        }
+        if(completed.isEmpty())return detail;
+        return "Completed before the failure: "+String.join(" ",completed)+" The remaining task failed: "+detail;
     }
     private void recordCompletedPlan(Plan plan,Instant recommendedAt){
         if(plan==null||plan.steps()==null||plan.steps().isEmpty())return;
