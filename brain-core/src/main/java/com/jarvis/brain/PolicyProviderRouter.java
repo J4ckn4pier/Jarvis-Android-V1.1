@@ -49,17 +49,26 @@ public final class PolicyProviderRouter implements ReasoningRouter {
             if (attempts >= maxAttemptsPerRequest) break;
             if (route.tier() == ProviderTier.PAID_EXTERNAL && !allowPaid) continue;
             ReasoningProvider provider = route.provider();
-            if (!provider.available() || !eligibleForAttempt(provider.id(), now)) continue;
+            String providerId = provider.id();
+            if (!eligibleForAttempt(providerId, now)) continue;
+            boolean available;
+            try {
+                available = provider.available();
+            } catch (RuntimeException failure) {
+                recordFailure(providerId, now);
+                continue;
+            }
+            if (!available) continue;
             attempts++;
             try {
                 ReasoningResult result = provider.reason(request);
                 if (result != null) {
-                    clearFailureState(provider.id());
+                    clearFailureState(providerId);
                     return result;
                 }
-                recordFailure(provider.id(), now);
+                recordFailure(providerId, now);
             } catch (RuntimeException failure) {
-                recordFailure(provider.id(), now);
+                recordFailure(providerId, now);
             }
         }
         return new ReasoningResult("none", "No permitted reasoning provider is currently available.", null);
