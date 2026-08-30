@@ -3,13 +3,14 @@ set -eux
 
 OUTPUT="android/app/build/outputs/apk/debug"
 PACKAGE="com.jarvis.mobile"
-MAIN="$PACKAGE/com.jarvis.mobile.MainActivity"
+DIAGNOSTICS="$PACKAGE/com.jarvis.mobile.DiagnosticsActivity"
 
-# Keep JARVIS foreground so the debug-only receiver can open the production non-exported diagnostics Activity.
-adb shell am start -W -n "$MAIN" >/dev/null
+# DiagnosticsActivity stays non-exported in production. The debug manifest alone exports it so
+# emulator CI can launch the real production screen directly instead of relying on a
+# BroadcastReceiver-to-Activity hop that Android 16 may background-launch-block.
 adb logcat -c
-adb shell am broadcast --receiver-foreground -a com.jarvis.mobile.DEBUG_SHOW_DIAGNOSTICS -p "$PACKAGE" \
-  | tee "$OUTPUT/emulator-diagnostics-broadcast.txt"
+adb shell am start -W -n "$DIAGNOSTICS" | tee "$OUTPUT/emulator-diagnostics-launch.txt"
+grep -q 'Status: ok' "$OUTPUT/emulator-diagnostics-launch.txt"
 
 DIAGNOSTICS_READY=0
 for attempt in $(seq 1 20); do
@@ -33,7 +34,8 @@ if [ "$DIAGNOSTICS_READY" -ne 1 ]; then
   adb logcat -d > "$OUTPUT/emulator-diagnostics-logcat.txt" || true
   adb shell dumpsys activity activities > "$OUTPUT/emulator-diagnostics-activity.txt" || true
   echo '--- JARVIS diagnostics trace ---'
-  grep -E 'JARVIS_DIAGNOSTICS_TEST|AndroidRuntime|FATAL EXCEPTION|SecurityException|Background activity' "$OUTPUT/emulator-diagnostics-logcat.txt" || true
+  cat "$OUTPUT/emulator-diagnostics-launch.txt" || true
+  grep -E 'AndroidRuntime|FATAL EXCEPTION|SecurityException|Background activity' "$OUTPUT/emulator-diagnostics-logcat.txt" || true
   cat "$OUTPUT/emulator-diagnostics-activity.txt" || true
 fi
 
