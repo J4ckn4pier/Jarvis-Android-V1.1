@@ -23,6 +23,9 @@ jobs:
           JARVIS_SKIP_KNOWN_BLOCKERS: 'true'
         run: bash brain-core/run-tests.sh
 
+      - name: Verify APK remote-goal client contract
+        run: sh .github/scripts/remote-goal-client-contract.sh
+
       - uses: android-actions/setup-android@v3
 
       - name: Install Android 16 SDK
