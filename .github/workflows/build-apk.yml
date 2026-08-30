@@ -28,6 +28,8 @@ jobs:
         run: sh .github/scripts/remote-goal-continuity-contract.sh
       - name: Verify remote progress UI continuity contract
         run: sh .github/scripts/remote-goal-ui-continuity-contract.sh
+      - name: Verify remote approval discovery contract
+        run: sh .github/scripts/remote-goal-approval-contract.sh
       - uses: android-actions/setup-android@v3
       - name: Install Android 16 SDK
         run: |
