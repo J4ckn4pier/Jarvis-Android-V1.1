@@ -7,6 +7,8 @@ import java.nio.file.Path;
 public final class AndroidSecondaryScreenSmokeContractTest {
     public static void main(String[] args) throws Exception {
         String smoke = Files.readString(Path.of("../.github/scripts/emulator-smoke.sh"));
+        String debugManifest = Files.readString(Path.of("../android/app/src/debug/AndroidManifest.xml"));
+        String productionManifest = Files.readString(Path.of("../android/app/src/main/AndroidManifest.xml"));
 
         check(smoke.contains("$PACKAGE/.CommandsActivity"),
                 "Android smoke must launch Help & Features on-device through the production package variable");
@@ -19,7 +21,33 @@ public final class AndroidSecondaryScreenSmokeContractTest {
         check(smoke.contains("uiautomator dump"),
                 "secondary-screen smoke verification must inspect the actual Android UI tree");
 
+        checkExported(debugManifest, ".CommandsActivity",
+                "debug manifest must export Help for connected emulator smoke tests");
+        checkExported(debugManifest, ".NotesActivity",
+                "debug manifest must export Notes for connected emulator smoke tests");
+        checkPrivate(productionManifest, ".CommandsActivity",
+                "production Help activity must remain private");
+        checkPrivate(productionManifest, ".NotesActivity",
+                "production Notes activity must remain private");
+
         System.out.println("AndroidSecondaryScreenSmokeContractTest: PASS");
+    }
+
+    private static void checkExported(String manifest, String className, String message) {
+        check(activityDeclaration(manifest, className).contains("android:exported=\"true\""), message);
+    }
+
+    private static void checkPrivate(String manifest, String className, String message) {
+        check(!activityDeclaration(manifest, className).contains("android:exported=\"true\""), message);
+    }
+
+    private static String activityDeclaration(String manifest, String className) {
+        String marker = "android:name=\"" + className + "\"";
+        int start = manifest.indexOf(marker);
+        check(start >= 0, "manifest missing " + className);
+        int end = manifest.indexOf('>', start);
+        check(end > start, "manifest has malformed declaration for " + className);
+        return manifest.substring(start, end);
     }
 
     private static void check(boolean condition, String message) {
