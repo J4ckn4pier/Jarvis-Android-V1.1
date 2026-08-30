@@ -14,6 +14,7 @@ import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -61,7 +62,11 @@ public final class RemoteGoalClient {
         JSONObject counts = json.optJSONObject("task_states");
         Map<String, Integer> taskStates = new LinkedHashMap<>();
         if (counts != null) {
-            for (String key : counts.keySet()) taskStates.put(key, counts.optInt(key, 0));
+            Iterator<String> keys = counts.keys();
+            while (keys.hasNext()) {
+                String key = keys.next();
+                taskStates.put(key, counts.optInt(key, 0));
+            }
         }
         return new ProjectStatus(
                 requiredString(json, "project_id"),
