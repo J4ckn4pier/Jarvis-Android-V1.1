@@ -13,6 +13,7 @@ public final class PlanExecutorFailureContractTest {
         approvedNullResultFailsClosedAndConsumesApproval();
         retryableConsequentialFailureRequiresFreshApprovalBeforeRetry();
         successfulStatusWithoutOutputFailsClosed();
+        failureStatusWithoutOutputFailsClosed();
         System.out.println("PlanExecutorFailureContractTest: " + checks + " assertions passed");
     }
 
@@ -109,6 +110,23 @@ public final class PlanExecutorFailureContractTest {
                 "a tool cannot claim successful execution without returning a usable outcome");
         check(report.failureDetail().toLowerCase().contains("output"),
                 "missing success output should be reported as an invalid tool outcome");
+    }
+
+    private static void failureStatusWithoutOutputFailsClosed() {
+        ToolRegistry registry = new ToolRegistry();
+        registry.register(new ToolSpec("lookup", false, Set.of(), Set.of(), "lookup"),
+                (arguments, context) -> ToolResult.failure(null));
+        PlanExecutor executor = new PlanExecutor(registry, new ApprovalGate());
+        ExecutionReport report;
+        try {
+            report = executor.execute(new Plan("lookup", List.of(new PlanStep("lookup"))), new ExecutionContext());
+        } catch (RuntimeException escaped) {
+            throw new AssertionError("failure-with-null-output must become a controlled failed report", escaped);
+        }
+        check(report.status() == ExecutionReport.Status.FAILED,
+                "a tool failure without detail must still fail closed");
+        check(report.failureDetail().toLowerCase().contains("output"),
+                "missing failure output should be normalized into a useful diagnostic");
     }
 
     private static void check(boolean condition, String message) {
