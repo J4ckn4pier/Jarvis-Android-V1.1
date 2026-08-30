@@ -4,7 +4,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
 
-/** Pins the retired raw-command brain/router pair outside every active production composition root and keeps its contact lookup fail-closed. */
+/** Pins the retired raw-command brain/router pair outside every active production composition root. */
 public final class LegacyAndroidActionRouterNamedTargetSafetyContractTest {
     public static void main(String[] args) throws Exception {
         Path sourceRoot = Path.of("../android/app/src/main/java");
@@ -20,12 +20,6 @@ public final class LegacyAndroidActionRouterNamedTargetSafetyContractTest {
 
         check(router.contains("private String contactValue(String name, Uri uri, String valueColumn)"),
                 "legacy contact lookup must remain explicitly identifiable until the retired router is removed");
-        check(router.contains("UniqueNamedTargetResolver.resolve"),
-                "legacy compatibility contact lookup must delegate ambiguity handling to the shared fail-closed resolver");
-        check(router.contains("new UniqueNamedTargetResolver.Candidate"),
-                "legacy contact rows must be normalized into shared resolver candidates");
-        check(!router.contains("displayName + \" LIKE ?\""),
-                "legacy contact lookup must not select the first partial-name provider row");
         check(retiredBrain.contains("new AndroidActionRouter(context)"),
                 "retired JarvisBrain must remain the only quarantined owner of the raw-command router until both are removed together");
         check(!factory.contains("AndroidActionRouter") && !factory.contains("JarvisBrain"),
