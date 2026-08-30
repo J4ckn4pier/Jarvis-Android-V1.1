@@ -3,12 +3,13 @@ package com.jarvis.brain;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-/** Configured Android cortex proposals must use only the shared typed plan/validation path. */
+/** Configured Android cortex proposals and diagnostics must use only the shared typed plan/validation path. */
 public final class AndroidCortexSharedPlanContractTest {
     public static void main(String[] args) throws Exception {
         Path providers = Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/providers");
         Path legacyCore = Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/core");
         String runtime = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/AndroidBrainRuntime.java"));
+        String diagnostics = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/DiagnosticsActivity.java"));
         String provider = Files.readString(providers.resolve("CortexProvider.java"));
         String openAi = Files.readString(providers.resolve("OpenAIResponsesProvider.java"));
         String anthropic = Files.readString(providers.resolve("AnthropicMessagesProvider.java"));
@@ -36,6 +37,10 @@ public final class AndroidCortexSharedPlanContractTest {
                 "retired Android-local intent engine package must not ship after shared brain migration");
         check(!runtime.contains("proposed.answer(), null"),
                 "resolved cortex proposals must not silently discard their action plan");
+        check(!diagnostics.contains("com.jarvis.mobile.brain.core") && !diagnostics.contains("LocalIntentEngine") && !diagnostics.contains("IntentPlan"),
+                "user-visible diagnostics must not depend on the retired Android-local intent engine");
+        check(diagnostics.contains("AndroidToolRegistryFactory.create") && diagnostics.contains("registry.resolve"),
+                "diagnostics must inspect the actual production typed tool registry without executing actions");
 
         System.out.println("AndroidCortexSharedPlanContractTest passed");
     }
