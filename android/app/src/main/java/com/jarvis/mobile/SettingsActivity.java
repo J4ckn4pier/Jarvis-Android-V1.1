@@ -1,6 +1,7 @@
 package com.jarvis.mobile;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.app.role.RoleManager;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -19,6 +20,7 @@ import android.widget.Toast;
 
 import com.jarvis.mobile.assistant.JarvisVoiceInteractionService;
 import com.jarvis.mobile.brain.providers.CortexProviderFactory;
+import com.jarvis.mobile.brain.providers.SecureSecretStore;
 
 /** Canonical user-facing JARVIS Settings. Raw endpoint/provider fields live in DeveloperSettingsActivity. */
 public class SettingsActivity extends Activity {
@@ -49,7 +51,7 @@ public class SettingsActivity extends Activity {
 
         body.addView(section("JARVIS & APPS"));
         body.addView(row("App Permissions", "Microphone, contacts, calendar and device access", () -> launchAppDetails()));
-        body.addView(row("AI Providers", providerSummary(), () -> Toast.makeText(this, "Provider connections are managed privately. Advanced endpoint controls are under Developer Options.", Toast.LENGTH_LONG).show()));
+        body.addView(row("AI Providers", providerSummary(), this::showProviderConnections));
         body.addView(row("Backup & Sync", "Local-first memory backup", () -> Toast.makeText(this, "JARVIS currently keeps memory local on this device.", Toast.LENGTH_SHORT).show()));
         body.addView(row("Profile", preferences.getString("profile_name", "Sir"), () -> Toast.makeText(this, "Profile personalization is active.", Toast.LENGTH_SHORT).show()));
         body.addView(row("Default Apps", "Choose Android defaults", () -> launch(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)));
@@ -172,6 +174,25 @@ public class SettingsActivity extends Activity {
         if (status.contains("anthropic")) return "Anthropic connected";
         if (status.contains("openai")) return "OpenAI-compatible provider connected";
         return "Private local mode";
+    }
+
+    private void showProviderConnections() {
+        new AlertDialog.Builder(this)
+                .setTitle("AI Providers")
+                .setMessage(providerSummary() + "\n\nJARVIS stays usable in private local mode. Advanced connection details are kept out of normal Settings.")
+                .setPositiveButton("CONNECT / CHANGE", (dialog, which) -> startActivity(new Intent(this, DeveloperSettingsActivity.class)))
+                .setNegativeButton("DISCONNECT", (dialog, which) -> disconnectProvider())
+                .setNeutralButton("CANCEL", null)
+                .show();
+    }
+
+    private void disconnectProvider() {
+        getSharedPreferences("jarvis_cortex", MODE_PRIVATE).edit()
+                .putString("mode", CortexProviderFactory.MODE_LOCAL)
+                .apply();
+        new SecureSecretStore(this).remove("provider_api_key");
+        Toast.makeText(this, "External AI provider disconnected. JARVIS is using private local mode.", Toast.LENGTH_SHORT).show();
+        recreate();
     }
 
     private String assistantSummary() {
