@@ -1,0 +1,60 @@
+name: Orchestrator Live Local AI Proof
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/jarvis-orchestrator]
+    paths:
+      - 'orchestrator/**'
+      - '.github/workflows/orchestrator-live-local-ai.yml'
+
+jobs:
+  live-local-ai:
+    if: github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[live-ai]')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: orchestrator
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate one-command launcher syntax
+        run: sh -n start-local.sh
+      - name: Boot real local Agent Zero and Qwen stack
+        run: sh start-local.sh
+      - name: Prove live Agent Zero to Ollama to Qwen inference through JARVIS
+        run: |
+          set -eu
+          . ./.env
+          curl -fsS http://127.0.0.1:8000/ready -o /tmp/live-ready.json
+          cat /tmp/live-ready.json
+          python3 - <<'PY'
+          import json
+          with open('/tmp/live-ready.json') as handle:
+              ready = json.load(handle)
+          assert ready['status'] == 'ready', ready
+          assert ready['runtime'] == 'agent-zero', ready
+          assert ready['state_backend'] == 'valkey', ready
+          PY
+
+          curl --max-time 300 -fsS -X POST http://127.0.0.1:8000/v1/command \
+            -H "Authorization: Bearer $JARVIS_API_TOKEN" \
+            -H 'Content-Type: application/json' \
+            -d '{"session_id":"primary","text":"Reply with exactly: JARVIS LOCAL AI ONLINE"}' \
+            -o /tmp/live-command.json
+          cat /tmp/live-command.json
+          python3 - <<'PY'
+          import json
+          with open('/tmp/live-command.json') as handle:
+              result = json.load(handle)
+          assert result['session_id'] == 'primary', result
+          response = result.get('response')
+          assert isinstance(response, str) and response.strip(), result
+          assert response != 'JARVIS received: Reply with exactly: JARVIS LOCAL AI ONLINE', result
+          PY
+      - name: Show live local AI logs on failure
+        if: failure()
+        run: docker compose --profile agent-zero --profile local-ai logs --no-color
+      - name: Stop live local AI stack
+        if: always()
+        run: docker compose --profile agent-zero --profile local-ai down -v
