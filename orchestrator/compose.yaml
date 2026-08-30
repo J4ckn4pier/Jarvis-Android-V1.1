@@ -27,6 +27,8 @@ services:
     image: agent0ai/agent-zero:latest
     restart: unless-stopped
     profiles: ["agent-zero"]
+    environment:
+      A0_PERSISTENT_RUNTIME_ID: ${AGENT_ZERO_RUNTIME_ID:-}
     ports:
       - "127.0.0.1:5080:80"
     volumes:
