@@ -67,7 +67,7 @@ public final class PolicyProviderRouter implements ReasoningRouter {
             attempts++;
             try {
                 ReasoningResult result = provider.reason(request);
-                if (result != null) {
+                if (isUsable(result)) {
                     clearFailureState(providerId);
                     return result;
                 }
@@ -77,6 +77,10 @@ public final class PolicyProviderRouter implements ReasoningRouter {
             }
         }
         return new ReasoningResult("none", "No permitted reasoning provider is currently available.", null);
+    }
+
+    private static boolean isUsable(ReasoningResult result) {
+        return result != null && (!result.text().isBlank() || result.plan() != null);
     }
 
     private boolean eligibleForAttempt(String providerId, Instant now) {
