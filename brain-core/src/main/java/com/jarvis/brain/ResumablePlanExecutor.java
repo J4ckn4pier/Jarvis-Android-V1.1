@@ -29,9 +29,9 @@ public final class ResumablePlanExecutor {
 
             ToolResult result;
             try {
-                result = tool.implementation().execute(step.arguments(), context);
+                result = normalizeToolResult(tool.implementation().execute(step.arguments(), context));
                 if (result.status() == ToolResult.Status.RETRYABLE_FAILURE) {
-                    result = tool.implementation().execute(step.arguments(), context);
+                    result = normalizeToolResult(tool.implementation().execute(step.arguments(), context));
                     if (result.status() == ToolResult.Status.RETRYABLE_FAILURE) {
                         return new ExecutionReport(ExecutionReport.Status.RECOVERY_REQUIRED,
                                 append(cursor.outputs(), result.output()), tool.name(), result.output());
@@ -53,6 +53,10 @@ public final class ResumablePlanExecutor {
             context.put("last_output", result.output());
         }
         return new ExecutionReport(ExecutionReport.Status.COMPLETED, cursor.outputs(), "", "");
+    }
+
+    private static ToolResult normalizeToolResult(ToolResult result) {
+        return result == null ? ToolResult.failure("tool returned no result") : result;
     }
 
     private static java.util.List<String> append(java.util.List<String> base, String value) {
