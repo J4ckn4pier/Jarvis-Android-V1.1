@@ -70,6 +70,7 @@ class AgentZeroRuntime:
         *,
         lifetime_hours: int = 24,
         project_name: str | None = None,
+        timeout_seconds: float = 300.0,
         client: httpx.AsyncClient | None = None,
     ) -> None:
         self.base_url = base_url.rstrip("/")
@@ -77,8 +78,9 @@ class AgentZeroRuntime:
         self.context_store = context_store
         self.lifetime_hours = lifetime_hours
         self.project_name = project_name
+        self.timeout_seconds = timeout_seconds
         self._owns_client = client is None
-        self.client = client or httpx.AsyncClient(base_url=self.base_url, timeout=300.0)
+        self.client = client or httpx.AsyncClient(base_url=self.base_url, timeout=timeout_seconds)
 
     @property
     def _headers(self) -> dict[str, str]:
@@ -206,6 +208,14 @@ def build_runtime(context_store: AgentContextStore) -> AgentRuntime:
     if lifetime_hours <= 0:
         raise RuntimeError("AGENT_ZERO_LIFETIME_HOURS must be greater than zero")
 
+    timeout_raw = os.getenv("AGENT_ZERO_TIMEOUT_SECONDS", "300").strip()
+    try:
+        timeout_seconds = float(timeout_raw)
+    except ValueError as exc:
+        raise RuntimeError("AGENT_ZERO_TIMEOUT_SECONDS must be a number") from exc
+    if timeout_seconds <= 0:
+        raise RuntimeError("AGENT_ZERO_TIMEOUT_SECONDS must be greater than zero")
+
     project_name = os.getenv("AGENT_ZERO_PROJECT") or None
     return AgentZeroRuntime(
         base_url=base_url,
@@ -213,4 +223,5 @@ def build_runtime(context_store: AgentContextStore) -> AgentRuntime:
         context_store=context_store,
         lifetime_hours=lifetime_hours,
         project_name=project_name,
+        timeout_seconds=timeout_seconds,
     )
