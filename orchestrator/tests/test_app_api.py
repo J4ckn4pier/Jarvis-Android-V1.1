@@ -7,7 +7,7 @@ import pytest
 from fastapi import HTTPException, WebSocketDisconnect
 
 from jarvis_orchestrator import app as app_module
-from jarvis_orchestrator.core import BrainEvent
+from jarvis_orchestrator.core import BrainEvent, IdempotencyConflict
 from jarvis_orchestrator.identity import scope_session_id
 
 
@@ -35,11 +35,14 @@ def test_packaged_compose_requires_authentication_by_default():
 
 class RecordingOrchestrator:
     def __init__(self) -> None:
-        self.calls: list[tuple[str, str]] = []
+        self.calls: list[tuple[str, str, str | None]] = []
 
-    async def submit(self, text: str, session_id: str):
-        self.calls.append((text, session_id))
-        return {"session_id": session_id, "task_id": "task-1", "response": "ok"}
+    async def submit(self, text: str, session_id: str, request_id: str | None = None):
+        self.calls.append((text, session_id, request_id))
+        result = {"session_id": session_id, "task_id": "task-1", "response": "ok"}
+        if request_id:
+            result["request_id"] = request_id
+        return result
 
 
 @pytest.mark.asyncio
@@ -55,8 +58,44 @@ async def test_command_scopes_session_to_authenticated_principal(monkeypatch):
     )
 
     scoped = scope_session_id("alice", "primary")
-    assert orchestrator.calls == [("hello", scoped)]
+    assert orchestrator.calls == [("hello", scoped, None)]
     assert result["session_id"] == "primary"
+
+
+@pytest.mark.asyncio
+async def test_command_forwards_client_request_id_for_retry_deduplication(monkeypatch):
+    monkeypatch.delenv("JARVIS_API_TOKEN", raising=False)
+    monkeypatch.delenv("JARVIS_API_KEYS_JSON", raising=False)
+    orchestrator = RecordingOrchestrator()
+    monkeypatch.setattr(app_module.app.state, "orchestrator", orchestrator, raising=False)
+
+    result = await app_module.command(
+        app_module.Command(text="hello", session_id="primary", request_id="phone-42"),
+        authorization=None,
+    )
+
+    assert orchestrator.calls[0][2] == "phone-42"
+    assert result["request_id"] == "phone-42"
+
+
+class ConflictingOrchestrator:
+    async def submit(self, text: str, session_id: str, request_id: str | None = None):
+        raise IdempotencyConflict("request_id was already used for a different command")
+
+
+@pytest.mark.asyncio
+async def test_command_maps_request_id_collision_to_http_409(monkeypatch):
+    monkeypatch.delenv("JARVIS_API_TOKEN", raising=False)
+    monkeypatch.delenv("JARVIS_API_KEYS_JSON", raising=False)
+    monkeypatch.setattr(app_module.app.state, "orchestrator", ConflictingOrchestrator(), raising=False)
+
+    with pytest.raises(HTTPException) as exc:
+        await app_module.command(
+            app_module.Command(text="different", session_id="primary", request_id="phone-42"),
+            authorization=None,
+        )
+
+    assert exc.value.status_code == 409
 
 
 class RecordingHistoryBus:
@@ -239,9 +278,26 @@ async def test_input_socket_scopes_session_and_returns_public_id(monkeypatch):
 
     await app_module.input_socket(ws)
 
-    assert orchestrator.calls == [("hello", scope_session_id("alice", "primary"))]
+    assert orchestrator.calls == [("hello", scope_session_id("alice", "primary"), None)]
     assert ws.sent[0]["session_id"] == "primary"
     assert ws.sent[0]["response"] == "ok"
+
+
+@pytest.mark.asyncio
+async def test_input_socket_forwards_request_id(monkeypatch):
+    monkeypatch.delenv("JARVIS_API_TOKEN", raising=False)
+    monkeypatch.delenv("JARVIS_API_KEYS_JSON", raising=False)
+    orchestrator = RecordingOrchestrator()
+    monkeypatch.setattr(app_module.app.state, "orchestrator", orchestrator, raising=False)
+    ws = FakeWebSocket(
+        {},
+        incoming=[{"text": "hello", "session_id": "primary", "request_id": "phone-99"}],
+    )
+
+    await app_module.input_socket(ws)
+
+    assert orchestrator.calls[0][2] == "phone-99"
+    assert ws.sent[0]["request_id"] == "phone-99"
 
 
 @pytest.mark.asyncio
