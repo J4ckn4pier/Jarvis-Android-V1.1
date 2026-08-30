@@ -29,6 +29,7 @@ async def test_ready_checks_live_valkey_and_reports_safe_runtime_configuration(m
         "runtime": "echo",
         "session_locking": "valkey",
         "auth_mode": "multi-principal",
+        "checks_dependencies": True,
     }
 
 
