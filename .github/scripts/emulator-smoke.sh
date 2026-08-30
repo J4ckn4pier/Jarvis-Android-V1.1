@@ -182,7 +182,22 @@ dump_ui_retry /sdcard/jarvis-home-ui.xml "$OUTPUT/jarvis-home-ui.xml"
 ! grep -q 'PRIVATE ANDROID V1.1' "$OUTPUT/jarvis-home-ui.xml"
 adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-home.png"
 
+# Prove the secondary user-facing screens actually start and render on Android 16. This catches
+# resource/theme regressions that a Java compile alone cannot prove.
+adb shell am start -W -n "$PACKAGE/.CommandsActivity" | tee "$OUTPUT/emulator-help-launch.txt"
+grep -q 'Status: ok' "$OUTPUT/emulator-help-launch.txt"
+dump_ui_retry /sdcard/jarvis-help-ui.xml "$OUTPUT/jarvis-help-ui.xml"
+grep -q 'JARVIS COMMANDS' "$OUTPUT/jarvis-help-ui.xml"
+adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-help.png"
+
+adb shell am start -W -n "$PACKAGE/.NotesActivity" | tee "$OUTPUT/emulator-notes-launch.txt"
+grep -q 'Status: ok' "$OUTPUT/emulator-notes-launch.txt"
+dump_ui_retry /sdcard/jarvis-notes-ui.xml "$OUTPUT/jarvis-notes-ui.xml"
+grep -q 'ADD NOTE' "$OUTPUT/jarvis-notes-ui.xml"
+adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-notes.png"
+
 # Prove Android owns the assistant selection and has bound JARVIS's VoiceInteractionService.
+adb shell input keyevent KEYCODE_HOME
 adb logcat -c
 adb shell cmd role add-role-holder android.app.role.ASSISTANT "$PACKAGE"
 adb shell cmd role get-role-holders android.app.role.ASSISTANT | tee "$OUTPUT/emulator-assistant-role.txt" | grep -q "^$PACKAGE$"
