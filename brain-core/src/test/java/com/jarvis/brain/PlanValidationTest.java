@@ -14,6 +14,7 @@ public final class PlanValidationTest {
         validatorCannotDowngradeConsequentialTool();
         validatorRejectsNullPlanWithoutCrashing();
         validatorRejectsMissingStepListWithoutCrashing();
+        validatorRejectsEmptyStepList();
         validatorRejectsNullStepWithoutCrashing();
         validatorRejectsMissingArgumentsMapWithoutCrashing();
         System.out.println("PASS " + passed + " plan validation assertions");
@@ -66,6 +67,13 @@ public final class PlanValidationTest {
             throw new AssertionError("provider plan with no step list must fail closed rather than crash validation", escaped);
         }
         check(!result.valid(), "plan with null steps must not be executable");
+    }
+
+    private static void validatorRejectsEmptyStepList() {
+        PlanValidation result = new PlanValidator(ToolRegistry.standard()).validate(new Plan("claim to do something", List.of()));
+        check(!result.valid(), "plan with zero executable steps must not be treated as a valid action plan");
+        check(result.errors().stream().anyMatch(e -> e.toLowerCase().contains("step") || e.toLowerCase().contains("action")),
+                "empty-plan diagnostic should explain that there are no executable steps");
     }
 
     private static void validatorRejectsNullStepWithoutCrashing() {
