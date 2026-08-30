@@ -1,6 +1,6 @@
 # APK INTEGRATION CONTRACT GREEN
 
-This document is the stable provider-neutral boundary between the Android APK and the JARVIS Orchestrator management plane. The APK talks to **JARVIS**, never directly to Agent Zero, Ollama, or any future worker/provider. Worker and provider details are never part of the APK contract.
+This document is the stable provider-neutral boundary between the Android APK and the JARVIS Orchestrator management plane. The APK talks to **JARVIS**, never directly to Agent Zero, Ollama, or any future worker/provider. Provider details are never part of the APK contract; worker identities and implementation details stay behind JARVIS.
 
 ## Authentication
 
