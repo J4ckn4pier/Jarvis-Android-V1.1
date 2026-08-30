@@ -19,6 +19,8 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.jarvis.brain.SettingsStore;
+import com.jarvis.mobile.brain.AndroidSharedPreferencesSettingsPersistence;
 import com.jarvis.mobile.brain.providers.CortexProviderFactory;
 import com.jarvis.mobile.brain.providers.SecureSecretStore;
 
@@ -32,6 +34,7 @@ public class SettingsActivity extends Activity {
         setTitle("JARVIS Settings");
         preferences = getSharedPreferences("jarvis_shell", MODE_PRIVATE);
         cortexPreferences = getSharedPreferences("jarvis_cortex", MODE_PRIVATE);
+        SettingsStore researchSettings = new SettingsStore(new AndroidSharedPreferencesSettingsPersistence(this));
 
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
@@ -103,6 +106,21 @@ public class SettingsActivity extends Activity {
             Toast.makeText(this, "Saved cortex API key removed.", Toast.LENGTH_SHORT).show();
         }), fullWrap());
         body.addView(action("RUN JARVIS DIAGNOSTICS", () -> startActivity(new Intent(this, DiagnosticsActivity.class))), fullWrap());
+
+        body.addView(header("LIVE RESEARCH"), fullWrap());
+        TextView researchHelp = new TextView(this);
+        researchHelp.setText("Research endpoint: optional user-owned service JARVIS can query for fresh information. Use HTTPS, loopback HTTP, or a trusted device on your own network such as http://jarvis-research.local. Leave blank to keep live research disabled rather than silently using a paid provider.");
+        researchHelp.setTextColor(getColor(R.color.jarvis_text_dim));
+        researchHelp.setPadding(dp(8), dp(4), dp(8), dp(8));
+        body.addView(researchHelp, fullWrap());
+        EditText researchEndpoint = textSetting("Research endpoint", researchSettings.get(SettingsStore.RESEARCH_ENDPOINT));
+        body.addView(researchEndpoint, fullWrap());
+        body.addView(action("SAVE RESEARCH ENDPOINT", () -> {
+            researchSettings.put(SettingsStore.RESEARCH_ENDPOINT, researchEndpoint.getText().toString().trim());
+            Toast.makeText(this, researchEndpoint.getText().toString().trim().isEmpty()
+                    ? "Live research endpoint cleared."
+                    : "Live research endpoint saved.", Toast.LENGTH_SHORT).show();
+        }), fullWrap());
 
         body.addView(header("OPERATING MODE"), fullWrap());
         RadioGroup modes = new RadioGroup(this);
