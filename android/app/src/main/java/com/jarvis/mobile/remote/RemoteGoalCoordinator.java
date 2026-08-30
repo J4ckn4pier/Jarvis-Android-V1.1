@@ -16,7 +16,14 @@ public final class RemoteGoalCoordinator {
         RemoteGoalStateStore.State saved = state.load();
         if (!saved.hasProject()) return Optional.empty();
         String projectId = saved.projectId();
-        RemoteGoalClient.ProjectStatus project = client.getProject(projectId);
+        final RemoteGoalClient.ProjectStatus project;
+        try {
+            project = client.getProject(projectId);
+        } catch (RemoteGoalClient.RemoteGoalException missing) {
+            if (missing.statusCode() != 404) throw missing;
+            state.clearProject();
+            return Optional.empty();
+        }
         RemoteGoalClient.EventPage page;
         try {
             page = client.getEvents(projectId, saved.eventId());
