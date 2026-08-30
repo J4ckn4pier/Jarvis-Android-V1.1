@@ -30,6 +30,11 @@ public final class AndroidExternalResearchGatewayContractTest {
 
         check(Files.exists(debugReceiverPath),
                 "Android research transport must have a debug-only receiver for real emulator HTTP/provenance proof");
+        if (Files.exists(debugReceiverPath)) {
+            String receiver = Files.readString(debugReceiverPath);
+            check(receiver.contains("goAsync()") && receiver.contains("new Thread(") && receiver.contains("pending.finish()"),
+                    "debug research transport probe must run network I/O off Android's main thread and finish its async broadcast");
+        }
         check(Files.exists(smokePath),
                 "Android research transport must have an Android-16 emulator smoke rather than source-only coverage");
         if (Files.exists(smokePath)) {
