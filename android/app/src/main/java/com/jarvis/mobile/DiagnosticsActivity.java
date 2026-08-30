@@ -37,11 +37,15 @@ public final class DiagnosticsActivity extends Activity {
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
         body.setPadding(dp(16), dp(16), dp(16), dp(28));
-        body.setBackgroundColor(Color.rgb(3, 12, 17));
+        body.setBackgroundColor(getColor(R.color.jarvis_bg));
         body.addView(line("JARVIS PREFRONTAL CORTEX", true));
-        body.addView(line(report(), false));
+        TextView report = line(report(), false);
+        report.setBackgroundColor(getColor(R.color.jarvis_bg_panel));
+        report.setPadding(dp(12), dp(16), dp(12), dp(16));
+        body.addView(report);
 
         ScrollView scroll = new ScrollView(this);
+        scroll.setBackgroundColor(getColor(R.color.jarvis_bg));
         scroll.addView(body);
         setContentView(scroll);
     }
@@ -112,7 +116,7 @@ public final class DiagnosticsActivity extends Activity {
     private TextView line(String text, boolean heading) {
         TextView view = new TextView(this);
         view.setText(text);
-        view.setTextColor(heading ? Color.rgb(80, 225, 245) : Color.WHITE);
+        view.setTextColor(heading ? getColor(R.color.jarvis_cyan) : getColor(R.color.jarvis_text_dim));
         view.setTextSize(heading ? 22 : 15);
         view.setPadding(0, heading ? 0 : dp(16), 0, 0);
         view.setLineSpacing(0, 1.18f);
