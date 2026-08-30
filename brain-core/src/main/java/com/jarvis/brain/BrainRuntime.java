@@ -46,7 +46,7 @@ public final class BrainRuntime {
     }
     public synchronized Result approvePending(){if(pending==null||pendingTool.isBlank()||pendingStatus!=Status.APPROVAL_REQUIRED)return new Result(Status.FAILED,"There is no action waiting for approval.","",List.of());assistant.discardPendingClarification();approvals.approve(pendingTool);return runPending("");}
     public synchronized Result retryPending(){if(pending==null||pendingTool.isBlank()||pendingStatus!=Status.RECOVERY_REQUIRED)return new Result(Status.FAILED,"There is no action waiting for a recovery decision.","",List.of());assistant.discardPendingClarification();pendingStatus=null;return runPending("");}
-    public synchronized void cancelPending(){clearPending();}
+    public synchronized void cancelPending(){assistant.discardPendingClarification();clearPending();}
     public synchronized boolean hasPendingApproval(){return pending!=null&&!pendingTool.isBlank()&&pendingStatus==Status.APPROVAL_REQUIRED;}
     public synchronized boolean hasPendingRecovery(){return pending!=null&&!pendingTool.isBlank()&&pendingStatus==Status.RECOVERY_REQUIRED;}
     private Result handleSideQuestionWhileDecisionPending(String utterance){
