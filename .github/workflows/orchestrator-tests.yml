@@ -124,6 +124,35 @@ jobs:
             -d '{"text":"different command","session_id":"primary","request_id":"ci-retry-1"}')"
           cat /tmp/conflict.json
           test "$status" = "409"
+      - name: Prove retry survives orchestrator restart
+        run: |
+          docker compose restart orchestrator
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8000/ready >/tmp/restart-ready.json; then
+              break
+            fi
+            sleep 1
+          done
+          curl -fsS -X POST http://127.0.0.1:8000/v1/command \
+            -H 'Authorization: Bearer ci-token' \
+            -H 'Content-Type: application/json' \
+            -d '{"text":"prototype smoke test","session_id":"primary","request_id":"ci-retry-1"}' \
+            -o /tmp/retry-after-restart.json
+          curl -fsS http://127.0.0.1:8000/v1/sessions/primary/events \
+            -H 'Authorization: Bearer ci-token' \
+            -o /tmp/restart-history.json
+          python3 - <<'PY'
+          import json
+          with open('/tmp/command.json') as handle:
+              first = json.load(handle)
+          with open('/tmp/retry-after-restart.json') as handle:
+              retried = json.load(handle)
+          with open('/tmp/restart-history.json') as handle:
+              history = json.load(handle)
+          assert retried == first, (first, retried)
+          assert len(history['events']) == 4, history
+          assert {event['task_id'] for event in history['events']} == {first['task_id']}, history
+          PY
       - name: Prove same public session is isolated between users
         run: |
           curl -fsS http://127.0.0.1:8000/v1/sessions/primary/events \
