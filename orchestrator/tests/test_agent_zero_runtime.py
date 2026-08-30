@@ -120,6 +120,27 @@ async def test_agent_zero_surfaces_non_context_http_failure_without_retry():
 
 
 @pytest.mark.asyncio
+async def test_agent_zero_readiness_uses_supported_health_endpoint():
+    requests = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(request)
+        return httpx.Response(200, json={"status": "ok"})
+
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="http://agent-zero:50001")
+    runtime = AgentZeroRuntime(
+        base_url="http://agent-zero:50001",
+        api_key="secret",
+        context_store=InMemoryAgentContextStore(),
+        client=client,
+    )
+
+    assert await runtime.check_ready() is True
+    assert [request.url.path for request in requests] == ["/api/health"]
+    await client.aclose()
+
+
+@pytest.mark.asyncio
 async def test_agent_zero_reset_keeps_mapping_and_calls_supported_endpoint():
     requests = []
 
