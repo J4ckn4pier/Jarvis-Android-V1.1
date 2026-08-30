@@ -3,10 +3,10 @@
 This file freezes the denominator used for Charles-facing completion percentages during the APK sprint.
 A box may be checked only after behavior is evidenced through a freshly compiled APK / Android emulator, except where the item explicitly requires Samsung hardware. Source or unit-test existence alone does not count.
 
-1. [ ] Canonical JARVIS Live visual identity is present in the compiled home UI; the old single-dot HUD is not the visible core.
-2. [ ] Shipped APK contains no Scripted Scenarios / Demo / Sandbox developer controls; assistant visuals react to real runtime state.
+1. [x] Canonical JARVIS Live visual identity is present in the compiled home UI; the old single-dot HUD is not the visible core.
+2. [x] Shipped APK contains no Scripted Scenarios / Demo / Sandbox developer controls; assistant visuals react to real runtime state.
 3. [ ] Existing shared JARVIS brain is the production command path behind the live UI.
-4. [ ] Exact regression `I'm good. Can you do me a favor and open settings, please?` opens JARVIS Settings from the compiled APK.
+4. [x] Exact regression `I'm good. Can you do me a favor and open settings, please?` opens JARVIS Settings from the compiled APK.
 5. [ ] Generic `open <app>` routing works without guessing ambiguous app names.
 6. [ ] Phone/dialer and approved contact-call handoff work; autonomous remote phone-agent conversation is excluded from APK runtime.
 7. [ ] Text-message approval flow and email-draft flow work through Android surfaces.
@@ -25,3 +25,5 @@ A box may be checked only after behavior is evidenced through a freshly compiled
 20. [ ] One final APK installs, launches, passes the fixed smoke matrix, is staged as a single artifact, and has an exact branch/commit/SHA-256 recorded.
 
 **Completion percentage = checked items / 20 × 100.**
+
+Current compiled-proof checkpoint: **15% (3/20)** at Android head `451eb688e102ecc8463f33f1c5e9006ad850b66e`, Android build run `33330104862`. This records only items with fresh emulator evidence; it is not a claim that the remaining behavior is absent or broken.
