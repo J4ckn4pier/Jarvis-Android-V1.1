@@ -14,6 +14,7 @@ public final class ExecutionRecoveryContractTest {
         retryableConsequentialAttemptRequiresFreshApprovalBeforeAnyRetry();
         approvedToolExceptionFailsClosedAndConsumesApproval();
         approvedNullToolResultFailsClosedAndConsumesApproval();
+        successfulStatusWithoutOutputFailsClosed();
         System.out.println("ExecutionRecoveryContractTest: " + checks + " assertions passed");
     }
 
@@ -123,6 +124,25 @@ public final class ExecutionRecoveryContractTest {
         check(withoutFreshApproval.status() == ExecutionReport.Status.APPROVAL_REQUIRED,
                 "null result must consume the one-shot approval so retry cannot occur silently");
         check(calls[0] == 1, "null consequential action must not retry without fresh approval");
+    }
+
+    private static void successfulStatusWithoutOutputFailsClosed() {
+        ToolRegistry registry = new ToolRegistry();
+        registry.register(new ToolSpec("lookup", false, Set.of(), Set.of(), "lookup"),
+                (args, ctx) -> ToolResult.success(null));
+        ResumablePlanExecutor executor = new ResumablePlanExecutor(registry, new ApprovalGate());
+        ExecutionCursor cursor = executor.start(new Plan("lookup", List.of(new PlanStep("lookup"))));
+        ExecutionReport report;
+        try {
+            report = executor.run(cursor, new ExecutionContext());
+        } catch (RuntimeException escaped) {
+            throw new AssertionError("resumable success-with-null-output must not crash cursor bookkeeping", escaped);
+        }
+        check(report.status() == ExecutionReport.Status.FAILED,
+                "resumable executor must reject a successful status without a usable outcome");
+        check(report.failureDetail().toLowerCase().contains("output"),
+                "resumable missing success output should be reported as an invalid tool outcome");
+        check(cursor.nextStepIndex() == 0, "invalid successful result must not advance the resumable cursor");
     }
 
     private static void check(boolean condition, String message) { checks++; if (!condition) throw new AssertionError(message); }
