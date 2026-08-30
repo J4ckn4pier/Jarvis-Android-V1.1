@@ -21,14 +21,16 @@ import com.jarvis.brain.SettingsStore;
 import com.jarvis.mobile.brain.AndroidSharedPreferencesSettingsPersistence;
 import com.jarvis.mobile.brain.providers.CortexProviderFactory;
 import com.jarvis.mobile.brain.providers.SecureSecretStore;
+import com.jarvis.mobile.remote.RemoteGoalStateStore;
 
-/** Advanced/developer-only home for the raw provider controls formerly exposed as normal Settings. */
+/** Advanced/developer-only home for raw provider and remote-brain connection controls. */
 public final class DeveloperSettingsActivity extends Activity {
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         SharedPreferences cortex = getSharedPreferences("jarvis_cortex", MODE_PRIVATE);
         SettingsStore research = new SettingsStore(new AndroidSharedPreferencesSettingsPersistence(this));
         SecureSecretStore secrets = new SecureSecretStore(this);
+        RemoteGoalStateStore remote = new RemoteGoalStateStore(this);
 
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
@@ -64,22 +66,14 @@ public final class DeveloperSettingsActivity extends Activity {
                     : CortexProviderFactory.MODE_LOCAL;
             String keyValue = key.getText().toString().trim();
             if (!keyValue.isEmpty()) {
-                try {
-                    secrets.put("provider_api_key", keyValue);
-                    key.setText("");
-                } catch (Exception error) {
-                    Toast.makeText(this, "Could not save that provider credential securely. Nothing was changed.", Toast.LENGTH_LONG).show();
-                    return;
-                }
+                try { secrets.put("provider_api_key", keyValue); key.setText(""); }
+                catch (Exception error) { Toast.makeText(this, "Could not save that provider credential securely. Nothing was changed.", Toast.LENGTH_LONG).show(); return; }
             }
             cortex.edit().putString("mode", mode).putString("model", model.getText().toString().trim()).putString("endpoint", endpointValue).apply();
             status.setText(CortexProviderFactory.status(this));
             Toast.makeText(this, "Provider configuration saved.", Toast.LENGTH_SHORT).show();
         }));
-        body.addView(button("CLEAR SAVED API KEY", () -> {
-            secrets.remove("provider_api_key");
-            Toast.makeText(this, "Saved API key removed.", Toast.LENGTH_SHORT).show();
-        }));
+        body.addView(button("CLEAR SAVED API KEY", () -> { secrets.remove("provider_api_key"); Toast.makeText(this, "Saved API key removed.", Toast.LENGTH_SHORT).show(); }));
 
         EditText researchEndpoint = input("Research endpoint", research.get(SettingsStore.RESEARCH_ENDPOINT));
         researchEndpoint.setContentDescription("JARVIS research endpoint");
@@ -92,8 +86,37 @@ public final class DeveloperSettingsActivity extends Activity {
         });
         saveResearch.setContentDescription("JARVIS save research endpoint");
         body.addView(saveResearch);
-        body.addView(button("RUN DIAGNOSTICS", () -> startActivity(new Intent(this, DiagnosticsActivity.class))));
 
+        RemoteGoalStateStore.Connection savedRemote = remote.loadConnection();
+        EditText remoteEndpoint = input("Remote JARVIS endpoint", savedRemote == null ? "" : savedRemote.baseUrl());
+        EditText remoteToken = input("Connection token", "");
+        remoteToken.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
+        body.addView(remoteEndpoint);
+        body.addView(remoteToken);
+        body.addView(button("SAVE REMOTE CONNECTION", () -> {
+            String endpointValue = remoteEndpoint.getText().toString().trim();
+            if (endpointValue.isEmpty() || !EndpointTransportPolicy.allows(endpointValue)) {
+                Toast.makeText(this, "Use an approved HTTPS or local JARVIS endpoint.", Toast.LENGTH_LONG).show(); return;
+            }
+            String enteredToken = remoteToken.getText().toString();
+            RemoteGoalStateStore.Connection existing = remote.loadConnection();
+            String tokenToSave = enteredToken.isEmpty() && existing != null ? existing.token() : enteredToken;
+            if (tokenToSave.isEmpty()) { Toast.makeText(this, "A connection token is required.", Toast.LENGTH_LONG).show(); return; }
+            try {
+                remote.saveConnection(endpointValue, tokenToSave);
+                remoteToken.setText("");
+                Toast.makeText(this, "Remote JARVIS connection saved securely.", Toast.LENGTH_SHORT).show();
+            } catch (RuntimeException failure) {
+                Toast.makeText(this, "Could not save the remote connection securely.", Toast.LENGTH_LONG).show();
+            }
+        }));
+        body.addView(button("CLEAR REMOTE CONNECTION", () -> {
+            remote.clearConnection();
+            remoteToken.setText("");
+            Toast.makeText(this, "Remote JARVIS connection removed.", Toast.LENGTH_SHORT).show();
+        }));
+
+        body.addView(button("RUN DIAGNOSTICS", () -> startActivity(new Intent(this, DiagnosticsActivity.class))));
         ScrollView scroll = new ScrollView(this); scroll.setBackgroundColor(getColor(R.color.jarvis_bg)); scroll.addView(body); setContentView(scroll);
     }
 
