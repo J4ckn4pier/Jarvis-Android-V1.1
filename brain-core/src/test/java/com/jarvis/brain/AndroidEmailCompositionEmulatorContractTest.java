@@ -9,15 +9,18 @@ public final class AndroidEmailCompositionEmulatorContractTest {
         Path manifestPath = Path.of("../android/app/src/debug/AndroidManifest.xml");
         Path receiverPath = Path.of("../android/app/src/debug/java/com/jarvis/mobile/actions/JarvisEmailTestReceiver.java");
         Path capturePath = Path.of("../android/app/src/debug/java/com/jarvis/mobile/actions/JarvisEmailCaptureActivity.java");
-        Path smokePath = Path.of("../.github/scripts/emulator-smoke.sh");
+        Path smokePath = Path.of("../.github/scripts/email-compose-smoke.sh");
+        Path workflowPath = Path.of("../.github/workflows/build-apk.yml");
 
         check(Files.exists(receiverPath), "debug build must expose an email-action test receiver");
         check(Files.exists(capturePath), "debug build must expose an email-capable capture activity");
+        check(Files.exists(smokePath), "Android-16 lane must include a dedicated email compose smoke script");
 
         String manifest = Files.readString(manifestPath);
         String receiver = Files.readString(receiverPath);
         String capture = Files.readString(capturePath);
         String smoke = Files.readString(smokePath);
+        String workflow = Files.readString(workflowPath);
 
         check(manifest.contains("JarvisEmailTestReceiver"), "debug manifest must register the email test receiver");
         check(manifest.contains("com.jarvis.mobile.DEBUG_TEST_EMAIL"), "debug receiver must use an explicit CI-only action");
@@ -48,6 +51,8 @@ public final class AndroidEmailCompositionEmulatorContractTest {
                 "Android-16 smoke must prove structured subject handoff");
         check(smoke.contains("JARVIS_EMAIL_CAPTURE.*body=Body line one"),
                 "Android-16 smoke must prove structured body handoff");
+        check(workflow.contains("sh .github/scripts/email-compose-smoke.sh"),
+                "APK workflow must execute the dedicated email compose smoke inside Android 16");
 
         System.out.println("AndroidEmailCompositionEmulatorContractTest passed");
     }
