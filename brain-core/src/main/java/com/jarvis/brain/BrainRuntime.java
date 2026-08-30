@@ -3,6 +3,7 @@ package com.jarvis.brain;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.UUID;
 
 /** Single execution facade between conversational/executive reasoning and platform tools. */
 public final class BrainRuntime {
@@ -20,7 +21,6 @@ public final class BrainRuntime {
     private Instant pendingRecommendedAt;
     private String pendingTool="";
     private Status pendingStatus;
-    private long episodeSequence;
 
     public BrainRuntime(AssistantCore assistant,ToolRegistry tools){
         this(assistant,tools,Clock.systemUTC(),ActedOnEpisodeSink.none());
@@ -82,7 +82,7 @@ public final class BrainRuntime {
         String domain=terminal.tool()==null||terminal.tool().isBlank()?"action":terminal.tool().trim();
         String subject=plan.goal()==null||plan.goal().isBlank()?domain:plan.goal().trim();
         RecommendationEpisode episode=new RecommendationEpisode(
-                "runtime-"+actedAt.toEpochMilli()+"-"+(++episodeSequence),domain,subject,recommendedAt==null?actedAt:recommendedAt);
+                "runtime-"+UUID.randomUUID(),domain,subject,recommendedAt==null?actedAt:recommendedAt);
         try{actedOnEpisodes.recordActedOn(episode,actedAt);}catch(RuntimeException ignored){/* The action already happened; follow-up persistence must never rewrite execution truth. */}
     }
     private void clearPending(){pending=null;pendingRecommendedAt=null;pendingTool="";pendingStatus=null;}
