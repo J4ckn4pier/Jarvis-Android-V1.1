@@ -231,6 +231,24 @@ jobs:
           assert command['response'] == 'JARVIS received: second isolated user', command
           assert [event['sequence'] for event in history['events']] == [1, 2, 3, 4], history
           PY
+      - name: Prove authenticated management request across non-loopback boundary
+        run: |
+          JARVIS_BIND_ADDRESS=0.0.0.0 docker compose up -d --force-recreate orchestrator
+          for attempt in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8000/ready >/tmp/remote-ready.json; then
+              break
+            fi
+            sleep 1
+          done
+          host_ip="$(docker inspect "$(docker compose ps -q orchestrator)" --format '{{(index (index .NetworkSettings.Ports "8000/tcp") 0).HostIp}}')"
+          echo "published JARVIS host_ip=$host_ip"
+          test "$host_ip" = "0.0.0.0"
+          client_image="$(docker compose images -q orchestrator)"
+          docker run --rm \
+            --add-host=host.docker.internal:host-gateway \
+            --entrypoint python \
+            "$client_image" \
+            -c 'import json, urllib.request; data=b"{\"goal\":\"remote boundary smoke test\"}"; req=urllib.request.Request("http://host.docker.internal:8000/v1/goals", data=data, headers={"Authorization":"Bearer ci-token","Content-Type":"application/json"}, method="POST"); response=json.load(urllib.request.urlopen(req, timeout=10)); assert response["project_id"]; assert response["provider_details_exposed"] is False; print(json.dumps(response, sort_keys=True))'
       - name: Show prototype logs on failure
         if: failure()
         run: docker compose logs --no-color
