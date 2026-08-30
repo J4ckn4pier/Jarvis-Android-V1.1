@@ -17,6 +17,7 @@ public final class BrainExitGateCompositionContractTest {
         require(gate, "EmailCompositionToolContractTest.class", "provider-neutral email composition semantics must be part of the composed brain gate");
         require(gate, "AndroidEmailCompositionBindingContractTest.class", "Android email compose/review binding must be part of the composed brain gate");
         require(gate, "AndroidCalendarEventCompositionContractTest.class", "structured Android calendar event composition must be part of the composed brain gate");
+        require(gate, "AndroidAccessibilityToolBindingContractTest.class", "safe typed Android accessibility navigation and screen reading must be part of the composed brain gate");
         require(gate, "AndroidMediaToolBindingContractTest.class", "typed Android media search/play and transport controls must be part of the composed brain gate");
         require(gate, "AndroidAlarmToolBindingContractTest.class", "typed Android alarm creation must be part of the composed brain gate");
         require(gate, "AndroidVolumeToolBindingContractTest.class", "typed Android volume controls must be part of the composed brain gate");
