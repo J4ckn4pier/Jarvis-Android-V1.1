@@ -14,6 +14,7 @@ public final class PendingApprovalSideQuestionTest {
     public static void main(String[] args) {
         safeSideQuestionDoesNotLoseApproval();
         abandonedSideClarificationDoesNotLeakPastOriginalApproval();
+        abandonedSideClarificationDoesNotLeakPastCancellation();
         System.out.println("PendingApprovalSideQuestionTest: " + checks + " assertions passed");
     }
 
@@ -62,6 +63,32 @@ public final class PendingApprovalSideQuestionTest {
                 "after resolving the original action, an abandoned side clarification must not consume the next unrelated utterance");
         check(inspections[0] == 0,
                 "abandoned side clarification must not execute later using an unrelated sentence as its missing argument");
+    }
+
+    private static void abandonedSideClarificationDoesNotLeakPastCancellation() {
+        int[] sends = {0};
+        int[] inspections = {0};
+        RuntimeApprovalConversation conversation = clarifyingSideBridge(sends, inspections);
+
+        check(conversation.handle("Jarvis, text Mom I am on my way").state() == AssistantSurfaceState.AWAITING_APPROVAL,
+                "original action should begin pending approval before cancellation");
+        RuntimeSurfacePresentation clarification = conversation.handle("inspect something");
+        check(clarification.state() == AssistantSurfaceState.AWAITING_APPROVAL,
+                "side clarification should keep approval pending before cancellation");
+        check(clarification.text().toLowerCase().contains("topic"),
+                "side clarification should be waiting for its missing topic");
+        check(inspections[0] == 0, "unfinished side clarification must not execute before cancellation");
+
+        RuntimeSurfacePresentation cancelled = conversation.handle("cancel", 0.95);
+        check(cancelled.state() == AssistantSurfaceState.IDLE,
+                "cancelling the original action should return the conversation to idle");
+        check(sends[0] == 0, "cancelled original action must never execute");
+
+        RuntimeSurfacePresentation unrelated = conversation.handle("how are you?");
+        check(unrelated.text().toLowerCase().contains("i'm doing well"),
+                "after cancellation, an abandoned side clarification must not consume the next unrelated utterance");
+        check(inspections[0] == 0,
+                "cancelled side clarification must not execute later using unrelated speech as its missing argument");
     }
 
     private static RuntimeApprovalConversation bridge(int[] sends, int[] reads) {
