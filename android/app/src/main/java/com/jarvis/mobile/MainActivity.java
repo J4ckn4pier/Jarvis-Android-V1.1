@@ -88,6 +88,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private RuntimeSurfaceAction currentSecondaryAction = RuntimeSurfaceAction.NONE;
     private boolean active;
     private boolean pulseFrame;
+    private boolean destroyed;
     private SharedPreferences preferences;
     private boolean commandTestMode;
 
@@ -348,6 +349,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     }
 
     private void deliverPresentation(RuntimeSurfacePresentation presentation) {
+        if (destroyed) return;
         FullAppRuntimeViewState view = FullAppRuntimeViewState.from(presentation);
         String rendered = view.text();
         if (!view.detail().isBlank() && !view.detail().equals(view.text())) rendered += "\n\n" + view.detail();
@@ -568,6 +570,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
 
     @Override protected void onDestroy() {
+        destroyed = true;
         active = false;
         ui.removeCallbacksAndMessages(null);
         brainExecutor.shutdownNow();
