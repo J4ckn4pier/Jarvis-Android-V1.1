@@ -55,6 +55,9 @@ public final class AndroidToolRegistryFactory {
         register(registry, "media_play", false, Set.of("play music", "play media"), Set.of("query"),
                 "Play requested media", ToolExecutionClass.DEVICE_REFLEX,
                 args -> media.playMediaQuery(args.get("query")));
+        register(registry, "media_control", false, Set.of("pause media", "resume media", "next track", "previous track"), Set.of("action"),
+                "Control current media playback", ToolExecutionClass.DEVICE_REFLEX,
+                args -> media.control(args.get("action")));
         register(registry, "set_flashlight", false, Set.of("flashlight", "torch"), Set.of("state"),
                 "Set flashlight state", ToolExecutionClass.DEVICE_REFLEX,
                 args -> flashlight.setState(args.get("state")));
@@ -104,6 +107,7 @@ public final class AndroidToolRegistryFactory {
                 || lower.contains("unavailable")
                 || lower.contains("must be")
                 || lower.contains("too large")
-                || lower.contains("does not expose");
+                || lower.contains("does not expose")
+                || lower.startsWith("unsupported ");
     }
 }
