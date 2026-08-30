@@ -119,6 +119,44 @@ async def test_agent_zero_surfaces_non_context_http_failure_without_retry():
     await client.aclose()
 
 
+@pytest.mark.asyncio
+async def test_agent_zero_reset_keeps_mapping_and_calls_supported_endpoint():
+    requests = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        requests.append((request.url.path, json.loads(request.read().decode())))
+        return httpx.Response(200, json={"success": True, "context_id": "ctx-123"})
+
+    store = InMemoryAgentContextStore()
+    await store.set("session-a", "ctx-123")
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="http://agent-zero:50001")
+    runtime = AgentZeroRuntime("http://agent-zero:50001", "secret", store, client=client)
+
+    assert await runtime.reset("session-a") is True
+    assert requests == [("/api/api_reset_chat", {"context_id": "ctx-123"})]
+    assert await store.get("session-a") == "ctx-123"
+    await client.aclose()
+
+
+@pytest.mark.asyncio
+async def test_agent_zero_terminate_clears_mapping_after_success():
+    requests = []
+
+    async def handler(request: httpx.Request) -> httpx.Response:
+        requests.append((request.url.path, json.loads(request.read().decode())))
+        return httpx.Response(200, json={"success": True, "context_id": "ctx-123"})
+
+    store = InMemoryAgentContextStore()
+    await store.set("session-a", "ctx-123")
+    client = httpx.AsyncClient(transport=httpx.MockTransport(handler), base_url="http://agent-zero:50001")
+    runtime = AgentZeroRuntime("http://agent-zero:50001", "secret", store, client=client)
+
+    assert await runtime.terminate("session-a") is True
+    assert requests == [("/api/api_terminate_chat", {"context_id": "ctx-123"})]
+    assert await store.get("session-a") is None
+    await client.aclose()
+
+
 def test_runtime_factory_defaults_to_echo(monkeypatch):
     monkeypatch.delenv("JARVIS_RUNTIME", raising=False)
     runtime = build_runtime(context_store=InMemoryAgentContextStore())
