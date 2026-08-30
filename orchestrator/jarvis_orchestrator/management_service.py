@@ -152,6 +152,13 @@ class ManagementService:
             await self.store.save_task_output(owner_id, task.project_id, task.task_id, output)
         if outcome.task.state is not task.state or outcome.outputs or outcome.blocker:
             await self._mark_project_progress(owner_id, task.project_id)
+        if outcome.needs_user_escalation:
+            await self.request_approval(
+                owner_id,
+                task.project_id,
+                f"approval-{uuid4().hex}",
+                task_id=task.task_id,
+            )
         return outcome
 
     async def run_ready(self, owner_id: str, project_id: str) -> dict:
