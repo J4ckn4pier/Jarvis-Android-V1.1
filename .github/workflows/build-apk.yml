@@ -80,6 +80,18 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
           script: sh .github/scripts/emulator-smoke.sh && sh .github/scripts/overlay-decision-smoke.sh && sh .github/scripts/email-compose-smoke.sh && sh .github/scripts/diagnostics-smoke.sh && sh .github/scripts/cortex-settings-smoke.sh && sh .github/scripts/local-cortex-smoke.sh && sh .github/scripts/external-research-smoke.sh && sh .github/scripts/apk-sprint-acceptance-smoke.sh
 
+      - name: Preserve APK sprint emulator evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-APK-sprint-emulator-evidence
+          path: |
+            android/app/build/outputs/apk/debug/jarvis-apk-sprint-*.png
+            android/app/build/outputs/apk/debug/jarvis-apk-sprint-*.xml
+            android/app/build/outputs/apk/debug/apk-sprint-*.txt
+          if-no-files-found: warn
+          retention-days: 7
+
       - name: Preserve Android failure evidence
         if: failure()
         uses: actions/upload-artifact@v4
