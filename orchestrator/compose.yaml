@@ -6,6 +6,23 @@ services:
     volumes:
       - valkey-data:/data
 
+  agent-zero-bootstrap:
+    image: busybox:1.37
+    restart: "no"
+    profiles: ["agent-zero"]
+    volumes:
+      - agent-zero-data:/a0/usr
+      - ./agent-zero/model-presets.yaml:/bootstrap/model-presets.yaml:ro
+    command:
+      - /bin/sh
+      - -c
+      - |
+        set -eu
+        if [ ! -f /a0/usr/plugins/_model_config/presets.yaml ]; then
+          mkdir -p /a0/usr/plugins/_model_config
+          cp /bootstrap/model-presets.yaml /a0/usr/plugins/_model_config/presets.yaml
+        fi
+
   agent-zero:
     image: agent0ai/agent-zero:latest
     restart: unless-stopped
@@ -14,6 +31,9 @@ services:
       - "127.0.0.1:5080:80"
     volumes:
       - agent-zero-data:/a0/usr
+    depends_on:
+      agent-zero-bootstrap:
+        condition: service_completed_successfully
 
   ollama:
     image: ollama/ollama:latest
