@@ -1,5 +1,6 @@
 package com.jarvis.brain;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.format.DateTimeParseException;
 
@@ -9,14 +10,20 @@ import java.time.format.DateTimeParseException;
  * freshness instead of receiving unqualified text.
  */
 public record ResearchEvidence(String payload, String source, String observedAt, double confidence) {
+    private static final Duration MAX_FUTURE_CLOCK_SKEW = Duration.ofMinutes(5);
+
     public ResearchEvidence {
         payload = require(payload, "payload");
         source = require(source, "source");
         observedAt = require(observedAt, "observedAt");
+        Instant observation;
         try {
-            Instant.parse(observedAt);
+            observation = Instant.parse(observedAt);
         } catch (DateTimeParseException e) {
             throw new IllegalArgumentException("observedAt must be ISO-8601 instant", e);
+        }
+        if (observation.isAfter(Instant.now().plus(MAX_FUTURE_CLOCK_SKEW))) {
+            throw new IllegalArgumentException("observedAt cannot be in the future");
         }
         if (!Double.isFinite(confidence)) throw new IllegalArgumentException("confidence must be finite");
         confidence = Math.max(0.0, Math.min(1.0, confidence));
