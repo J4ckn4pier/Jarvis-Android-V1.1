@@ -3,27 +3,36 @@ package com.jarvis.brain;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-/** Primary Android assistant surfaces must consume the canonical donor-free JARVIS brand palette. */
+/** User-visible Android assistant surfaces must consume the canonical donor-free JARVIS brand palette. */
 public final class AndroidBrandPaletteUsageContractTest {
     public static void main(String[] args) throws Exception {
-        String activity = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/MainActivity.java"));
-        String voice = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/assistant/JarvisVoiceSession.java"));
+        Path mobile = Path.of("../android/app/src/main/java/com/jarvis/mobile");
+        String activity = Files.readString(mobile.resolve("MainActivity.java"));
+        String voice = Files.readString(mobile.resolve("assistant/JarvisVoiceSession.java"));
+        String commands = Files.readString(mobile.resolve("CommandsActivity.java"));
+        String notes = Files.readString(mobile.resolve("NotesActivity.java"));
+        String diagnostics = Files.readString(mobile.resolve("DiagnosticsActivity.java"));
         String colors = Files.readString(Path.of("../android/app/src/main/res/values/jarvis_brand_colors.xml"));
 
         check(colors.contains("name=\"jarvis_bg\"")
                         && colors.contains("name=\"jarvis_bg_panel\"")
-                        && colors.contains("name=\"jarvis_cyan\""),
+                        && colors.contains("name=\"jarvis_cyan\"")
+                        && colors.contains("name=\"jarvis_text_dim\""),
                 "canonical donor-free Android brand tokens must remain available");
-        check(activity.contains("R.color.jarvis_bg")
-                        && activity.contains("R.color.jarvis_bg_panel")
-                        && activity.contains("R.color.jarvis_cyan"),
-                "full JARVIS surface must consume the canonical brand palette instead of maintaining parallel hardcoded identity colors");
-        check(voice.contains("R.color.jarvis_bg")
-                        && voice.contains("R.color.jarvis_bg_panel")
-                        && voice.contains("R.color.jarvis_cyan"),
-                "voice overlay must consume the same canonical brand palette as the full app");
+        requirePrimarySurface(activity, "full JARVIS surface");
+        requirePrimarySurface(voice, "voice overlay");
+        requirePrimarySurface(commands, "Help & Features surface");
+        requirePrimarySurface(notes, "Notes & Memory surface");
+        requirePrimarySurface(diagnostics, "Diagnostics surface");
 
         System.out.println("AndroidBrandPaletteUsageContractTest: PASS");
+    }
+
+    private static void requirePrimarySurface(String source, String name) {
+        check(source.contains("R.color.jarvis_bg")
+                        && source.contains("R.color.jarvis_bg_panel")
+                        && source.contains("R.color.jarvis_cyan"),
+                name + " must consume the canonical brand palette instead of maintaining parallel hardcoded identity colors");
     }
 
     private static void check(boolean condition, String message) {
