@@ -152,7 +152,26 @@ grep -q 'GET /v1/projects/project-expired/events?after_event_id=expired-emulator
 grep -q 'GET /v1/projects/project-expired/events auth=Bearer emulator-secret' "$LOG"
 adb exec-out screencap -p > "$OUTPUT/jarvis-remote-expired-resync.png"
 
-# 4) Reconnect discovers the exact opaque approval ID and exposes normal JARVIS decision controls.
+# 4) A backend-confirmed missing project is terminal for the local bookmark. Reopening the APK must
+# not hammer the same 404 forever; the server should see exactly one project lookup across two launches.
+seed project-missing
+MISSING_BEFORE=$(grep -c 'GET /v1/projects/project-missing auth=Bearer emulator-secret' "$LOG" || true)
+adb shell am force-stop "$PACKAGE" || true
+adb shell am start -W -n "$ACTIVITY" > "$OUTPUT/remote-integration-missing-first-launch.txt"
+MISSING_SEEN=0
+for i in $(seq 1 20); do
+  MISSING_NOW=$(grep -c 'GET /v1/projects/project-missing auth=Bearer emulator-secret' "$LOG" || true)
+  if [ "$MISSING_NOW" -eq $((MISSING_BEFORE + 1)) ]; then MISSING_SEEN=1; break; fi
+  sleep 1
+done
+test "$MISSING_SEEN" -eq 1
+adb shell am force-stop "$PACKAGE" || true
+adb shell am start -W -n "$ACTIVITY" > "$OUTPUT/remote-integration-missing-second-launch.txt"
+sleep 2
+MISSING_AFTER=$(grep -c 'GET /v1/projects/project-missing auth=Bearer emulator-secret' "$LOG" || true)
+test "$MISSING_AFTER" -eq $((MISSING_BEFORE + 1))
+
+# 5) Reconnect discovers the exact opaque approval ID and exposes normal JARVIS decision controls.
 seed project-approval
 adb shell am force-stop "$PACKAGE" || true
 adb shell am start -W -n "$ACTIVITY" > "$OUTPUT/remote-integration-approval-launch.txt"
@@ -181,7 +200,7 @@ done
 test "$RESULT_UI" -eq 1
 adb exec-out screencap -p > "$OUTPUT/jarvis-remote-integration-result.png"
 
-# 5) Separate active project exposes CANCEL; cancellation must be backend-confirmed before local state clears.
+# 6) Separate active project exposes CANCEL; cancellation must be backend-confirmed before local state clears.
 seed project-cancel
 adb shell am force-stop "$PACKAGE" || true
 adb shell am start -W -n "$ACTIVITY" > "$OUTPUT/remote-integration-cancel-launch.txt"
