@@ -23,6 +23,10 @@ public final class AndroidVoiceConversationContinuityContractTest {
                         && session.contains("output.post(() -> {")
                         && session.contains("deliver(presentation);"),
                 "voice brain/provider/tool work must run off Android's main thread and marshal presentation back to the UI thread");
+        check(session.contains("catch (RuntimeException failure)")
+                        && session.contains("AssistantSurfaceState.ERROR")
+                        && session.contains("JARVIS_RUNTIME_FAILURE"),
+                "unexpected voice provider/tool runtime failures must surface a truthful error instead of leaving the assistant stuck on Thinking");
         check(session.contains("sessionGeneration")
                         && session.contains("long submittedGeneration = sessionGeneration;")
                         && session.contains("submittedGeneration != sessionGeneration")
