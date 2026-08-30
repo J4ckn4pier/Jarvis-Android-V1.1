@@ -70,13 +70,16 @@ public final class DeveloperSettingsActivity extends Activity {
         body.addView(button("CLEAR SAVED API KEY", () -> { secrets.remove("provider_api_key"); Toast.makeText(this, "Saved API key removed.", Toast.LENGTH_SHORT).show(); }));
 
         EditText researchEndpoint = input("Research endpoint", research.get(SettingsStore.RESEARCH_ENDPOINT));
+        researchEndpoint.setContentDescription("JARVIS research endpoint");
         body.addView(researchEndpoint);
-        body.addView(button("SAVE RESEARCH ENDPOINT", () -> {
+        Button saveResearch = button("SAVE RESEARCH ENDPOINT", () -> {
             String value = researchEndpoint.getText().toString().trim();
             if (!value.isEmpty() && !EndpointTransportPolicy.allows(value)) { Toast.makeText(this, "Use HTTPS, loopback HTTP, or a user-owned .local HTTP endpoint.", Toast.LENGTH_LONG).show(); return; }
             research.put(SettingsStore.RESEARCH_ENDPOINT, value);
             Toast.makeText(this, "Research endpoint saved.", Toast.LENGTH_SHORT).show();
-        }));
+        });
+        saveResearch.setContentDescription("JARVIS save research endpoint");
+        body.addView(saveResearch);
         body.addView(button("RUN DIAGNOSTICS", () -> startActivity(new Intent(this, DiagnosticsActivity.class))));
 
         ScrollView scroll = new ScrollView(this); scroll.setBackgroundColor(getColor(R.color.jarvis_bg)); scroll.addView(body); setContentView(scroll);
