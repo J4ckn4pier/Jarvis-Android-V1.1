@@ -6,6 +6,31 @@ APK="$OUTPUT/app-debug.apk"
 PACKAGE="com.jarvis.mobile"
 ACTIVITY="$PACKAGE/com.jarvis.mobile.MainActivity"
 
+# Android 16 can briefly return a null accessibility root immediately after an Activity reports
+# ready. Device evidence should fail only if the tree never becomes available, not on one transient
+# publication gap. Keep per-attempt evidence where possible for diagnosis.
+dump_ui_retry() {
+  REMOTE="$1"
+  LOCAL="$2"
+  UI_DUMP_READY=0
+  for attempt in $(seq 1 15); do
+    adb shell rm -f "$REMOTE" >/dev/null 2>&1 || true
+    adb shell uiautomator dump "$REMOTE" >/dev/null 2>&1 || true
+    if adb pull "$REMOTE" "$LOCAL.attempt-$attempt.xml" >/dev/null 2>&1 \
+        && grep -q '<hierarchy' "$LOCAL.attempt-$attempt.xml"; then
+      cp "$LOCAL.attempt-$attempt.xml" "$LOCAL"
+      UI_DUMP_READY=1
+      break
+    fi
+    sleep 1
+  done
+  if [ "$UI_DUMP_READY" -ne 1 ]; then
+    adb shell dumpsys activity activities > "$LOCAL.activity.txt" || true
+    echo "Android accessibility tree unavailable after retries: $REMOTE"
+  fi
+  test "$UI_DUMP_READY" -eq 1
+}
+
 adb install -r "$APK" | tee "$OUTPUT/emulator-install.txt"
 grep -q '^Success$' "$OUTPUT/emulator-install.txt"
 
@@ -21,8 +46,7 @@ for attempt in $(seq 1 30); do
 done
 test "$SELF_TEST_PASSED" -eq 1
 adb shell pidof "$PACKAGE"
-adb shell uiautomator dump /sdcard/jarvis-self-test-ui.xml
-adb pull /sdcard/jarvis-self-test-ui.xml "$OUTPUT/jarvis-self-test-ui.xml"
+dump_ui_retry /sdcard/jarvis-self-test-ui.xml "$OUTPUT/jarvis-self-test-ui.xml"
 adb exec-out screencap -p > "$OUTPUT/jarvis-self-test.png"
 
 adb shell am force-stop "$PACKAGE"
@@ -42,8 +66,7 @@ if [ "$COMMAND_PASSED" -ne 1 ]; then
   cat "$OUTPUT/emulator-command-launch.txt" || true
 fi
 test "$COMMAND_PASSED" -eq 1
-adb shell uiautomator dump /sdcard/jarvis-command-ui.xml
-adb pull /sdcard/jarvis-command-ui.xml "$OUTPUT/jarvis-command-ui.xml"
+dump_ui_retry /sdcard/jarvis-command-ui.xml "$OUTPUT/jarvis-command-ui.xml"
 adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-command.png"
 
 adb shell am force-stop "$PACKAGE"
@@ -133,8 +156,7 @@ if [ "$DECISION_CANCELLED" -ne 1 ]; then
   grep -E 'JARVIS_RUNTIME_INPUT|JARVIS_RUNTIME_OUTPUT|JARVIS_SHARED_BRAIN_ACTIVE|JARVIS_COMMAND_RESULT' "$OUTPUT/emulator-decision-cancel-logcat.txt" || true
 fi
 test "$DECISION_CANCELLED" -eq 1
-adb shell uiautomator dump /sdcard/jarvis-decision-cancelled-ui.xml
-adb pull /sdcard/jarvis-decision-cancelled-ui.xml "$OUTPUT/jarvis-decision-cancelled-ui.xml"
+dump_ui_retry /sdcard/jarvis-decision-cancelled-ui.xml "$OUTPUT/jarvis-decision-cancelled-ui.xml"
 ! grep -q 'content-desc="JARVIS APPROVE action"' "$OUTPUT/jarvis-decision-cancelled-ui.xml"
 ! grep -q 'content-desc="JARVIS CANCEL action"' "$OUTPUT/jarvis-decision-cancelled-ui.xml"
 adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-decision-cancelled.png"
@@ -156,8 +178,7 @@ for attempt in $(seq 1 30); do
 done
 test "$HOME_PASSED" -eq 1
 adb shell pidof "$PACKAGE"
-adb shell uiautomator dump /sdcard/jarvis-home-ui.xml
-adb pull /sdcard/jarvis-home-ui.xml "$OUTPUT/jarvis-home-ui.xml"
+dump_ui_retry /sdcard/jarvis-home-ui.xml "$OUTPUT/jarvis-home-ui.xml"
 ! grep -q 'PRIVATE ANDROID V1.1' "$OUTPUT/jarvis-home-ui.xml"
 adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-home.png"
 
@@ -201,6 +222,5 @@ adb shell settings get secure voice_interaction_service | tee "$OUTPUT/emulator-
 adb shell dumpsys voiceinteraction | tee "$OUTPUT/emulator-voiceinteraction-dumpsys-post.txt" || true
 test "$VOICE_SESSION_PASSED" -eq 1
 adb shell pidof "$PACKAGE"
-adb shell uiautomator dump /sdcard/jarvis-assistant-ui.xml
-adb pull /sdcard/jarvis-assistant-ui.xml "$OUTPUT/jarvis-assistant-ui.xml"
+dump_ui_retry /sdcard/jarvis-assistant-ui.xml "$OUTPUT/jarvis-assistant-ui.xml"
 adb exec-out screencap -p > "$OUTPUT/jarvis-emulator-assistant.png"
