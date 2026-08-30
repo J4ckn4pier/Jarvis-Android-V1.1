@@ -20,7 +20,8 @@ public final class AndroidVoiceConversationContinuityContractTest {
         check(session.contains("resumeAfterSpeech = conversationWindowOpen();"), "spoken prompts must reopen recognition while the active conversation window remains open");
         check(session.contains("Executors.newSingleThreadExecutor")
                         && session.contains("brainExecutor.execute(")
-                        && session.contains("output.post(() -> deliver("),
+                        && session.contains("output.post(() -> {")
+                        && session.contains("deliver(presentation);"),
                 "voice brain/provider/tool work must run off Android's main thread and marshal presentation back to the UI thread");
         check(session.contains("sessionGeneration")
                         && session.contains("long submittedGeneration = sessionGeneration;")
