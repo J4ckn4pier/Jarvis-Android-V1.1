@@ -3,6 +3,8 @@ from __future__ import annotations
 import stat
 from pathlib import Path
 
+import pytest
+
 from jarvis_orchestrator.bootstrap import compute_agent_zero_api_key, ensure_env
 
 
@@ -40,6 +42,14 @@ def test_bootstrap_selects_bundled_agent_zero_runtime_without_overwriting_existi
     assert "JARVIS_RUNTIME=agent-zero" in text
     assert "AGENT_ZERO_URL=http://agent-zero" in text
     assert text.count("AGENT_ZERO_LIFETIME_HOURS=48") == 1
+
+
+def test_bootstrap_rejects_existing_secret_with_edge_whitespace(tmp_path: Path):
+    env_path = tmp_path / ".env"
+    env_path.write_text("JARVIS_API_TOKEN= secret-token \n")
+
+    with pytest.raises(ValueError, match="JARVIS_API_TOKEN must not have leading or trailing whitespace"):
+        ensure_env(env_path)
 
 
 def test_bootstrap_locks_env_file_to_owner_only(tmp_path: Path):
