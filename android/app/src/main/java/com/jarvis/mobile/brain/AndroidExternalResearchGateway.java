@@ -92,6 +92,7 @@ public final class AndroidExternalResearchGateway implements ExternalResearchGat
             }
 
             connection = (HttpURLConnection) uri.toURL().openConnection();
+            connection.setInstanceFollowRedirects(false);
             connection.setRequestMethod("POST");
             connection.setConnectTimeout(12_000);
             connection.setReadTimeout(45_000);
