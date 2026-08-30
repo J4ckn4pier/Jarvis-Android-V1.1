@@ -12,6 +12,7 @@ public final class AssistantProviderIntegrationTest {
         reasoningReceivesRealToolContract();
         invalidProviderPlanIsNeverExposedAsActionPlan();
         policyRouterCanDriveAssistantWithoutPaidFallback();
+        unexpectedReasoningFailureBecomesTruthfulConversation();
         System.out.println("AssistantProviderIntegrationTest: " + checks + " assertions passed");
     }
 
@@ -69,6 +70,23 @@ public final class AssistantProviderIntegrationTest {
         core.handle("Hey Jarvis");
         BrainResponse response = core.handle("figure out a hard problem for me");
         check(response.text().contains("Handled locally"), "assistant should accept cost-safe router as its cortex");
+    }
+
+    private static void unexpectedReasoningFailureBecomesTruthfulConversation() {
+        BrainEngine reflex = BrainEngine.createDefault(Clock.fixed(Instant.parse("2026-08-27T23:30:00Z"), ZoneOffset.UTC));
+        ReasoningRouter failing = request -> { throw new IllegalStateException("provider transport exploded"); };
+        AssistantCore core = new AssistantCore(reflex, failing, ToolRegistry.standard());
+        core.handle("Hey Jarvis");
+        BrainResponse response;
+        try {
+            response = core.handle("help me reason through a complicated decision");
+        } catch (RuntimeException failure) {
+            throw new AssertionError("provider/runtime failure must not escape the shared AssistantCore boundary", failure);
+        }
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "unexpected reasoning failure should become a non-action conversational failure response");
+        check(response.text().toLowerCase().contains("couldn't") && response.text().toLowerCase().contains("safely"),
+                "reasoning failure must be reported truthfully without inventing an answer");
     }
 
     private static void check(boolean condition, String message) {
