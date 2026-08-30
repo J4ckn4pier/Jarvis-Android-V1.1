@@ -57,6 +57,8 @@ class AgentZeroRuntime:
     """
 
     MESSAGE_PATH = "/api/api_message"
+    RESET_PATH = "/api/api_reset_chat"
+    TERMINATE_PATH = "/api/api_terminate_chat"
 
     def __init__(
         self,
@@ -76,6 +78,10 @@ class AgentZeroRuntime:
         self._owns_client = client is None
         self.client = client or httpx.AsyncClient(base_url=self.base_url, timeout=300.0)
 
+    @property
+    def _headers(self) -> dict[str, str]:
+        return {"X-API-KEY": self.api_key}
+
     def _payload(self, text: str, context_id: str | None) -> dict[str, object]:
         payload: dict[str, object] = {
             "message": text,
@@ -90,7 +96,7 @@ class AgentZeroRuntime:
     async def _send(self, text: str, context_id: str | None) -> httpx.Response:
         return await self.client.post(
             self.MESSAGE_PATH,
-            headers={"X-API-KEY": self.api_key},
+            headers=self._headers,
             json=self._payload(text, context_id),
         )
 
@@ -129,6 +135,39 @@ class AgentZeroRuntime:
         if answer is None:
             raise RuntimeError("Agent Zero response did not include 'response'")
         return str(answer)
+
+    async def reset(self, session_id: str) -> bool:
+        context_id = await self.context_store.get(session_id)
+        if not context_id:
+            return False
+        response = await self.client.post(
+            self.RESET_PATH,
+            headers=self._headers,
+            json={"context_id": context_id},
+        )
+        if response.status_code == 404:
+            await self.context_store.delete(session_id)
+            return False
+        response.raise_for_status()
+        return bool(response.json().get("success"))
+
+    async def terminate(self, session_id: str) -> bool:
+        context_id = await self.context_store.get(session_id)
+        if not context_id:
+            return False
+        response = await self.client.post(
+            self.TERMINATE_PATH,
+            headers=self._headers,
+            json={"context_id": context_id},
+        )
+        if response.status_code == 404:
+            await self.context_store.delete(session_id)
+            return False
+        response.raise_for_status()
+        success = bool(response.json().get("success"))
+        if success:
+            await self.context_store.delete(session_id)
+        return success
 
     async def aclose(self) -> None:
         if self._owns_client:
