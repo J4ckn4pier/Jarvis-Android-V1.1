@@ -263,6 +263,42 @@ class ManagementService:
             "provider_details_exposed": False,
         }
 
+    async def morning_summary(self, owner_id: str, project_id: str) -> dict:
+        """Rebuild a concise human-facing project briefing from durable state only."""
+
+        project = await self._project(owner_id, project_id)
+        tasks = await self.store.list_tasks(owner_id, project_id)
+        stored_events = await self.store.events(owner_id, project_id)
+        outputs = await self.store.task_outputs(owner_id, project_id)
+
+        completed = sum(task.state is TaskState.COMPLETE for task in tasks)
+        recoveries = sum(event.kind == "task.reassigned" for event in stored_events)
+        pending_approvals = len(self._pending_approvals(stored_events))
+        synthesized = "\n".join(outputs[task_id] for task_id in sorted(outputs))
+
+        briefing_parts = [
+            f"{project.goal}: {project.state.value}; {completed}/{len(tasks)} tasks complete."
+        ]
+        if recoveries:
+            noun = "task" if recoveries == 1 else "tasks"
+            briefing_parts.append(f"JARVIS recovered {recoveries} stalled {noun} automatically.")
+        if pending_approvals:
+            noun = "decision" if pending_approvals == 1 else "decisions"
+            briefing_parts.append(f"{pending_approvals} {noun} need your approval.")
+        if synthesized:
+            briefing_parts.append(f"Result: {synthesized}")
+
+        return {
+            "project_id": project.project_id,
+            "state": project.state.value,
+            "completed_tasks": completed,
+            "total_tasks": len(tasks),
+            "recoveries": recoveries,
+            "pending_approvals": pending_approvals,
+            "briefing": " ".join(briefing_parts),
+            "provider_details_exposed": False,
+        }
+
     async def events(self, owner_id: str, project_id: str, after_event_id: str | None, limit: int) -> dict:
         await self._project(owner_id, project_id)
         stored = await self.store.events(owner_id, project_id)
