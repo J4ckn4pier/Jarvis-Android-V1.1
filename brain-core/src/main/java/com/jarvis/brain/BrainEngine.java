@@ -60,13 +60,10 @@ public final class BrainEngine {
             String business = call.group(1).trim();
             String location = call.group(2) == null ? "" : call.group(2).trim();
             String time = normalizeTime(call.group(3), call.group(4), call.group(5));
-            Map<String, String> args = Map.of("business", business, "location", location, "goal", "Request a restaurant reservation", "preferred_time", time, "fallback_policy", "Ask for nearby available times if preferred time is unavailable");
-            List<PlanStep> steps = new ArrayList<>();
-            steps.add(new PlanStep("resolve_business", Map.of("business", business, "location", location), false));
-            steps.add(new PlanStep("place_conversational_call", args, true));
-            steps.add(new PlanStep("report_outcome", Map.of("include_alternatives", "true"), false));
-            Plan plan = new Plan("Book a restaurant reservation by phone", List.copyOf(steps));
-            return BrainResponse.of(BrainResponse.Kind.ACTION_PLAN, "I can resolve the restaurant and prepare the reservation call. I'll ask for approval before I speak to them on your behalf.", plan, true, acceptedWithoutWake, context);
+            String place = location.isBlank() ? business : business + " in " + location;
+            return BrainResponse.of(BrainResponse.Kind.REASONING_REQUIRED,
+                    "I need to resolve the exact phone destination and who I'm representing before I can prepare a call to " + place + " for " + time + ". I won't guess those details.",
+                    null, true, acceptedWithoutWake, context);
         }
 
         if (isDinnerDiscovery(lower, context.toLowerCase(Locale.ROOT))) {
