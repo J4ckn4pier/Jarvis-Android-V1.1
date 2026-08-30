@@ -8,6 +8,9 @@ import android.database.Cursor;
 import android.net.Uri;
 import android.provider.ContactsContract;
 
+import java.util.LinkedHashSet;
+import java.util.Set;
+
 /** Typed SMS compose capability. Sending remains approval-gated by the shared tool policy. */
 public final class AndroidMessagingActions {
     private final Context context;
@@ -26,7 +29,7 @@ public final class AndroidMessagingActions {
             String number = looksLikeNumber(target) ? target : phoneFor(target);
             if (number == null || number.isBlank()) {
                 return hasContactsPermission()
-                        ? "I couldn’t find " + target + " in your contacts."
+                        ? "I couldn’t uniquely resolve a phone number for " + target + " in your contacts."
                         : "Enable Contacts permission so I can resolve that name.";
             }
 
@@ -56,19 +59,20 @@ public final class AndroidMessagingActions {
                 ContactsContract.CommonDataKinds.Phone.NUMBER,
                 ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME
         };
+        Set<String> exactMatches = new LinkedHashSet<>();
         try (Cursor cursor = context.getContentResolver().query(filter, projection, null, null, null)) {
             if (cursor == null) return null;
             int numberIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER);
             int nameIndex = cursor.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME);
-            String fallback = null;
             while (cursor.moveToNext()) {
                 String number = numberIndex < 0 ? null : cursor.getString(numberIndex);
                 if (number == null || number.isBlank()) continue;
-                if (fallback == null) fallback = number;
                 String displayName = nameIndex < 0 ? null : cursor.getString(nameIndex);
-                if (displayName != null && displayName.equalsIgnoreCase(name)) return number;
+                if (displayName != null && displayName.equalsIgnoreCase(name)) {
+                    exactMatches.add(number.trim());
+                }
             }
-            return fallback;
+            return exactMatches.size() == 1 ? exactMatches.iterator().next() : null;
         }
     }
 
