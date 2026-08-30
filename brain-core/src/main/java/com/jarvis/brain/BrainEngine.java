@@ -21,6 +21,7 @@ public final class BrainEngine {
 
     /** Marks an explicitly opened assistant surface as directed conversation without fabricating a wake utterance. */
     public void beginInvokedConversation() { session.wake(); }
+    boolean isConversationActive() { return session.isActive(); }
 
     public BrainResponse handle(String raw) {
         String input = raw == null ? "" : raw.trim();
