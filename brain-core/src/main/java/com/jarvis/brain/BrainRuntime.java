@@ -53,7 +53,7 @@ public final class BrainRuntime {
     private Result handleSideQuestionWhileDecisionPending(String utterance){
         BrainResponse response=assistant.handle(utterance);
         if(response.kind()==BrainResponse.Kind.IGNORED_AMBIENT)return new Result(Status.IGNORED,"","",List.of());
-        if(response.kind()!=BrainResponse.Kind.ACTION_PLAN||response.plan()==null)return new Result(Status.COMPLETED,response.text(),"",List.of());
+        if(response.kind()!=BrainResponse.Kind.ACTION_PLAN||response.plan()==null)return pendingDecisionResult(response.text(),List.of());
         InterruptionDecision decision=pendingInterruptionPolicy.decide(pendingStatus,pendingTool,response.plan());
         if(decision!=InterruptionDecision.DO_BOTH)return pendingDecisionResult("I still need your decision on the pending action before I can run that request. I did not queue the new request; resolve the pending action first, then ask me again.",List.of());
         Instant recommendedAt=clock.instant();
