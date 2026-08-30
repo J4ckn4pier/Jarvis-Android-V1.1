@@ -53,6 +53,8 @@ public final class AndroidTypedProviderPlanContractTest {
                 "local-compatible cortex must not report itself configured when its endpoint violates the shared transport policy");
         check(cortexFactory.contains("MODE_OPENAI_COMPATIBLE") && cortexFactory.contains("new OpenAiCompatibleChatProvider"),
                 "Android provider factory must expose the free/local OpenAI-compatible cortex mode");
+        check(cortexFactory.contains("needs a model and allowed endpoint"),
+                "human-facing local cortex status must identify both missing model and endpoint readiness instead of blaming only the model");
         check(settings.contains("MODE_OPENAI_COMPATIBLE") && settings.contains("OpenAI-compatible local endpoint"),
                 "Android settings must let the user select the free/local compatible cortex explicitly");
 
