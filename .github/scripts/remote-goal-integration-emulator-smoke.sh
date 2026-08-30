@@ -47,6 +47,8 @@ class H(BaseHTTPRequestHandler):
         self.send_json({'error':'not found'},404)
     def do_GET(self):
         self.record(); m=mode()
+        if self.path == '/v1/projects/project-expired/events?after_event_id=expired-emulator':
+            self.send_json({'detail':'Recovery cursor is no longer available'},410); return
         if self.path.startswith('/v1/projects/') and self.path.endswith('/events'):
             project=self.path.split('/')[3]
             self.send_json({'project_id':project,'events':[{'event_id':'evt-'+project,'project_id':project,'kind':'task_progress','task_id':'task-1','timestamp':'2026-08-30T21:00:00Z'}],'next_event_id':'evt-'+project,'has_more':False}); return
@@ -62,6 +64,8 @@ class H(BaseHTTPRequestHandler):
             self.send_json({'project_id':'project-approval','state':'completed','result':'APPROVAL_FINAL_RESULT_VISIBLE','provider_details_exposed':False}); return
         if self.path == '/v1/projects/project-cancel':
             self.send_json({'project_id':'project-cancel','session_id':'primary','goal':'cancel proof','state':'active','task_count':2,'task_states':{'completed':1},'pending_approvals':[],'last_progress_at':'2026-08-30T21:00:00Z','provider_details_exposed':False}); return
+        if self.path == '/v1/projects/project-expired':
+            self.send_json({'project_id':'project-expired','session_id':'primary','goal':'expired cursor proof','state':'active','task_count':3,'task_states':{'completed':2},'pending_approvals':[],'last_progress_at':'2026-08-30T21:05:00Z','provider_details_exposed':False}); return
         self.send_json({'error':'not found'},404)
 ThreadingHTTPServer(('127.0.0.1',port),H).serve_forever()
 PY
@@ -71,8 +75,10 @@ adb reverse "tcp:$PORT" "tcp:$PORT"
 
 seed() {
   project="$1"
+  event_id="${2:-}"
   args=""
-  [ -z "$project" ] || args="--es project_id $project"
+  [ -z "$project" ] || args="$args --es project_id $project"
+  [ -z "$event_id" ] || args="$args --es event_id $event_id"
   # shellcheck disable=SC2086
   adb shell am broadcast -a com.jarvis.mobile.DEBUG_SEED_REMOTE_GOAL -n com.jarvis.mobile/.remote.RemoteGoalStateTestReceiver --es base_url "http://127.0.0.1:$PORT" --es token emulator-secret $args | tee "$OUTPUT/remote-integration-seed.txt"
   grep -q 'Broadcast completed: result=1' "$OUTPUT/remote-integration-seed.txt"
@@ -131,7 +137,22 @@ test "$ACK" -eq 1
 grep -q 'POST /v1/goals auth=Bearer emulator-secret' "$LOG"
 grep -q 'Research two viable approaches' "$LOG"
 
-# 3) Reconnect discovers the exact opaque approval ID and exposes normal JARVIS decision controls.
+# 3) An expired reconnect cursor must preserve the project, discard only that cursor, and resync.
+seed project-expired expired-emulator
+adb shell am force-stop "$PACKAGE" || true
+adb shell am start -W -n "$ACTIVITY" > "$OUTPUT/remote-integration-expired-launch.txt"
+EXPIRED_RESYNC=0
+for i in $(seq 1 30); do
+  dump_ui remote-integration-expired
+  if grep -q 'still working on that' "$OUTPUT/remote-integration-expired.xml"; then EXPIRED_RESYNC=1; break; fi
+  sleep 1
+done
+test "$EXPIRED_RESYNC" -eq 1
+grep -q 'GET /v1/projects/project-expired/events?after_event_id=expired-emulator auth=Bearer emulator-secret' "$LOG"
+grep -q 'GET /v1/projects/project-expired/events auth=Bearer emulator-secret' "$LOG"
+adb exec-out screencap -p > "$OUTPUT/jarvis-remote-expired-resync.png"
+
+# 4) Reconnect discovers the exact opaque approval ID and exposes normal JARVIS decision controls.
 seed project-approval
 adb shell am force-stop "$PACKAGE" || true
 adb shell am start -W -n "$ACTIVITY" > "$OUTPUT/remote-integration-approval-launch.txt"
@@ -160,7 +181,7 @@ done
 test "$RESULT_UI" -eq 1
 adb exec-out screencap -p > "$OUTPUT/jarvis-remote-integration-result.png"
 
-# 4) Separate active project exposes CANCEL; cancellation must be backend-confirmed before local state clears.
+# 5) Separate active project exposes CANCEL; cancellation must be backend-confirmed before local state clears.
 seed project-cancel
 adb shell am force-stop "$PACKAGE" || true
 adb shell am start -W -n "$ACTIVITY" > "$OUTPUT/remote-integration-cancel-launch.txt"
@@ -180,6 +201,6 @@ grep -q 'Cancelled, sir' "$OUTPUT/remote-integration-cancelled.xml"
 
 # UI proof must remain provider/worker-neutral.
 ! grep -Eiq 'agent[ _-]?zero|valkey|ollama|anthropic|openai|claude|chatgpt|management plane' \
-  "$OUTPUT/remote-integration-approval.xml" "$OUTPUT/remote-integration-result.xml" "$OUTPUT/remote-integration-cancel.xml" "$OUTPUT/remote-integration-cancelled.xml"
+  "$OUTPUT/remote-integration-expired.xml" "$OUTPUT/remote-integration-approval.xml" "$OUTPUT/remote-integration-result.xml" "$OUTPUT/remote-integration-cancel.xml" "$OUTPUT/remote-integration-cancelled.xml"
 
 echo 'Remote goal full integration emulator proof GREEN'
