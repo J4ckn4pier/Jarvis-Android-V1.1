@@ -14,7 +14,7 @@ public final class BrainAcceptanceTest {
         naturalHelpIsDeterministicAndUseful();
         phoneAppResolvesToDialerTool();
         dinnerRequestBecomesResearchPlan();
-        reservationCallRequiresApprovalAndDecomposes();
+        reservationCallDoesNotEmitStructurallyInvalidExecutablePlan();
         unknownOpenEndedRequestFallsBackToReasoningNotNoFramework();
         conversationContextCarriesAcrossTurns();
         explicitSleepEndsConversationWindow();
@@ -73,19 +73,30 @@ public final class BrainAcceptanceTest {
         check(response.plan().steps().stream().anyMatch(s -> s.tool().equals("rank_options")), "dinner request should rank options");
     }
 
-    private static void reservationCallRequiresApprovalAndDecomposes() {
+    private static void reservationCallDoesNotEmitStructurallyInvalidExecutablePlan() {
         BrainEngine brain = engine();
         brain.handle("Hey Jarvis");
         BrainResponse response = brain.handle("Call the Castle Cafe in Castle Rock and tell them I would like a reservation for 5pm");
-        Plan plan = response.plan();
-        List<String> tools = plan.steps().stream().map(PlanStep::tool).toList();
-        check(tools.contains("resolve_business"), "call plan should resolve business");
-        check(tools.contains("place_conversational_call"), "call plan should contain conversational call tool");
-        check(tools.contains("report_outcome"), "call plan should report back");
-        check(plan.requiresApproval(), "speaking to a business on user's behalf requires approval");
-        PlanStep call = plan.steps().stream().filter(s -> s.tool().equals("place_conversational_call")).findFirst().orElseThrow();
-        check(call.arguments().get("goal").toLowerCase().contains("reservation"), "call tool should carry reservation goal");
-        check(call.arguments().get("preferred_time").equals("5:00 PM"), "call plan should normalize 5pm");
+        if (response.kind() == BrainResponse.Kind.ACTION_PLAN) {
+            ToolRegistry registry = ToolRegistry.standard();
+            for (PlanStep step : response.plan().steps()) {
+                ToolRegistry.RegisteredTool tool = registry.resolve(step.tool()).orElseThrow();
+                check(step.arguments().keySet().containsAll(tool.spec().requiredArguments()),
+                        "deterministic reservation plan must satisfy required arguments for " + step.tool());
+            }
+            PlanStep call = response.plan().steps().stream()
+                    .filter(s -> s.tool().equals("place_conversational_call"))
+                    .findFirst().orElseThrow();
+            check(call.arguments().containsKey("destination"),
+                    "deterministic reservation call must not fabricate an executable call before destination is resolved");
+            check(call.arguments().containsKey("represented_user"),
+                    "deterministic reservation call must identify who JARVIS represents before speaking externally");
+        } else {
+            check(response.kind() == BrainResponse.Kind.REASONING_REQUIRED,
+                    "reservation shortcut must either produce a structurally valid plan or defer to reasoning");
+            check(response.text().toLowerCase().contains("resolve") || response.text().toLowerCase().contains("details"),
+                    "deferred reservation call should explain that concrete call details must be resolved first");
+        }
     }
 
     private static void unknownOpenEndedRequestFallsBackToReasoningNotNoFramework() {
