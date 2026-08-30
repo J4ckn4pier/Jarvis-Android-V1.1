@@ -26,6 +26,9 @@ jobs:
       - name: Verify APK remote-goal client contract
         run: sh .github/scripts/remote-goal-client-contract.sh
 
+      - name: Verify remote connection developer settings contract
+        run: sh .github/scripts/remote-goal-developer-settings-contract.sh
+
       - uses: android-actions/setup-android@v3
 
       - name: Install Android 16 SDK
