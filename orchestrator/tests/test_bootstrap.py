@@ -26,6 +26,21 @@ def test_bootstrap_creates_required_secrets_once(tmp_path: Path):
     assert f"AGENT_ZERO_API_KEY={first['AGENT_ZERO_API_KEY']}" in text
 
 
+def test_bootstrap_selects_bundled_agent_zero_runtime_without_overwriting_existing_values(tmp_path: Path):
+    env_path = tmp_path / ".env"
+    env_path.write_text("AGENT_ZERO_LIFETIME_HOURS=48\n")
+
+    values = ensure_env(env_path)
+
+    assert values["JARVIS_RUNTIME"] == "agent-zero"
+    assert values["AGENT_ZERO_URL"] == "http://agent-zero"
+    assert values["AGENT_ZERO_LIFETIME_HOURS"] == "48"
+    text = env_path.read_text()
+    assert "JARVIS_RUNTIME=agent-zero" in text
+    assert "AGENT_ZERO_URL=http://agent-zero" in text
+    assert text.count("AGENT_ZERO_LIFETIME_HOURS=48") == 1
+
+
 def test_compose_passes_generated_persistent_identity_to_agent_zero():
     compose = Path("compose.yaml").read_text()
     assert "A0_PERSISTENT_RUNTIME_ID: ${AGENT_ZERO_RUNTIME_ID:-}" in compose
