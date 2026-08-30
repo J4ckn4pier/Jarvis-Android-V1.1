@@ -34,6 +34,9 @@ import com.jarvis.mobile.brain.AndroidBrainRuntime;
 
 import java.util.ArrayList;
 import java.util.Locale;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.function.Supplier;
 
 public class JarvisVoiceSession extends VoiceInteractionSession implements TextToSpeech.OnInitListener {
     private static final long CONVERSATION_WINDOW_MILLIS = 10 * 60 * 1000L;
@@ -44,6 +47,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
 
     private final AdaptiveEndpointingPolicy endpointing = new AdaptiveEndpointingPolicy();
     private final AndroidAecBargeInMonitor bargeInMonitor;
+    private final ExecutorService brainExecutor = Executors.newSingleThreadExecutor();
     private AndroidBrainRuntime brain;
     private SpeechRecognizer speechRecognizer;
     private TextToSpeech textToSpeech;
@@ -125,13 +129,13 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         primaryButton = button("APPROVE");
         primaryButton.setContentDescription("JARVIS APPROVE action");
         primaryButton.setVisibility(View.GONE);
-        primaryButton.setOnClickListener(v -> deliver(brain.approvePresentation()));
+        primaryButton.setOnClickListener(v -> submitBrainWork(brain::approvePresentation));
         buttons.addView(primaryButton);
 
         cancelButton = button("NOT YET");
         cancelButton.setContentDescription("JARVIS CANCEL action");
         cancelButton.setVisibility(View.GONE);
-        cancelButton.setOnClickListener(v -> deliver(brain.cancelPresentation()));
+        cancelButton.setOnClickListener(v -> submitBrainWork(brain::cancelPresentation));
         buttons.addView(cancelButton);
 
         Button open = button("OPEN FULL JARVIS");
@@ -311,9 +315,17 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     }
 
     private void execute(String command, double confidence) {
-        lastCommand = command == null ? "" : command;
+        String submittedCommand = command == null ? "" : command;
+        lastCommand = submittedCommand;
         output.setText("YOU: " + lastCommand + "\n\nJARVIS: Thinking…");
-        deliver(brain.handlePresentation(lastCommand, confidence));
+        submitBrainWork(() -> brain.handlePresentation(submittedCommand, confidence));
+    }
+
+    private void submitBrainWork(Supplier<RuntimeSurfacePresentation> work) {
+        brainExecutor.execute(() -> {
+            RuntimeSurfacePresentation presentation = work.get();
+            if (output != null) output.post(() -> deliver(presentation));
+        });
     }
 
     private void deliver(RuntimeSurfacePresentation presentation) {
@@ -329,9 +341,9 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         primaryButton.setVisibility(approval || recovery ? View.VISIBLE : View.GONE);
         primaryButton.setText(recovery ? "RETRY" : "APPROVE");
         primaryButton.setContentDescription(recovery ? "JARVIS RETRY action" : "JARVIS APPROVE action");
-        primaryButton.setOnClickListener(v -> deliver(recovery
-                ? brain.retryPresentation()
-                : brain.approvePresentation()));
+        primaryButton.setOnClickListener(v -> submitBrainWork(recovery
+                ? brain::retryPresentation
+                : brain::approvePresentation));
         cancelButton.setContentDescription("JARVIS CANCEL action");
         cancelButton.setVisibility(approval || recovery ? View.VISIBLE : View.GONE);
 
@@ -415,6 +427,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         resumeAfterSpeech = false;
         conversationDeadlineElapsedRealtime = 0L;
         bargeInMonitor.stop();
+        brainExecutor.shutdownNow();
         if (speechRecognizer != null) {
             speechRecognizer.cancel();
             speechRecognizer.destroy();
