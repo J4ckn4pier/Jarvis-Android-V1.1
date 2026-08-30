@@ -129,6 +129,7 @@ public final class AndroidBrainRuntime {
             if ("failed".equalsIgnoreCase(project.state()) || "cancelled".equalsIgnoreCase(project.state())) {
                 remoteApprovalVisible = false;
                 remoteProjectVisible = false;
+                state.clearProject();
                 return Optional.of(new RuntimeSurfacePresentation(
                         AssistantSurfaceState.ERROR,
                         "That background task stopped before it completed.",
