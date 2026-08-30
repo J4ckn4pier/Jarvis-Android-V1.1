@@ -14,6 +14,7 @@ public final class BrainRuntimeTest {
         openEndedRequestUsesReasoningRouterInsteadOfLegacyFailureText();
         partialExecutionFailureReportsCompletedWork();
         partialRecoveryReportsCompletedWork();
+        sideRequestPartialFailureReportsCompletedWorkAndPreservesApproval();
         System.out.println("BrainRuntimeTest: " + checks + " assertions passed");
     }
 
@@ -100,6 +101,41 @@ public final class BrainRuntimeTest {
                 "user-facing recovery must disclose work that already completed before recovery was needed");
         check(result.text().contains("Second step is temporarily unavailable."),
                 "user-facing recovery must disclose why the remaining step paused");
+    }
+
+    private static void sideRequestPartialFailureReportsCompletedWorkAndPreservesApproval() {
+        int[] sends = {0};
+        ToolRegistry tools = new ToolRegistry();
+        tools.register(new ToolSpec("send_message", true, Set.of(), Set.of("recipient","message"),
+                "Send message", ToolExecutionClass.CONSEQUENTIAL),
+                (a,c) -> { sends[0]++; return ToolResult.success("Message sent."); });
+        tools.register(new ToolSpec("side_first", false, Set.of(), Set.of(),
+                "Complete safe side step", ToolExecutionClass.DEVICE_REFLEX),
+                (a,c) -> ToolResult.success("Side step one completed."));
+        tools.register(new ToolSpec("side_second", false, Set.of(), Set.of(),
+                "Fail safe side step", ToolExecutionClass.DEVICE_REFLEX),
+                (a,c) -> ToolResult.failure("Side step two failed."));
+        ReasoningRouter reasoner = req -> {
+            if (req.utterance().toLowerCase().contains("side operation")) {
+                return new ReasoningResult("planner", "I’ll handle the side operation.", new Plan("safe side operation",
+                        java.util.List.of(new PlanStep("side_first", Map.of(), false), new PlanStep("side_second", Map.of(), false))));
+            }
+            return new ReasoningResult("planner", "I can prepare the original action.", new Plan("original action",
+                    java.util.List.of(new PlanStep("send_message", Map.of("recipient","Mom","message","On my way"), true))));
+        };
+        BrainRuntime runtime = runtime(tools, reasoner);
+        runtime.handle("Hey Jarvis");
+        BrainRuntime.Result pending = runtime.handle("perform the original operation");
+        check(pending.status() == BrainRuntime.Status.APPROVAL_REQUIRED, "original action waits for approval");
+        BrainRuntime.Result side = runtime.handle("perform the side operation");
+        check(side.status() == BrainRuntime.Status.APPROVAL_REQUIRED, "side failure preserves original approval status");
+        check(runtime.hasPendingApproval(), "original approval remains pending after safe side failure");
+        check(sends[0] == 0, "safe side failure never executes original consequential action");
+        check(side.outputs().contains("Side step one completed."), "side execution report retains completed side work");
+        check(side.text().contains("Side step one completed."),
+                "user-facing side failure must disclose side work that already completed");
+        check(side.text().contains("Side step two failed."),
+                "user-facing side failure must disclose the failed side step");
     }
 
     private static BrainRuntime runtime(ToolRegistry tools, ReasoningRouter reasoner) {
