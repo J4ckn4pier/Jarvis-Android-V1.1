@@ -11,6 +11,8 @@ public final class AndroidOnDeviceWakeDetectorContractTest {
         Path detectorPath = assistant.resolve("AndroidOnDeviceWakeWordDetector.java");
         check(Files.exists(detectorPath), "production must include a real Android on-device wake detector");
         String detector = Files.readString(detectorPath);
+        String service = Files.readString(assistant.resolve("JarvisVoiceInteractionService.java"));
+        String session = Files.readString(assistant.resolve("JarvisVoiceSession.java"));
 
         check(factory.contains("AndroidOnDeviceWakeWordDetector.isAvailable(app)"),
                 "factory must prefer an Android on-device detector when the platform exposes one");
@@ -28,6 +30,19 @@ public final class AndroidOnDeviceWakeDetectorContractTest {
                 "wake detector must actually listen instead of reporting a ready stub");
         check(detector.contains("postDelayed") || detector.contains("startListening(intent)"),
                 "wake detector must continue listening after a non-wake utterance");
+
+        // The passive recognizer and the active conversation recognizer must never fight over the
+        // microphone. A wake match intentionally releases the passive recognizer; side-key/default
+        // assistant invocation must do the same, and closing the assistant must arm wake again so
+        // Jarvis/Hey Jarvis works more than once per service lifetime.
+        check(service.contains("pausePassiveWakeForSession"),
+                "voice service must expose a session hook that pauses passive wake while the assistant is active");
+        check(service.contains("rearmPassiveWakeAfterSession"),
+                "voice service must expose a session hook that re-arms passive wake after the assistant closes");
+        check(session.contains("JarvisVoiceInteractionService.pausePassiveWakeForSession()"),
+                "assistant session must pause passive wake when shown to avoid microphone contention");
+        check(session.contains("JarvisVoiceInteractionService.rearmPassiveWakeAfterSession()"),
+                "assistant session must re-arm passive wake when hidden so a second wake phrase can work");
 
         System.out.println("AndroidOnDeviceWakeDetectorContractTest passed");
     }
