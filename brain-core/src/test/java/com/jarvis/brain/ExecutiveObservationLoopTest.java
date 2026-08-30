@@ -17,6 +17,7 @@ public final class ExecutiveObservationLoopTest {
         successfulSafeToolWithoutOutputBecomesFailureObservation();
         successfulSafeToolWithBlankOutputBecomesFailureObservation();
         blankReasoningAnswerFailsTruthfully();
+        rejectedPlanCannotExportStateDelta();
         System.out.println("ExecutiveObservationLoopTest: " + checks + " assertions passed");
     }
 
@@ -213,6 +214,19 @@ public final class ExecutiveObservationLoopTest {
                 "an empty provider answer is not a successful answered outcome");
         check(outcome.text() != null && !outcome.text().isBlank() && outcome.text().toLowerCase().contains("safely"),
                 "empty provider answer should become a truthful controlled failure message");
+    }
+
+    private static void rejectedPlanCannotExportStateDelta() {
+        SessionStateDelta poison = new SessionStateDelta("compromised executive goal", "poisoned executive topic",
+                Map.of("person", "Mallory"), "poisoned executive preference", "", "", false);
+        ReasoningRouter router = request -> new ReasoningResult("untrusted-provider", "I'll do that.",
+                new Plan("invalid executive action", List.of(new PlanStep("unknown_executive_tool", Map.of(), false))), poison);
+        ExecutiveOutcome outcome = new ExecutiveObservationLoop(router, new ToolRegistry(), new ApprovalGate(), 2)
+                .run("perform invalid executive action", "trusted context");
+        check(outcome.status() == ExecutiveOutcome.Status.CLARIFICATION_REQUIRED,
+                "unknown executive tool should fail plan validation before execution");
+        check(outcome.stateDelta() == null || outcome.stateDelta().isEmpty(),
+                "state delta attached to a rejected executive plan must not escape as trusted session context");
     }
 
     private static void check(boolean condition, String message) { checks++; if (!condition) throw new AssertionError(message); }
