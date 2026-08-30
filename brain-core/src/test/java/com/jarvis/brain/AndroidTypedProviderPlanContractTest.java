@@ -59,6 +59,12 @@ public final class AndroidTypedProviderPlanContractTest {
                 "Android settings must let the user select the free/local compatible cortex explicitly");
         check(settings.contains(".local") && settings.contains("HTTPS"),
                 "Android settings must accurately explain the allowed HTTPS and user-owned .local endpoint options");
+        check(settings.contains("String cortexEndpointValue = endpoint.getText().toString().trim()")
+                        && settings.contains("EndpointTransportPolicy.allows(cortexEndpointValue)"),
+                "native cortex Settings must validate a user-supplied endpoint with the same shared transport policy before saving it");
+        check(settings.indexOf("EndpointTransportPolicy.allows(cortexEndpointValue)")
+                        < settings.indexOf(".putString(\"endpoint\", cortexEndpointValue)"),
+                "cortex endpoint validation must happen before provider preferences are persisted");
 
         System.out.println("AndroidTypedProviderPlanContractTest passed");
     }
