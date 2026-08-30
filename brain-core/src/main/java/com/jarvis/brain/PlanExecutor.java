@@ -53,9 +53,13 @@ public final class PlanExecutor {
 
     private static ToolResult normalizeToolResult(ToolResult result) {
         if (result == null) return ToolResult.failure("tool returned no result");
-        if (result.status() == ToolResult.Status.SUCCESS && result.output() == null) {
+        if (result.output() != null) return result;
+        if (result.status() == ToolResult.Status.SUCCESS) {
             return ToolResult.failure("tool reported success but returned no output");
         }
-        return result;
+        if (result.status() == ToolResult.Status.RETRYABLE_FAILURE) {
+            return ToolResult.retryableFailure("tool reported retryable failure but returned no output");
+        }
+        return ToolResult.failure("tool reported failure but returned no output");
     }
 }
