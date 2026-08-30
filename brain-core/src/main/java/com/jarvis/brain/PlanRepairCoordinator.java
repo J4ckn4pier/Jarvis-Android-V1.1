@@ -29,7 +29,17 @@ public final class PlanRepairCoordinator {
                         null, attempt, List.of("Plan generation failed: " + detail),
                         "I couldn't generate a safe plan right now, so I did not prepare any action.");
             }
-            PlanValidation validation = validator.validate(generated);
+            PlanValidation validation;
+            try {
+                validation = validator.validate(generated);
+            } catch (RuntimeException validationFailure) {
+                String detail = validationFailure.getMessage() == null
+                        ? validationFailure.getClass().getSimpleName()
+                        : validationFailure.getMessage();
+                return new PlanRepairResult(PlanRepairResult.Status.NEEDS_CLARIFICATION,
+                        null, attempt, List.of("Plan validation failed: " + detail),
+                        "I couldn't validate a safe plan right now, so I did not prepare any action.");
+            }
             if (validation.valid()) {
                 return new PlanRepairResult(PlanRepairResult.Status.VALID,
                         validation.effectivePlan(), attempt, List.of(), "");
