@@ -133,6 +133,11 @@ def _validated_public_session_id(session_id: str) -> str:
             status_code=422,
             detail="session_id must be between 1 and 128 characters",
         )
+    if session_id != session_id.strip():
+        raise HTTPException(
+            status_code=422,
+            detail="session_id must not have leading or trailing whitespace",
+        )
     return session_id
 
 
@@ -308,9 +313,10 @@ async def ready():
 @app.post("/v1/command")
 async def command(body: Command, authorization: str | None = Header(default=None)):
     principal = _require_http_auth(authorization)
-    internal_session_id = _scoped_session(principal, body.session_id)
+    public_session_id = _validated_public_session_id(body.session_id)
+    internal_session_id = _scoped_session(principal, public_session_id)
     result = await _submit(body.text, internal_session_id, body.request_id)
-    result["session_id"] = body.session_id
+    result["session_id"] = public_session_id
     return result
 
 
