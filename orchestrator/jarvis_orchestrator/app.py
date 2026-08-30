@@ -144,11 +144,16 @@ def _validated_public_session_id(session_id: str) -> str:
 def _validated_request_id(request_id: object | None) -> str | None:
     if request_id is None:
         return None
-    value = str(request_id).strip()
-    if not value or len(value) > 128:
+    value = str(request_id)
+    if not value.strip() or len(value) > 128:
         raise HTTPException(
             status_code=422,
             detail="request_id must be between 1 and 128 characters",
+        )
+    if value != value.strip():
+        raise HTTPException(
+            status_code=422,
+            detail="request_id must not have leading or trailing whitespace",
         )
     return value
 
@@ -314,8 +319,9 @@ async def ready():
 async def command(body: Command, authorization: str | None = Header(default=None)):
     principal = _require_http_auth(authorization)
     public_session_id = _validated_public_session_id(body.session_id)
+    request_id = _validated_request_id(body.request_id)
     internal_session_id = _scoped_session(principal, public_session_id)
-    result = await _submit(body.text, internal_session_id, body.request_id)
+    result = await _submit(body.text, internal_session_id, request_id)
     result["session_id"] = public_session_id
     return result
 
@@ -451,14 +457,11 @@ async def input_socket(ws: WebSocket):
                     {"error": "session_id must not have leading or trailing whitespace"}
                 )
                 continue
-            raw_request_id = message.get("request_id")
-            if raw_request_id is not None:
-                request_id = str(raw_request_id).strip()
-                if not request_id or len(request_id) > 128:
-                    await ws.send_json({"error": "request_id must be between 1 and 128 characters"})
-                    continue
-            else:
-                request_id = None
+            try:
+                request_id = _validated_request_id(message.get("request_id"))
+            except HTTPException as exc:
+                await ws.send_json({"error": exc.detail})
+                continue
             internal_session_id = _scoped_session(principal, public_session_id)
             try:
                 result = await app.state.orchestrator.submit(
