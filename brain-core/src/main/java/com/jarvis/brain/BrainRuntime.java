@@ -1,5 +1,7 @@
 package com.jarvis.brain;
 
+import java.time.Clock;
+import java.time.Instant;
 import java.util.List;
 
 /** Single execution facade between conversational/executive reasoning and platform tools. */
@@ -12,24 +14,36 @@ public final class BrainRuntime {
     private final ApprovalGate approvals=new ApprovalGate();
     private final ResumablePlanExecutor executor;
     private final PendingDecisionInterruptionPolicy pendingInterruptionPolicy;
+    private final Clock clock;
+    private final ActedOnEpisodeSink actedOnEpisodes;
     private ExecutionCursor pending;
+    private Instant pendingRecommendedAt;
     private String pendingTool="";
     private Status pendingStatus;
+    private long episodeSequence;
 
     public BrainRuntime(AssistantCore assistant,ToolRegistry tools){
+        this(assistant,tools,Clock.systemUTC(),ActedOnEpisodeSink.none());
+    }
+
+    public BrainRuntime(AssistantCore assistant,ToolRegistry tools,Clock clock,ActedOnEpisodeSink actedOnEpisodes){
         if(assistant==null)throw new IllegalArgumentException("assistant required");
         if(tools==null)throw new IllegalArgumentException("tool registry required");
+        if(clock==null)throw new IllegalArgumentException("clock required");
+        if(actedOnEpisodes==null)throw new IllegalArgumentException("acted-on episode sink required");
         this.assistant=assistant;
         this.executor=new ResumablePlanExecutor(tools,approvals);
         this.pendingInterruptionPolicy=new PendingDecisionInterruptionPolicy(tools);
+        this.clock=clock;
+        this.actedOnEpisodes=actedOnEpisodes;
     }
     public synchronized Result handle(String utterance){
         if(pending!=null&&(pendingStatus==Status.APPROVAL_REQUIRED||pendingStatus==Status.RECOVERY_REQUIRED))return handleSideQuestionWhileDecisionPending(utterance);
-        BrainResponse response=assistant.handle(utterance);if(response.kind()==BrainResponse.Kind.IGNORED_AMBIENT)return new Result(Status.IGNORED,"","",List.of());if(response.kind()!=BrainResponse.Kind.ACTION_PLAN||response.plan()==null)return new Result(Status.COMPLETED,response.text(),"",List.of());pending=executor.start(response.plan());pendingStatus=null;return runPending(response.text());
+        BrainResponse response=assistant.handle(utterance);if(response.kind()==BrainResponse.Kind.IGNORED_AMBIENT)return new Result(Status.IGNORED,"","",List.of());if(response.kind()!=BrainResponse.Kind.ACTION_PLAN||response.plan()==null)return new Result(Status.COMPLETED,response.text(),"",List.of());pending=executor.start(response.plan());pendingRecommendedAt=clock.instant();pendingStatus=null;return runPending(response.text());
     }
     public synchronized Result approvePending(){if(pending==null||pendingTool.isBlank()||pendingStatus!=Status.APPROVAL_REQUIRED)return new Result(Status.FAILED,"There is no action waiting for approval.","",List.of());approvals.approve(pendingTool);return runPending("");}
     public synchronized Result retryPending(){if(pending==null||pendingTool.isBlank()||pendingStatus!=Status.RECOVERY_REQUIRED)return new Result(Status.FAILED,"There is no action waiting for a recovery decision.","",List.of());pendingStatus=null;return runPending("");}
-    public synchronized void cancelPending(){pending=null;pendingTool="";pendingStatus=null;}
+    public synchronized void cancelPending(){clearPending();}
     public synchronized boolean hasPendingApproval(){return pending!=null&&!pendingTool.isBlank()&&pendingStatus==Status.APPROVAL_REQUIRED;}
     public synchronized boolean hasPendingRecovery(){return pending!=null&&!pendingTool.isBlank()&&pendingStatus==Status.RECOVERY_REQUIRED;}
     private Result handleSideQuestionWhileDecisionPending(String utterance){
@@ -38,9 +52,10 @@ public final class BrainRuntime {
         if(response.kind()!=BrainResponse.Kind.ACTION_PLAN||response.plan()==null)return new Result(Status.COMPLETED,response.text(),"",List.of());
         InterruptionDecision decision=pendingInterruptionPolicy.decide(pendingStatus,pendingTool,response.plan());
         if(decision!=InterruptionDecision.DO_BOTH)return pendingDecisionResult("I still need your decision on the pending action before I can run that request. I did not queue the new request; resolve the pending action first, then ask me again.",List.of());
+        Instant recommendedAt=clock.instant();
         ExecutionReport report=executor.run(executor.start(response.plan()),new ExecutionContext());
         return switch(report.status()){
-            case COMPLETED->new Result(Status.COMPLETED,lastNonBlank(report.outputs(),response.text()),"",report.outputs());
+            case COMPLETED->{recordCompletedPlan(response.plan(),recommendedAt);yield new Result(Status.COMPLETED,lastNonBlank(report.outputs(),response.text()),"",report.outputs());}
             case FAILED->pendingDecisionResult(sideFailureText(report,"That side request failed safely."),report.outputs());
             case RECOVERY_REQUIRED->pendingDecisionResult(sideFailureText(report,"That side request needs recovery before it can continue."),report.outputs());
             case APPROVAL_REQUIRED->pendingDecisionResult("I still need your decision on the original pending action before I start another consequential action. I did not queue the new request; resolve the pending action first, then ask me again.",report.outputs());
@@ -55,11 +70,21 @@ public final class BrainRuntime {
         return detail+" Your previous action is still waiting for your decision.";
     }
     private Result runPending(String assistantText){ExecutionReport report=executor.run(pending,new ExecutionContext());return switch(report.status()){
-        case COMPLETED->{String text=lastNonBlank(report.outputs(),assistantText);clearPending();yield new Result(Status.COMPLETED,text,"",report.outputs());}
+        case COMPLETED->{String text=lastNonBlank(report.outputs(),assistantText);recordCompletedPlan(pending.plan(),pendingRecommendedAt);clearPending();yield new Result(Status.COMPLETED,text,"",report.outputs());}
         case APPROVAL_REQUIRED->{pendingTool=report.blockedTool();pendingStatus=Status.APPROVAL_REQUIRED;String text=assistantText==null||assistantText.isBlank()?"I need your approval before I do that.":assistantText;yield new Result(Status.APPROVAL_REQUIRED,text,pendingTool,report.outputs());}
         case RECOVERY_REQUIRED->{pendingTool=report.blockedTool();pendingStatus=Status.RECOVERY_REQUIRED;yield new Result(Status.RECOVERY_REQUIRED,report.failureDetail().isBlank()?"That action needs recovery before I retry it.":report.failureDetail(),pendingTool,report.outputs());}
         case FAILED->{String detail=report.failureDetail().isBlank()?"That action failed safely.":report.failureDetail();clearPending();yield new Result(Status.FAILED,detail,report.blockedTool(),report.outputs());}
     };}
-    private void clearPending(){pending=null;pendingTool="";pendingStatus=null;}
+    private void recordCompletedPlan(Plan plan,Instant recommendedAt){
+        if(plan==null||plan.steps()==null||plan.steps().isEmpty())return;
+        Instant actedAt=clock.instant();
+        PlanStep terminal=plan.steps().get(plan.steps().size()-1);
+        String domain=terminal.tool()==null||terminal.tool().isBlank()?"action":terminal.tool().trim();
+        String subject=plan.goal()==null||plan.goal().isBlank()?domain:plan.goal().trim();
+        RecommendationEpisode episode=new RecommendationEpisode(
+                "runtime-"+actedAt.toEpochMilli()+"-"+(++episodeSequence),domain,subject,recommendedAt==null?actedAt:recommendedAt);
+        try{actedOnEpisodes.recordActedOn(episode,actedAt);}catch(RuntimeException ignored){/* The action already happened; follow-up persistence must never rewrite execution truth. */}
+    }
+    private void clearPending(){pending=null;pendingRecommendedAt=null;pendingTool="";pendingStatus=null;}
     private static String lastNonBlank(List<String> outputs,String fallback){if(outputs!=null)for(int i=outputs.size()-1;i>=0;i--){String v=outputs.get(i);if(v!=null&&!v.isBlank())return v.trim();}return fallback==null?"":fallback.trim();}
 }
