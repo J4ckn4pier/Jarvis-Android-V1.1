@@ -31,6 +31,7 @@ import com.jarvis.brain.AssistantSurfaceState;
 import com.jarvis.brain.RuntimeSurfaceAction;
 import com.jarvis.brain.RuntimeSurfacePresentation;
 import com.jarvis.mobile.MainActivity;
+import com.jarvis.mobile.R;
 import com.jarvis.mobile.brain.AndroidBrainRuntime;
 
 import java.util.ArrayList;
@@ -94,11 +95,11 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         });
 
         background = new FrameLayout(getContext());
-        background.setBackgroundColor(Color.rgb(1, 18, 27));
+        background.setBackgroundColor(color(R.color.jarvis_bg));
         root.addView(background, new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT));
 
-        TextView brand = text("J A R V I S", 11, Color.rgb(115, 235, 255));
+        TextView brand = text("J A R V I S", 11, color(R.color.jarvis_cyan));
         brand.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
         FrameLayout.LayoutParams brandParams = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT,
@@ -106,7 +107,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         brandParams.topMargin = dp(18);
         root.addView(brand, brandParams);
 
-        core = text("◉", 64, Color.rgb(115, 235, 255));
+        core = text("◉", 64, color(R.color.jarvis_cyan));
         core.setGravity(Gravity.CENTER);
         FrameLayout.LayoutParams coreParams = new FrameLayout.LayoutParams(
                 dp(120), dp(120), Gravity.CENTER_HORIZONTAL | Gravity.TOP);
@@ -116,7 +117,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         output = text("Listening…", 16, Color.WHITE);
         output.setGravity(Gravity.CENTER);
         output.setPadding(dp(18), dp(12), dp(18), dp(12));
-        output.setBackgroundColor(Color.argb(135, 0, 15, 22));
+        output.setBackgroundColor(color(R.color.jarvis_bg_panel));
         FrameLayout.LayoutParams outputParams = new FrameLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT,
                 Gravity.BOTTOM | Gravity.CENTER_HORIZONTAL);
@@ -390,10 +391,10 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private void setActive(boolean active) {
         if (core != null) {
             core.setText(active ? "◎" : "◉");
-            core.setTextColor(active ? Color.WHITE : Color.rgb(115, 235, 255));
+            core.setTextColor(active ? Color.WHITE : color(R.color.jarvis_cyan));
         }
         if (background != null) {
-            background.setBackgroundColor(active ? Color.rgb(3, 39, 52) : Color.rgb(1, 18, 27));
+            background.setBackgroundColor(active ? color(R.color.jarvis_bg_panel_raised) : color(R.color.jarvis_bg));
         }
     }
 
@@ -408,11 +409,15 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private Button button(String label) {
         Button button = new Button(getContext());
         button.setText(label);
-        button.setTextColor(Color.rgb(115, 235, 255));
+        button.setTextColor(color(R.color.jarvis_cyan));
         button.setTextSize(11);
         button.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
-        button.setBackgroundColor(Color.argb(220, 3, 30, 40));
+        button.setBackgroundColor(color(R.color.jarvis_bg_panel));
         return button;
+    }
+
+    private int color(int resourceId) {
+        return getContext().getColor(resourceId);
     }
 
     private int dp(int value) {
