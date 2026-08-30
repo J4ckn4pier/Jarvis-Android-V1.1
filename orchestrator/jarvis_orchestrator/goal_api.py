@@ -60,6 +60,10 @@ def _validated_id(value: str, name: str) -> str:
     return value
 
 
+def _project_not_found() -> HTTPException:
+    return HTTPException(status_code=404, detail="Project not found")
+
+
 def install_goal_api(app_module) -> None:
     """Attach the management API to the existing FastAPI app exactly once."""
 
@@ -88,7 +92,11 @@ def install_goal_api(app_module) -> None:
         principal = app_module._require_http_auth(authorization)
         project_id = _validated_id(project_id, "project_id")
         service = await _service()
-        return _public_payload(await service.status(principal.principal_id, project_id))
+        try:
+            payload = await service.status(principal.principal_id, project_id)
+        except KeyError:
+            raise _project_not_found() from None
+        return _public_payload(payload)
 
     async def project_event_history(
         project_id: str,
@@ -100,9 +108,16 @@ def install_goal_api(app_module) -> None:
         project_id = _validated_id(project_id, "project_id")
         cursor = app_module._validated_after_event_id(after_event_id)
         service = await _service()
-        return _public_payload(
-            await service.events(principal.principal_id, project_id, cursor, limit)
-        )
+        try:
+            payload = await service.events(principal.principal_id, project_id, cursor, limit)
+        except KeyError as exc:
+            # ManagementService also uses KeyError for a valid-but-no-longer-
+            # available reconnect cursor. Only translate the project lookup here;
+            # preserve cursor recovery semantics for the caller.
+            if exc.args and exc.args[0] == project_id:
+                raise _project_not_found() from None
+            raise
+        return _public_payload(payload)
 
     async def project_approval(
         project_id: str,
@@ -136,7 +151,11 @@ def install_goal_api(app_module) -> None:
         principal = app_module._require_http_auth(authorization)
         project_id = _validated_id(project_id, "project_id")
         service = await _service()
-        return _public_payload(await service.cancel(principal.principal_id, project_id))
+        try:
+            payload = await service.cancel(principal.principal_id, project_id)
+        except KeyError:
+            raise _project_not_found() from None
+        return _public_payload(payload)
 
     async def project_result(
         project_id: str,
@@ -145,7 +164,11 @@ def install_goal_api(app_module) -> None:
         principal = app_module._require_http_auth(authorization)
         project_id = _validated_id(project_id, "project_id")
         service = await _service()
-        return _public_payload(await service.result(principal.principal_id, project_id))
+        try:
+            payload = await service.result(principal.principal_id, project_id)
+        except KeyError:
+            raise _project_not_found() from None
+        return _public_payload(payload)
 
     # Expose callables on jarvis_orchestrator.app as well as HTTP routes so unit
     # tests and internal adapters exercise the exact same contracts.
