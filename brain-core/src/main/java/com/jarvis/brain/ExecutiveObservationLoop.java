@@ -50,6 +50,10 @@ public final class ExecutiveObservationLoop {
                     return outcome(ExecutiveOutcome.Status.FAILED,
                             "I couldn't complete the reasoning step safely.", null, iteration, context, latestStateDelta);
                 }
+                if (result == null) {
+                    return outcome(ExecutiveOutcome.Status.FAILED,
+                            "I couldn't complete the reasoning step safely.", null, iteration, context, latestStateDelta);
+                }
             }
             lastText = result.text() == null ? "" : result.text();
             if (result.stateDelta() != null && !result.stateDelta().isEmpty()) latestStateDelta = result.stateDelta();
