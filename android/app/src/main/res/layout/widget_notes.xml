@@ -10,7 +10,8 @@
         android:layout_width="64dp"
         android:layout_height="64dp"
         android:contentDescription="Jarvis Notes"
-        android:src="@drawable/icon_jarvis_notes" />
+        android:src="@drawable/ic_stat_jarvis"
+        android:tint="@color/jarvis_cyan" />
 
     <TextView
         android:id="@+id/widget_note_badge"
@@ -18,7 +19,7 @@
         android:layout_height="28dp"
         android:layout_alignEnd="@id/widget_note_icon"
         android:layout_alignTop="@id/widget_note_icon"
-        android:background="#E600BBD4"
+        android:background="@color/jarvis_cyan_dim"
         android:gravity="center"
         android:text="0"
         android:textColor="#FFFFFFFF"

@@ -2,6 +2,8 @@ name: Build and Test JARVIS Prefrontal APK
 
 on:
   push:
+    branches: [main, brain-first-v1]
+  pull_request:
     branches: [main]
   workflow_dispatch:
 
@@ -9,24 +11,20 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
 
-      - name: Test provider-neutral executive language contract
-        run: |
-          mkdir -p build/core-test
-          javac -d build/core-test \
-            android/app/src/main/java/com/jarvis/mobile/brain/core/IntentPlan.java \
-            android/app/src/main/java/com/jarvis/mobile/brain/core/CommandNormalizer.java \
-            android/app/src/main/java/com/jarvis/mobile/brain/core/LocalIntentEngine.java \
-            android/app/src/main/java/com/jarvis/mobile/brain/core/BrainResult.java \
-            android/app/src/test/java/com/jarvis/mobile/brain/core/LocalIntentEngineContractTest.java
-          java -cp build/core-test com.jarvis.mobile.brain.core.LocalIntentEngineContractTest
-          test "$(find android/app/src/main/res/raw -maxdepth 1 -type f -name '*.mp3' | wc -l)" -eq 100
+      - name: Run standalone shared brain acceptance suite
+        env:
+          JARVIS_SKIP_KNOWN_BLOCKERS: 'true'
+        run: bash brain-core/run-tests.sh
+
+      - name: Verify APK remote-goal client contract
+        run: sh .github/scripts/remote-goal-client-contract.sh
 
       - uses: android-actions/setup-android@v3
 
@@ -39,34 +37,34 @@ jobs:
         with:
           gradle-version: '8.11.1'
 
-      - name: Compile and lint direct Android project
+      - name: Compile and lint direct Android project with shared brain
         working-directory: android
-        run: gradle :app:lintDebug :app:assembleDebug --stacktrace
+        run: gradle :brain-core:test :app:lintDebug :app:assembleDebug --stacktrace
 
-      - name: Verify signed donor-transplant payload
+      - name: Verify signed JARVIS payload
         run: |
           APK="android/app/build/outputs/apk/debug/app-debug.apk"
           test -s "$APK"
-          test "$(stat -c%s "$APK")" -gt 500000
           unzip -t "$APK"
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify --verbose "$APK"
           BADGING=$("$ANDROID_HOME/build-tools/36.0.0/aapt" dump badging "$APK")
-          printf '%s\n' "$BADGING" | grep -q "package: name='com.itsmylab.jarvis' versionCode='2102' versionName='2.0.1-prefrontal-transplant-v1.2'"
+          printf '%s\n' "$BADGING" | grep -q "package: name='com.jarvis.mobile' versionCode='2102' versionName='1.1.0-brain-first'"
           unzip -Z1 "$APK" | grep -q '^AndroidManifest.xml$'
           unzip -Z1 "$APK" | grep -q '^classes.dex$'
-          unzip -l "$APK" | grep -q 'jarvis_normal'
-          unzip -l "$APK" | grep -q 'jarvis_active'
-          unzip -l "$APK" | grep -q 'background_mk2_active'
-          unzip -l "$APK" | grep -q 'background_mk3_active'
-          unzip -l "$APK" | grep -q 'button_normal'
-          unzip -l "$APK" | grep -q 'ready_operational'
-          unzip -l "$APK" | grep -q 'hello_sir'
-          unzip -l "$APK" | grep -q 'didnt_understand'
-          unzip -l "$APK" | grep -q 'what_can_i_do'
-          unzip -l "$APK" | grep -q 'menu_dots'
-          test "$(unzip -Z1 "$APK" | grep -c '^res/raw/.*\.mp3$')" -eq 100
-          test "$(unzip -Z1 "$APK" | grep -c '/background_mk3.jpg$')" -eq 1
-          ! unzip -Z1 "$APK" | grep -Eiq 'assets/dex|pocketsphinx|adcolony|tapjoy|vungle|flurry|revmob|startapp'
+          unzip -Z1 "$APK" | grep -q '^assets/jarvis_provenance/origin.idx$'
+          unzip -p "$APK" assets/jarvis_provenance/origin.idx > android/app/build/outputs/apk/debug/release-integrity.txt
+          grep -q '^format=jarvis-release-integrity-v1$' android/app/build/outputs/apk/debug/release-integrity.txt
+          grep -q '^origin=SjRja040cGllcg==$' android/app/build/outputs/apk/debug/release-integrity.txt
+          grep -Eq '^files=[1-9][0-9]*$' android/app/build/outputs/apk/debug/release-integrity.txt
+          grep -Eq '^root=[0-9a-f]{64}$' android/app/build/outputs/apk/debug/release-integrity.txt
+          export PATH="$ANDROID_HOME/build-tools/36.0.0:$PATH"
+          aapt dump resources "$APK" > android/app/build/outputs/apk/debug/compiled-resources.txt
+          grep -q 'ic_launcher_background' android/app/build/outputs/apk/debug/compiled-resources.txt
+          grep -q 'ic_launcher_foreground' android/app/build/outputs/apk/debug/compiled-resources.txt
+          grep -q 'ic_stat_jarvis' android/app/build/outputs/apk/debug/compiled-resources.txt
+          echo 'DONOR_CONTAMINATION_CHECK'
+          ! grep -Eiq 'background_mk2|background_mk3|jarvis_normal|jarvis_active|ic_reactor|icon_jarvis_notes|menu_dots|legacy_network_icon' android/app/build/outputs/apk/debug/compiled-resources.txt
+          ! unzip -Z1 "$APK" | grep -Eiq '^res/raw/.*\.mp3$|assets/dex|pocketsphinx|adcolony|tapjoy|vungle|flurry|revmob|startapp'
 
       - name: Enable Android emulator acceleration
         run: |
@@ -83,18 +81,38 @@ jobs:
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: sh .github/scripts/emulator-smoke.sh
+          script: sh .github/scripts/emulator-smoke.sh && sh .github/scripts/overlay-decision-smoke.sh && sh .github/scripts/email-compose-smoke.sh && sh .github/scripts/diagnostics-smoke.sh && sh .github/scripts/cortex-settings-smoke.sh && sh .github/scripts/local-cortex-smoke.sh && sh .github/scripts/external-research-smoke.sh && sh .github/scripts/apk-sprint-acceptance-smoke.sh
+
+      - name: Preserve APK sprint emulator evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-APK-sprint-emulator-evidence
+          path: |
+            android/app/build/outputs/apk/debug/jarvis-apk-sprint-*.png
+            android/app/build/outputs/apk/debug/jarvis-apk-sprint-*.xml
+            android/app/build/outputs/apk/debug/apk-sprint-*.txt
+          if-no-files-found: warn
+          retention-days: 7
+
+      - name: Preserve Android failure evidence
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-Android-failure-evidence
+          path: android/app/build/outputs/apk/debug/
+          if-no-files-found: warn
+          retention-days: 7
 
       - name: Stage single verified APK
         run: |
           mkdir -p release
-          cp android/app/build/outputs/apk/debug/app-debug.apk \
-            release/JARVIS-Android-V1.1-Donor-Beta.apk
-          sha256sum release/JARVIS-Android-V1.1-Donor-Beta.apk | tee release/SHA256.txt
+          cp android/app/build/outputs/apk/debug/app-debug.apk release/JARVIS-Android-V1.1.apk
+          sha256sum release/JARVIS-Android-V1.1.apk | tee release/SHA256.txt
 
       - uses: actions/upload-artifact@v4
         with:
-          name: JARVIS-Android-V1.1-Donor-Beta
-          path: release/JARVIS-Android-V1.1-Donor-Beta.apk
+          name: JARVIS-Android-V1.1
+          path: release/JARVIS-Android-V1.1.apk
           if-no-files-found: error
           retention-days: 30

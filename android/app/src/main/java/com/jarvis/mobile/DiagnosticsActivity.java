@@ -10,23 +10,29 @@ import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.speech.SpeechRecognizer;
-import android.view.ViewGroup;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
-import com.jarvis.mobile.brain.core.IntentPlan;
-import com.jarvis.mobile.brain.core.LocalIntentEngine;
+import com.jarvis.brain.EndpointTransportPolicy;
+import com.jarvis.brain.ExternalResearchGateway;
+import com.jarvis.brain.SettingsStore;
+import com.jarvis.brain.ToolRegistry;
+import com.jarvis.mobile.brain.AndroidSharedPreferencesSettingsPersistence;
+import com.jarvis.mobile.brain.AndroidToolRegistryFactory;
 import com.jarvis.mobile.brain.providers.CortexProviderFactory;
 import com.jarvis.mobile.hands.JarvisAccessibilityService;
 import com.jarvis.mobile.memory.JarvisDatabase;
 
-import java.lang.reflect.Field;
-import java.util.LinkedHashMap;
-import java.util.Map;
-
 /** User-visible evidence of what the installed APK can actually see and run. */
 public final class DiagnosticsActivity extends Activity {
+    private static final String[] ANDROID_TYPED_TOOLS = {
+            "open_dialer", "call_contact", "open_app", "web_search", "set_timer", "set_alarm",
+            "navigate", "device_navigation", "screen_read", "ui_click", "ui_type", "media_play",
+            "media_control", "volume_control", "set_flashlight", "calendar_query", "create_reminder",
+            "compose_calendar_event", "notification_query", "compose_email", "send_message"
+    };
+
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
         setTitle("JARVIS Diagnostics");
@@ -34,11 +40,15 @@ public final class DiagnosticsActivity extends Activity {
         LinearLayout body = new LinearLayout(this);
         body.setOrientation(LinearLayout.VERTICAL);
         body.setPadding(dp(16), dp(16), dp(16), dp(28));
-        body.setBackgroundColor(Color.rgb(3, 12, 17));
+        body.setBackgroundColor(getColor(R.color.jarvis_bg));
         body.addView(line("JARVIS PREFRONTAL CORTEX", true));
-        body.addView(line(report(), false));
+        TextView report = line(report(), false);
+        report.setBackgroundColor(getColor(R.color.jarvis_bg_panel));
+        report.setPadding(dp(12), dp(16), dp(12), dp(16));
+        body.addView(report);
 
         ScrollView scroll = new ScrollView(this);
+        scroll.setBackgroundColor(getColor(R.color.jarvis_bg));
         scroll.addView(body);
         setContentView(scroll);
     }
@@ -62,31 +72,28 @@ public final class DiagnosticsActivity extends Activity {
         add(report, "Notification awareness", yes(notificationListenerEnabled()));
         add(report, "Device Control", yes(accessibilityEnabled()));
         add(report, "Reasoning mode", CortexProviderFactory.status(this));
-        add(report, "Donor response clips", String.valueOf(rawResourceCount()));
+
+        SettingsStore settings = new SettingsStore(new AndroidSharedPreferencesSettingsPersistence(this));
+        String researchEndpoint = settings.get(SettingsStore.RESEARCH_ENDPOINT).trim();
+        String researchStatus = researchEndpoint.isEmpty()
+                ? "Not configured"
+                : EndpointTransportPolicy.allows(researchEndpoint) ? "Configured" : "Blocked by transport policy";
+        add(report, "Live research", researchStatus);
+        add(report, "Bundled donor audio", "None (clean-room)");
 
         JarvisDatabase database = JarvisDatabase.get(this);
         add(report, "Saved memories", String.valueOf(database.memoryCount()));
         add(report, "Open tasks", String.valueOf(database.openTaskCount()));
 
-        Map<String, IntentPlan.Intent> tests = new LinkedHashMap<>();
-        tests.put("help me", IntentPlan.Intent.HELP);
-        tests.put("could you call Mom please", IntentPlan.Intent.CALL);
-        tests.put("send a text to Alex saying hello", IntentPlan.Intent.SMS);
-        tests.put("schedule lunch tomorrow at 1 pm", IntentPlan.Intent.CALENDAR);
-        tests.put("I need some light", IntentPlan.Intent.FLASHLIGHT_ON);
-        tests.put("unmute the phone", IntentPlan.Intent.UNMUTE);
-        tests.put("what did I miss", IntentPlan.Intent.NOTIFICATIONS);
-        tests.put("what can you do", IntentPlan.Intent.HELP);
-        tests.put("what is the capital of France", IntentPlan.Intent.KNOWLEDGE_QUERY);
-        tests.put("read the screen", IntentPlan.Intent.ACCESSIBILITY);
-
-        LocalIntentEngine engine = new LocalIntentEngine();
-        int passed = 0;
-        for (Map.Entry<String, IntentPlan.Intent> test : tests.entrySet()) {
-            if (engine.plan(test.getKey()).intent() == test.getValue()) passed++;
+        ToolRegistry registry = AndroidToolRegistryFactory.create(this, ExternalResearchGateway.unavailable());
+        int registered = 0;
+        for (String tool : ANDROID_TYPED_TOOLS) {
+            if (registry.resolve(tool).isPresent()) registered++;
         }
-        add(report, "Installed language self-test", passed + "/" + tests.size() + " passed");
-        report.append("\n\nDiagnostics do not place calls, send messages, or change the device.");
+        add(report, "Production typed-tool self-test", registered + "/" + ANDROID_TYPED_TOOLS.length + " registered");
+        add(report, "Total shared capabilities", String.valueOf(registry.specs().size()));
+        add(report, "Autonomous conversational calls", "External duplex phone-audio transport required");
+        report.append("\n\nDiagnostics inspect capability registration only. They do not place calls, send messages, click controls, or change the device.");
         return report.toString();
     }
 
@@ -116,18 +123,10 @@ public final class DiagnosticsActivity extends Activity {
         return enabled != null && enabled.contains(component);
     }
 
-    private int rawResourceCount() {
-        int count = 0;
-        for (Field field : R.raw.class.getFields()) {
-            if (field.getName().matches("[a-z0-9_]+")) count++;
-        }
-        return count;
-    }
-
     private TextView line(String text, boolean heading) {
         TextView view = new TextView(this);
         view.setText(text);
-        view.setTextColor(heading ? Color.rgb(80, 225, 245) : Color.WHITE);
+        view.setTextColor(heading ? getColor(R.color.jarvis_cyan) : getColor(R.color.jarvis_text_dim));
         view.setTextSize(heading ? 22 : 15);
         view.setPadding(0, heading ? 0 : dp(16), 0, 0);
         view.setLineSpacing(0, 1.18f);

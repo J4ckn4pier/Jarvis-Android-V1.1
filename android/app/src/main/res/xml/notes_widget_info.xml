@@ -4,7 +4,7 @@
     android:initialLayout="@layout/widget_notes"
     android:minWidth="70dp"
     android:minHeight="70dp"
-    android:previewImage="@drawable/icon_jarvis_notes"
+    android:previewImage="@drawable/ic_launcher_foreground"
     android:resizeMode="none"
     android:updatePeriodMillis="1800000"
     android:widgetCategory="home_screen" />

@@ -1,0 +1,2 @@
+package com.jarvis.brain;
+public final class ActivityFiveStateContractTest{public static void main(String[]a){check(ActivityRecord.Status.valueOf("DONE")!=null,"done");check(ActivityRecord.Status.valueOf("NEEDS_APPROVAL")!=null,"approval");check(ActivityRecord.Status.valueOf("NEEDS_DECISION")!=null,"decision");check(ActivityRecord.Status.valueOf("FAILED")!=null,"failed");check(ActivityRecord.Status.valueOf("IGNORED")!=null,"ignored");System.out.println("ActivityFiveStateContractTest passed");}private static void check(boolean v,String m){if(!v)throw new AssertionError(m);}}

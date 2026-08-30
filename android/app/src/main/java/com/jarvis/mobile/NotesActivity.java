@@ -5,7 +5,6 @@ import android.app.AlertDialog;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.Gravity;
-import android.view.View;
 import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.EditText;
@@ -15,30 +14,31 @@ import android.widget.TextView;
 
 import com.jarvis.mobile.memory.JarvisDatabase;
 
-/** Working replacement for the donor Notes screen, backed by JARVIS memory. */
+/** Working Notes & Memory surface backed by JARVIS local memory. */
 public class NotesActivity extends Activity {
     private LinearLayout notes;
     private JarvisDatabase database;
 
     @Override protected void onCreate(Bundle state) {
         super.onCreate(state);
-        setTitle("Jarvis Notes");
+        setTitle("JARVIS Notes");
         database = JarvisDatabase.get(this);
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setPadding(dp(14), dp(14), dp(14), dp(14));
-        root.setBackgroundColor(Color.rgb(245, 248, 249));
+        root.setBackgroundColor(getColor(R.color.jarvis_bg));
 
         Button add = new Button(this);
         add.setText("ADD NOTE");
         add.setTextColor(Color.WHITE);
-        add.setBackgroundColor(Color.rgb(0, 124, 150));
+        add.setBackgroundColor(getColor(R.color.jarvis_cyan_dim));
         add.setOnClickListener(v -> addNoteDialog());
         root.addView(add, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         ScrollView scroll = new ScrollView(this);
+        scroll.setBackgroundColor(getColor(R.color.jarvis_bg));
         notes = new LinearLayout(this);
         notes.setOrientation(LinearLayout.VERTICAL);
         notes.setPadding(0, dp(12), 0, dp(16));
@@ -59,7 +59,8 @@ public class NotesActivity extends Activity {
         String memories = database.recentMemories(50);
         String tasks = database.openTasks(30);
         if (memories.isEmpty() && tasks.isEmpty()) {
-            TextView empty = text("No Notes!\n\nSay “remember that…” or tap ADD NOTE.", 18, Color.DKGRAY);
+            TextView empty = text("No Notes!\n\nSay “remember that…” or tap ADD NOTE.", 18,
+                    getColor(R.color.jarvis_text_dim));
             empty.setGravity(Gravity.CENTER);
             empty.setPadding(dp(10), dp(60), dp(10), dp(30));
             notes.addView(empty, fullWrap());
@@ -70,12 +71,12 @@ public class NotesActivity extends Activity {
     }
 
     private void addSection(String heading, String value) {
-        TextView title = text(heading, 13, Color.rgb(0, 115, 140));
+        TextView title = text(heading, 13, getColor(R.color.jarvis_cyan));
         title.setPadding(dp(4), dp(8), dp(4), dp(6));
         notes.addView(title, fullWrap());
-        TextView body = text(value, 16, Color.rgb(30, 35, 38));
+        TextView body = text(value, 16, Color.WHITE);
         body.setTextIsSelectable(true);
-        body.setBackgroundColor(Color.WHITE);
+        body.setBackgroundColor(getColor(R.color.jarvis_bg_panel));
         body.setPadding(dp(12), dp(12), dp(12), dp(12));
         notes.addView(body, fullWrap());
     }
@@ -85,7 +86,7 @@ public class NotesActivity extends Activity {
         input.setHint("What should I remember?");
         input.setMinLines(3);
         new AlertDialog.Builder(this)
-                .setTitle("New Jarvis Note")
+                .setTitle("New JARVIS Note")
                 .setView(input)
                 .setNegativeButton("Cancel", null)
                 .setPositiveButton("Save", (dialog, which) -> {

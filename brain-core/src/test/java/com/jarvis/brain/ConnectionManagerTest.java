@@ -1,0 +1,6 @@
+package com.jarvis.brain;
+import java.time.Instant;import java.util.List;
+public final class ConnectionManagerTest{
+ public static void main(String[]a){ConnectionRegistry r=new ConnectionRegistry();r.register("opentable",ConnectionType.WEB_OAUTH);class P implements ConnectionPort{boolean fail;public ConnectionType type(){return ConnectionType.WEB_OAUTH;}public ToolResult beginConnect(String id){return fail?ToolResult.failure("oauth failed"):ToolResult.success("oauth complete");}public ToolResult disconnect(String id){return ToolResult.success("disconnected");}}P p=new P();ConnectionManager m=new ConnectionManager(r,List.of(p));Instant t=Instant.parse("2026-08-28T18:00:00Z");p.fail=true;check(m.connect("opentable",t).status()==ToolResult.Status.FAILURE,"failure visible");check(!r.get("opentable").orElseThrow().connected(),"failed auth cannot flip state");p.fail=false;check(m.connect("opentable",t).status()==ToolResult.Status.SUCCESS&&r.get("opentable").orElseThrow().connected(),"success flips state");m.disconnect("opentable");check(!r.get("opentable").orElseThrow().connected(),"disconnect success clears state");System.out.println("ConnectionManagerTest passed");}
+ private static void check(boolean v,String m){if(!v)throw new AssertionError(m);}
+}

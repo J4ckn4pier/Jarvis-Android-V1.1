@@ -1,5 +1,7 @@
 package com.jarvis.mobile.brain.providers;
 
+import com.jarvis.brain.EndpointTransportPolicy;
+
 import org.json.JSONObject;
 import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
@@ -14,10 +16,10 @@ final class HttpJson {
     private HttpJson() {}
 
     static JSONObject post(String endpoint, Map<String, String> headers, JSONObject body) throws Exception {
+        if (!EndpointTransportPolicy.allows(endpoint)) {
+            throw new IllegalArgumentException("HTTPS or local mDNS/loopback transport is required");
+        }
         URI uri = URI.create(endpoint);
-        String host = uri.getHost() == null ? "" : uri.getHost();
-        boolean loopback = host.equals("127.0.0.1") || host.equals("localhost") || host.equals("10.0.2.2");
-        if (!"https".equalsIgnoreCase(uri.getScheme()) && !loopback) throw new IllegalArgumentException("HTTPS is required");
         HttpURLConnection connection = (HttpURLConnection) uri.toURL().openConnection();
         connection.setRequestMethod("POST"); connection.setConnectTimeout(12_000); connection.setReadTimeout(45_000);
         connection.setDoOutput(true); connection.setRequestProperty("Content-Type", "application/json");

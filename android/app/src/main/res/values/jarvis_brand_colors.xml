@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- JARVIS original brand palette, extracted from the live prototype (jarvis-live.html :root tokens).
+     Use these instead of any donor-derived colors so the app icon and in-app UI share one identity. -->
+<resources>
+    <color name="jarvis_bg">#0A0E16</color>
+    <color name="jarvis_bg_panel">#10161F</color>
+    <color name="jarvis_bg_panel_raised">#151D29</color>
+    <color name="jarvis_cyan">#55D6FF</color>
+    <color name="jarvis_cyan_dim">#2F8FB8</color>
+    <color name="jarvis_danger">#FF8F8F</color>
+    <color name="jarvis_text_dim">#8EA0B8</color>
+    <color name="jarvis_text_faint">#6F839D</color>
+</resources>
