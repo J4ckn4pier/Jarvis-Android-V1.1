@@ -27,6 +27,8 @@ public final class AndroidExternalResearchGatewayContractTest {
                 "commercial baseline must not hard-code public hosted APIs whose free-service terms are unsuitable as a product dependency");
         check(!adapter.contains("attemptReservation("),
                 "fresh read-only research adapter must not silently enable consequential reservation submission");
+        check(adapter.contains("setInstanceFollowRedirects(false)"),
+                "research transport must not silently follow redirects away from the user-configured endpoint trust boundary");
 
         check(Files.exists(debugReceiverPath),
                 "Android research transport must have a debug-only receiver for real emulator HTTP/provenance proof");
