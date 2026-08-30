@@ -1,0 +1,16 @@
+services:
+  fake-agent-zero:
+    image: python:3.12-alpine
+    working_dir: /stub
+    command: ["python", "/stub/fake_agent_zero.py"]
+    volumes:
+      - ./tests/fake_agent_zero.py:/stub/fake_agent_zero.py:ro
+
+  orchestrator:
+    environment:
+      JARVIS_RUNTIME: agent-zero
+      AGENT_ZERO_URL: http://fake-agent-zero:8001
+      AGENT_ZERO_API_KEY: ci-agent-key
+    depends_on:
+      - valkey
+      - fake-agent-zero
