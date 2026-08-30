@@ -26,6 +26,7 @@ public final class AndroidAccessibilityToolBindingContractTest {
         check(action.contains("No readable text is visible on the current screen."), "a connected service with no visible text must not be misreported as disabled");
         check(action.contains("JARVIS could not complete that device navigation action on the current screen."), "a connected service with no applicable target must not be misreported as disabled");
         check(action.contains("Unsupported device navigation action"), "unknown navigation actions must fail closed");
+        check(factory.contains("lower.contains(\"could not\")"), "generic Android outcome wrapping must classify explicit could-not outcomes as failures");
         check(factory.contains("AndroidAccessibilityActions accessibility = new AndroidAccessibilityActions()"), "Android factory must instantiate the stateless typed accessibility adapter");
         check(factory.contains("args -> accessibility.navigate(args.get(\"action\"))"), "Android factory must bind device_navigation to the typed adapter");
         check(factory.contains("args -> accessibility.readScreen()"), "Android factory must bind screen_read to the typed adapter");
