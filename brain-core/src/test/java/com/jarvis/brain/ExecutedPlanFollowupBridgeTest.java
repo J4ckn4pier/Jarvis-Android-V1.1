@@ -20,6 +20,8 @@ public final class ExecutedPlanFollowupBridgeTest {
         approvalRecordsOnlyAfterConsequentialExecutionActuallyCompletes();
         failedPlanDoesNotRecordActedOnEpisode();
         episodeIdsStayUniqueAcrossRuntimeRestarts();
+        pureResearchDoesNotPretendTheUserActed();
+        mixedPlanAttributesEpisodeToLastActualAction();
         System.out.println("ExecutedPlanFollowupBridgeTest: " + checks + " assertions passed");
     }
 
@@ -40,7 +42,7 @@ public final class ExecutedPlanFollowupBridgeTest {
 
         check(result.status() == BrainRuntime.Status.COMPLETED, "successful plan completes");
         check(episodes.size() == 1, "completed plan records exactly one acted-on episode");
-        check("zeta_action".equals(episodes.get(0).domain()), "episode domain is the executed terminal tool");
+        check("zeta_action".equals(episodes.get(0).domain()), "episode domain is the executed action tool");
         check("Complete zeta workflow".equals(episodes.get(0).subject()), "episode subject preserves plan goal");
         check(now.equals(episodes.get(0).recommendedAt()), "episode recommendation time uses runtime clock");
         check(now.equals(actedAt.get(0)), "acted-on time uses runtime clock at successful completion");
@@ -107,6 +109,51 @@ public final class ExecutedPlanFollowupBridgeTest {
         check(first.size() == 1 && second.size() == 1, "both restarted runtimes record their completed action");
         check(!first.get(0).id().equals(second.get(0).id()),
                 "episode ids must not collide when Android process/runtime restarts within the same millisecond");
+    }
+
+    private static void pureResearchDoesNotPretendTheUserActed() {
+        Instant now = Instant.parse("2026-08-29T23:54:00Z");
+        Clock clock = Clock.fixed(now, ZoneOffset.UTC);
+        ToolRegistry tools = new ToolRegistry();
+        tools.register(new ToolSpec("research_only", false, Set.of(), Set.of(),
+                "research only", ToolExecutionClass.AUTONOMOUS_RESEARCH),
+                (args, context) -> ToolResult.success("evidence found"));
+        List<RecommendationEpisode> episodes = new ArrayList<>();
+        Plan plan = new Plan("Compare dinner options", List.of(new PlanStep("research_only", Map.of(), false)));
+
+        BrainRuntime.Result result = runtime(tools, clock, (episode, at) -> episodes.add(episode), plan)
+                .handle("Jarvis, compare dinner options");
+
+        check(result.status() == BrainRuntime.Status.COMPLETED, "pure research plan can complete normally");
+        check(episodes.isEmpty(), "pure research must not be falsely marked as an acted-on real-world episode");
+    }
+
+    private static void mixedPlanAttributesEpisodeToLastActualAction() {
+        Instant now = Instant.parse("2026-08-29T23:55:00Z");
+        Clock clock = Clock.fixed(now, ZoneOffset.UTC);
+        ToolRegistry tools = new ToolRegistry();
+        tools.register(new ToolSpec("research_first", false, Set.of(), Set.of(),
+                "research", ToolExecutionClass.AUTONOMOUS_RESEARCH),
+                (args, context) -> ToolResult.success("research complete"));
+        tools.register(new ToolSpec("actual_action", false, Set.of(), Set.of(),
+                "real device action", ToolExecutionClass.DEVICE_REFLEX),
+                (args, context) -> ToolResult.success("action complete"));
+        tools.register(new ToolSpec("report_after", false, Set.of(), Set.of(),
+                "report evidence", ToolExecutionClass.AUTONOMOUS_RESEARCH),
+                (args, context) -> ToolResult.success("reported"));
+        List<RecommendationEpisode> episodes = new ArrayList<>();
+        Plan plan = new Plan("Research, act, then report", List.of(
+                new PlanStep("research_first", Map.of(), false),
+                new PlanStep("actual_action", Map.of(), false),
+                new PlanStep("report_after", Map.of(), false)));
+
+        BrainRuntime.Result result = runtime(tools, clock, (episode, at) -> episodes.add(episode), plan)
+                .handle("Jarvis, research act and report");
+
+        check(result.status() == BrainRuntime.Status.COMPLETED, "mixed plan completes");
+        check(episodes.size() == 1, "mixed plan records one acted-on episode");
+        check("actual_action".equals(episodes.get(0).domain()),
+                "episode domain must identify the last actual action, not a trailing research/report step");
     }
 
     private static BrainRuntime runtime(ToolRegistry tools, Clock clock, ActedOnEpisodeSink sink, Plan plan) {
