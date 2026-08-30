@@ -329,24 +329,26 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private void submitBrainWork(Supplier<RuntimeSurfacePresentation> work) {
         long submittedGeneration = sessionGeneration;
         brainExecutor.execute(() -> {
-            RuntimeSurfacePresentation presentation;
-            try {
-                presentation = work.get();
-            } catch (RuntimeException failure) {
-                Log.e(RUNTIME_FAILURE_TAG, "Unexpected shared brain runtime failure", failure);
-                presentation = new RuntimeSurfacePresentation(
-                        AssistantSurfaceState.ERROR,
-                        "I hit an unexpected problem while handling that.",
-                        RUNTIME_FAILURE_TAG,
-                        RuntimeSurfaceAction.NONE,
-                        RuntimeSurfaceAction.NONE);
-            }
-            RuntimeSurfacePresentation deliveredPresentation = presentation;
+            RuntimeSurfacePresentation presentation = safeBrainWork(work);
             if (output != null) output.post(() -> {
                 if (!sessionVisible || submittedGeneration != sessionGeneration) return;
-                deliver(deliveredPresentation);
+                deliver(presentation);
             });
         });
+    }
+
+    private RuntimeSurfacePresentation safeBrainWork(Supplier<RuntimeSurfacePresentation> work) {
+        try {
+            return work.get();
+        } catch (RuntimeException failure) {
+            Log.e(RUNTIME_FAILURE_TAG, "Unexpected shared brain runtime failure", failure);
+            return new RuntimeSurfacePresentation(
+                    AssistantSurfaceState.ERROR,
+                    "I hit an unexpected problem while handling that.",
+                    RUNTIME_FAILURE_TAG,
+                    RuntimeSurfaceAction.NONE,
+                    RuntimeSurfaceAction.NONE);
+        }
     }
 
     private void deliver(RuntimeSurfacePresentation presentation) {
