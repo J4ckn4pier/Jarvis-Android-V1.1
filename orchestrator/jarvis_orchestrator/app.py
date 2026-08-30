@@ -48,6 +48,15 @@ def _require_http_auth(authorization: str | None) -> Principal:
     return principal
 
 
+def _validated_public_session_id(session_id: str) -> str:
+    if not session_id or len(session_id) > 128:
+        raise HTTPException(
+            status_code=422,
+            detail="session_id must be between 1 and 128 characters",
+        )
+    return session_id
+
+
 def _scoped_session(principal: Principal, public_session_id: str) -> str:
     return scope_session_id(principal.principal_id, public_session_id)
 
@@ -108,7 +117,7 @@ async def lifespan(app: FastAPI):
         await app.state.valkey.aclose()
 
 
-app = FastAPI(title="JARVIS Orchestrator", version="0.9.0", lifespan=lifespan)
+app = FastAPI(title="JARVIS Orchestrator", version="0.9.1", lifespan=lifespan)
 
 
 @app.get("/health")
@@ -158,12 +167,13 @@ async def event_history(
     authorization: str | None = Header(default=None),
 ):
     """Recover state missed while a phone/desktop client was disconnected."""
+    public_session_id = _validated_public_session_id(session_id)
     principal = _require_http_auth(authorization)
-    internal_session_id = _scoped_session(principal, session_id)
+    internal_session_id = _scoped_session(principal, public_session_id)
     events = await app.state.bus.history(internal_session_id, limit)
-    return {"session_id": session_id, "events": [
+    return {"session_id": public_session_id, "events": [
         {
-            "session_id": session_id,
+            "session_id": public_session_id,
             "task_id": event.task_id,
             "active_layer": event.active_layer,
             "neurons_firing": event.neurons_firing,
@@ -181,9 +191,10 @@ async def reset_session(
     authorization: str | None = Header(default=None),
 ):
     """Reset the configured worker's conversation while preserving JARVIS session identity."""
+    public_session_id = _validated_public_session_id(session_id)
     principal = _require_http_auth(authorization)
-    await _run_lifecycle_operation("reset", _scoped_session(principal, session_id))
-    return {"session_id": session_id, "reset": True}
+    await _run_lifecycle_operation("reset", _scoped_session(principal, public_session_id))
+    return {"session_id": public_session_id, "reset": True}
 
 
 @app.delete("/v1/sessions/{session_id}")
@@ -192,9 +203,10 @@ async def terminate_session(
     authorization: str | None = Header(default=None),
 ):
     """Terminate the configured worker session and clear its runtime context mapping."""
+    public_session_id = _validated_public_session_id(session_id)
     principal = _require_http_auth(authorization)
-    await _run_lifecycle_operation("terminate", _scoped_session(principal, session_id))
-    return {"session_id": session_id, "terminated": True}
+    await _run_lifecycle_operation("terminate", _scoped_session(principal, public_session_id))
+    return {"session_id": public_session_id, "terminated": True}
 
 
 @app.websocket("/v1/events")
