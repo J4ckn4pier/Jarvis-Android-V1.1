@@ -55,3 +55,15 @@ def test_local_ai_runtime_images_are_version_pinned():
     assert compose.count("ollama/ollama:0.33.2") == 2
     assert "agent0ai/agent-zero:latest" not in compose
     assert "ollama/ollama:latest" not in compose
+
+
+def test_live_ai_workflow_preserves_failure_diagnostics_as_artifact():
+    workflow = Path("../.github/workflows/orchestrator-live-local-ai.yml").read_text()
+
+    assert "Collect live local AI diagnostics" in workflow
+    assert "docker compose --profile agent-zero --profile local-ai logs --no-color" in workflow
+    assert "/tmp/live-local-ai.log" in workflow
+    assert "/tmp/live-command.json" in workflow
+    assert "/tmp/live-ready.json" in workflow
+    assert "actions/upload-artifact@v4" in workflow
+    assert "name: live-local-ai-diagnostics" in workflow
