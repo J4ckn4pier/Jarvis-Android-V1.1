@@ -213,7 +213,10 @@ async def lifespan(app: FastAPI):
     if url:
         from redis.asyncio import Redis
         client = Redis.from_url(url)
-        await client.ping()
+        # Keep the configured shared-state backend authoritative even if it is
+        # temporarily offline at process startup. /ready owns dependency probing;
+        # /health can therefore remain a true process-liveness signal while the
+        # same Redis client reconnects automatically when Valkey returns.
         app.state.valkey = client
         app.state.bus = ValkeyEventBus(client)
         context_store = ValkeyAgentContextStore(client)
