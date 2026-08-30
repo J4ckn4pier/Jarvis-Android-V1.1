@@ -29,6 +29,7 @@ services:
     profiles: ["agent-zero"]
     environment:
       A0_PERSISTENT_RUNTIME_ID: ${AGENT_ZERO_RUNTIME_ID:-}
+      A0_SET_AGENT_PROFILE: tiny-local
     ports:
       - "127.0.0.1:5080:80"
     volumes:
@@ -45,6 +46,23 @@ services:
       - "127.0.0.1:11434:11434"
     volumes:
       - ollama-data:/root/.ollama
+
+  ollama-model-bootstrap:
+    image: ollama/ollama:latest
+    restart: "no"
+    profiles: ["local-ai"]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    depends_on:
+      - ollama
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        until ollama list >/dev/null 2>&1; do
+          sleep 2
+        done
+        ollama pull qwen3:4b
 
   orchestrator:
     build: .
