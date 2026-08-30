@@ -27,6 +27,11 @@ require 'expired.statusCode() != 410'
 require 'state.saveCursor(projectId, null)'
 require 'client.getEvents(projectId, null)'
 
+# A public 404 means the saved active project is no longer available to this credential. Forget only the
+# phone-side active-project bookmark so every future app launch does not repeat the same dead reconnect.
+require 'missing.statusCode() != 404'
+require 'state.clearProject()'
+
 # Terminal completion and explicit cancellation stay provider-neutral. Local state clears only after confirmed cancel.
 require 'client.getResult(projectId)'
 require 'cancelActiveProject'
