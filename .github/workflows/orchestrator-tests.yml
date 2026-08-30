@@ -49,7 +49,7 @@ jobs:
               config = json.load(handle)
           environment = config['services']['orchestrator']['environment']
           assert environment['JARVIS_API_KEYS_JSON'] == '{"ci-user":"ci-token","other-user":"other-token"}', environment
-          for service_name in ('agent-zero', 'ollama'):
+          for service_name in ('orchestrator', 'agent-zero', 'ollama'):
               ports = config['services'][service_name]['ports']
               assert ports, (service_name, ports)
               assert all(port.get('host_ip') == '127.0.0.1' for port in ports), (service_name, ports)
