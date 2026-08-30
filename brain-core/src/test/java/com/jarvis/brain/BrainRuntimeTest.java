@@ -15,6 +15,7 @@ public final class BrainRuntimeTest {
         partialExecutionFailureReportsCompletedWork();
         partialRecoveryReportsCompletedWork();
         sideRequestPartialFailureReportsCompletedWorkAndPreservesApproval();
+        partialApprovalReportsCompletedWorkAndApprovalNeed();
         System.out.println("BrainRuntimeTest: " + checks + " assertions passed");
     }
 
@@ -136,6 +137,30 @@ public final class BrainRuntimeTest {
                 "user-facing side failure must disclose side work that already completed");
         check(side.text().contains("Side step two failed."),
                 "user-facing side failure must disclose the failed side step");
+    }
+
+    private static void partialApprovalReportsCompletedWorkAndApprovalNeed() {
+        int[] sends = {0};
+        ToolRegistry tools = new ToolRegistry();
+        tools.register(new ToolSpec("prepare_step", false, Set.of(), Set.of(),
+                "Prepare harmless prerequisite", ToolExecutionClass.DEVICE_REFLEX),
+                (a,c) -> ToolResult.success("Preparation completed."));
+        tools.register(new ToolSpec("send_message", true, Set.of(), Set.of("recipient","message"),
+                "Send message", ToolExecutionClass.CONSEQUENTIAL),
+                (a,c) -> { sends[0]++; return ToolResult.success("Message sent."); });
+        Plan plan = new Plan("prepare then send", java.util.List.of(
+                new PlanStep("prepare_step", Map.of(), false),
+                new PlanStep("send_message", Map.of("recipient","Mom","message","On my way"), true)));
+        BrainRuntime runtime = runtime(tools, req -> new ReasoningResult("planner", "I’ll take care of both steps.", plan));
+        runtime.handle("Hey Jarvis");
+        BrainRuntime.Result result = runtime.handle("perform the prepared send operation");
+        check(result.status() == BrainRuntime.Status.APPROVAL_REQUIRED, "consequential second step pauses for approval");
+        check(result.outputs().contains("Preparation completed."), "approval report retains prerequisite work already completed");
+        check(sends[0] == 0, "consequential second step does not run before approval");
+        check(result.text().contains("Preparation completed."),
+                "approval text must disclose prerequisite work already completed");
+        check(result.text().toLowerCase().contains("approval"),
+                "approval text must plainly tell the user that approval is required");
     }
 
     private static BrainRuntime runtime(ToolRegistry tools, ReasoningRouter reasoner) {
