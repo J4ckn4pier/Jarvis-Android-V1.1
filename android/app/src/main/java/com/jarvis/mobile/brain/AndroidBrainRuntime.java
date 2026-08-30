@@ -118,6 +118,7 @@ public final class AndroidBrainRuntime {
             if (snapshot.completed()) {
                 remoteApprovalVisible = false;
                 remoteProjectVisible = false;
+                state.clearProject();
                 return Optional.of(new RuntimeSurfacePresentation(
                         AssistantSurfaceState.ACTION_DONE,
                         snapshot.result().result(),
