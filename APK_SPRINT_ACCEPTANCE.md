@@ -5,7 +5,7 @@ A box may be checked only after behavior is evidenced through a freshly compiled
 
 1. [x] Canonical JARVIS Live visual identity is present in the compiled home UI; the old single-dot HUD is not the visible core.
 2. [x] Shipped APK contains no Scripted Scenarios / Demo / Sandbox developer controls; assistant visuals react to real runtime state.
-3. [ ] Existing shared JARVIS brain is the production command path behind the live UI.
+3. [x] Existing shared JARVIS brain is the production command path behind the live UI.
 4. [x] Exact regression `I'm good. Can you do me a favor and open settings, please?` opens JARVIS Settings from the compiled APK.
 5. [ ] Generic `open <app>` routing works without guessing ambiguous app names.
 6. [ ] Phone/dialer and approved contact-call handoff work; autonomous remote phone-agent conversation is excluded from APK runtime.
@@ -26,4 +26,4 @@ A box may be checked only after behavior is evidenced through a freshly compiled
 
 **Completion percentage = checked items / 20 × 100.**
 
-Current compiled-proof checkpoint: **15% (3/20)** at Android head `451eb688e102ecc8463f33f1c5e9006ad850b66e`, Android build run `33330104862`. This records only items with fresh emulator evidence; it is not a claim that the remaining behavior is absent or broken.
+Current compiled-proof checkpoint: **20% (4/20)** at Android code head `451eb688e102ecc8463f33f1c5e9006ad850b66e`, Android build run `33330104862`. Item 3 is evidenced by the compiled command regression entering `MainActivity`, traversing `AndroidBrainRuntime`, and producing the runtime input/output trace before opening the real Settings activity. This records only items with fresh emulator evidence; it is not a claim that the remaining behavior is absent or broken.
