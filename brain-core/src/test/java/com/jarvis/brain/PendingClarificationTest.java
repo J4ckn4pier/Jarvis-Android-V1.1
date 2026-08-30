@@ -62,8 +62,6 @@ public final class PendingClarificationTest {
         ReasoningRouter router = request -> new ReasoningResult("planner", "I'll prepare the message.",
                 new Plan("Message", List.of(new PlanStep("send_message", Map.of("message", "I'm running late"), false))));
 
-        // An approval capability exists, but it is deliberately separate from AssistantCore's
-        // pending clarification state. Possessing it must not answer a missing recipient.
         ApprovalGate unrelatedApproval = new ApprovalGate();
         unrelatedApproval.approve("send_message");
         AssistantCore core = new AssistantCore(BrainEngine.createDefault(clock), router, tools);
@@ -72,8 +70,6 @@ public final class PendingClarificationTest {
         check(needsClarification.kind() == BrainResponse.Kind.CONVERSATION,
                 "approval capability must not satisfy a pending clarification");
 
-        // Supplying the clarification resolves only the missing argument. It must not mint or
-        // imply execution approval for the consequential action.
         BrainResponse clarified = core.handle("Mom");
         check(clarified.kind() == BrainResponse.Kind.ACTION_PLAN && clarified.plan().requiresApproval(),
                 "clarification answer must preserve the separate approval boundary");
@@ -102,7 +98,7 @@ public final class PendingClarificationTest {
                 return new ReasoningResult("planner", "What should I research?",
                         new Plan("Research", List.of(new PlanStep("research_topic", Map.of(), false))));
             }
-            check(request.goal().equals("investigate something for me"),
+            check(request.utterance().equals("investigate something for me"),
                     "research synthesis after clarification must retain the user's original goal");
             check(request.context().contains("evidence for orbital mechanics"),
                     "research observation should be returned to reasoning after clarification");
