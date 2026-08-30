@@ -42,6 +42,9 @@ public final class PlanRepairCoordinator {
                 return validationUnavailable(attempt, "validator returned no verdict");
             }
             if (validation.valid()) {
+                if (validation.effectivePlan() == null) {
+                    return validationUnavailable(attempt, "validator approved no effective plan");
+                }
                 return new PlanRepairResult(PlanRepairResult.Status.VALID,
                         validation.effectivePlan(), attempt, List.of(), "");
             }
