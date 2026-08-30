@@ -10,6 +10,7 @@ public final class PolicyProviderRouterTest {
         paidIsBlockedWithoutOptIn();
         repeatedFailuresOpenCircuit();
         availabilityProbeFailureFallsThroughToNextProvider();
+        identityProbeFailureFallsThroughToNextProvider();
         System.out.println("PolicyProviderRouterTest: " + checks + " assertions passed");
     }
 
@@ -68,6 +69,27 @@ public final class PolicyProviderRouterTest {
         check("fallback".equals(out.providerId()), "availability failure should fall through to the next permitted provider");
         check(fallback.calls == 1, "fallback should serve the request exactly once");
         check(router.failureCount("broken-probe") == 1, "availability probe failure should count toward circuit breaking");
+    }
+
+    private static void identityProbeFailureFallsThroughToNextProvider() {
+        ReasoningProvider brokenIdentity = new ReasoningProvider() {
+            public String id() { throw new RuntimeException("provider identity crashed"); }
+            public boolean available() { throw new AssertionError("provider with broken identity must not be probed further"); }
+            public ReasoningResult reason(ReasoningRequest request) { throw new AssertionError("provider with broken identity must not reason"); }
+        };
+        StubProvider fallback = new StubProvider("fallback", new ReasoningResult("fallback", "ok", null), false);
+        PolicyProviderRouter router = new PolicyProviderRouter(List.of(
+                new ProviderRoute(brokenIdentity, ProviderTier.FREE_LOCAL, 1),
+                new ProviderRoute(fallback, ProviderTier.FREE_LOCAL, 2)
+        ), false, 2);
+        ReasoningResult out;
+        try {
+            out = router.reason(new ReasoningRequest("hi", "", List.of()));
+        } catch (RuntimeException escaped) {
+            throw new AssertionError("provider identity failure must not crash provider routing", escaped);
+        }
+        check("fallback".equals(out.providerId()), "identity failure should fall through to the next permitted provider");
+        check(fallback.calls == 1, "fallback should serve the request exactly once after identity failure");
     }
 
     private static void check(boolean condition, String message) {
