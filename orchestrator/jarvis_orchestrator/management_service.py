@@ -142,8 +142,6 @@ class ManagementService:
     async def _run_one(self, owner_id: str, task: Task):
         outcome = await self.supervisor.run_task(owner_id, task)
         if outcome.outputs:
-            # A task may be explicitly cross-checked by several peers. Preserve all
-            # outputs deterministically without exposing worker names to clients.
             output = "\n".join(outcome.outputs[key] for key in sorted(outcome.outputs))
             await self.store.save_task_output(owner_id, task.project_id, task.task_id, output)
         return outcome
@@ -154,10 +152,7 @@ class ManagementService:
         if not ready:
             return {"ran": [], "blocked": True}
         outcomes = await asyncio.gather(*(self._run_one(owner_id, task) for task in ready))
-        return {
-            "ran": [outcome.task.task_id for outcome in outcomes],
-            "blocked": False,
-        }
+        return {"ran": [outcome.task.task_id for outcome in outcomes], "blocked": False}
 
     async def run_until_blocked(self, owner_id: str, project_id: str) -> dict:
         ran: list[str] = []
@@ -261,13 +256,7 @@ class ManagementService:
             "provider_details_exposed": False,
         }
 
-    async def events(
-        self,
-        owner_id: str,
-        project_id: str,
-        after_event_id: str | None,
-        limit: int,
-    ) -> dict:
+    async def events(self, owner_id: str, project_id: str, after_event_id: str | None, limit: int) -> dict:
         await self._project(owner_id, project_id)
         stored = await self.store.events(owner_id, project_id)
         public = []
@@ -338,7 +327,9 @@ class ManagementService:
             for item in self._pending_approvals(await self.store.events(owner_id, project_id))
         }
         approval = pending.get(approval_id)
-        task_id = approval["task_id"] if approval is not None else None
+        if approval is None:
+            raise KeyError(approval_id)
+        task_id = approval["task_id"]
         await self.store.save_project(
             project,
             event=self._encode_approval_event(
