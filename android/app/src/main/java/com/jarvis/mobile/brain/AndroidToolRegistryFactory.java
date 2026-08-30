@@ -1,6 +1,7 @@
 package com.jarvis.mobile.brain;
 
 import android.content.Context;
+import android.content.Intent;
 
 import com.jarvis.brain.ConversationalCallTransport;
 import com.jarvis.brain.ExternalResearchGateway;
@@ -8,6 +9,7 @@ import com.jarvis.brain.ToolExecutionClass;
 import com.jarvis.brain.ToolRegistry;
 import com.jarvis.brain.ToolResult;
 import com.jarvis.brain.ToolSpec;
+import com.jarvis.mobile.SettingsActivity;
 import com.jarvis.mobile.actions.AndroidAccessibilityActions;
 import com.jarvis.mobile.actions.AndroidAlarmActions;
 import com.jarvis.mobile.actions.AndroidAppActions;
@@ -52,6 +54,11 @@ public final class AndroidToolRegistryFactory {
         AndroidCalendarReader calendar = new AndroidCalendarReader(appContext);
         ToolRegistry registry = ToolRegistry.standard(research, callTransport);
 
+        register(registry, "open_jarvis_settings", false, Set.of("settings", "jarvis settings", "open settings"), Set.of(), "Open JARVIS settings", ToolExecutionClass.DEVICE_REFLEX, args -> {
+            Intent intent = new Intent(appContext, SettingsActivity.class).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+            appContext.startActivity(intent);
+            return "Opened JARVIS settings.";
+        });
         register(registry, "open_dialer", false, Set.of("phone", "phone app", "dialer"), Set.of(), "Open Android phone dialer", ToolExecutionClass.DEVICE_REFLEX, args -> dialer.openDialer());
         register(registry, "call_contact", true, Set.of("call contact", "phone contact"), Set.of("recipient"), "Place an approved phone call to one exact contact or explicit phone number", ToolExecutionClass.CONSEQUENTIAL, args -> dialer.call(args.get("recipient")));
         register(registry, "open_app", false, Set.of("launch app", "open application"), Set.of("app"), "Open an installed app by exact visible app name", ToolExecutionClass.DEVICE_REFLEX, args -> apps.open(args.get("app")));
