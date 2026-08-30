@@ -6,6 +6,7 @@ import pytest
 from jarvis_orchestrator.runtime import (
     AgentZeroRuntime,
     InMemoryAgentContextStore,
+    WorkerUnavailableError,
     build_runtime,
 )
 
@@ -97,7 +98,7 @@ async def test_agent_zero_retries_once_with_fresh_context_when_saved_context_exp
 
 
 @pytest.mark.asyncio
-async def test_agent_zero_surfaces_non_context_http_failure_without_retry():
+async def test_agent_zero_surfaces_server_failure_as_worker_unavailable_without_retry():
     calls = 0
 
     async def handler(request: httpx.Request) -> httpx.Response:
@@ -113,7 +114,7 @@ async def test_agent_zero_surfaces_non_context_http_failure_without_retry():
         client=client,
     )
 
-    with pytest.raises(httpx.HTTPStatusError):
+    with pytest.raises(WorkerUnavailableError, match="Agent Zero unavailable"):
         await runtime.execute("work", "session-a")
     assert calls == 1
     await client.aclose()
