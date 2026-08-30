@@ -102,7 +102,12 @@ def _session_lock_timeout_seconds() -> int:
 
 
 def _bearer_token(authorization: str | None) -> str | None:
-    return authorization.removeprefix("Bearer ") if authorization else None
+    if not authorization:
+        return None
+    scheme, separator, token = authorization.partition(" ")
+    if not separator or scheme.lower() != "bearer" or not token:
+        return None
+    return token
 
 
 def _websocket_token(ws: WebSocket) -> str | None:
