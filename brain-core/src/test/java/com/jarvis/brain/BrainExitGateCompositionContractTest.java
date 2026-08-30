@@ -19,6 +19,7 @@ public final class BrainExitGateCompositionContractTest {
         require(gate, "AndroidMediaToolBindingContractTest.class", "typed Android media search/play and transport controls must be part of the composed brain gate");
         require(gate, "AndroidAlarmToolBindingContractTest.class", "typed Android alarm creation must be part of the composed brain gate");
         require(gate, "AndroidVolumeToolBindingContractTest.class", "typed Android volume controls must be part of the composed brain gate");
+        require(gate, "AndroidAppLaunchToolBindingContractTest.class", "exact typed Android app launching must be part of the composed brain gate");
         require(gate, "ResponseStyleContractTest.class", "central beta response style must be part of the composed brain gate");
         require(gate, "CommercialWakeWordPolicyTest.class", "commercial wake model provenance must be part of the composed brain gate");
         require(gate, "WakeWordArtifactVerifierTest.class", "wake model artifact integrity must be part of the composed brain gate");
