@@ -13,6 +13,8 @@ public final class AndroidDecisionAffordanceEmulatorContractTest {
                 "primary runtime decision control needs a stable accessibility identifier for device verification");
         check(activity.contains("secondaryActionButton.setContentDescription(\"JARVIS \" + view.secondaryAction().name() + \" action\");"),
                 "secondary runtime decision control needs a stable accessibility identifier for device verification");
+        check(smoke.contains("dump_ui_retry()") && smoke.contains("uiautomator dump") && smoke.contains("UI_DUMP_READY"),
+                "emulator smoke must retry transient Android accessibility-tree publication failures instead of failing a healthy app on one null-root read");
         check(smoke.contains("--es jarvis_test_command '\"Jarvis, text Mom I am on my way\"'"),
                 "emulator smoke must drive a deterministic consequential message request through MainActivity");
         check(smoke.contains("JARVIS_RUNTIME_OUTPUT state=AWAITING_APPROVAL"),
