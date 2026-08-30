@@ -21,6 +21,28 @@ def _authorized(token: str | None) -> bool:
     return not expected or token == expected
 
 
+def _bearer_token(authorization: str | None) -> str | None:
+    return authorization.removeprefix("Bearer ") if authorization else None
+
+
+def _require_http_auth(authorization: str | None) -> None:
+    if not _authorized(_bearer_token(authorization)):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+
+async def _run_lifecycle_operation(operation: str, session_id: str) -> bool:
+    handler = getattr(app.state.runtime, operation, None)
+    if not callable(handler):
+        raise HTTPException(
+            status_code=501,
+            detail=f"Configured runtime does not support session {operation}",
+        )
+    changed = bool(await handler(session_id))
+    if not changed:
+        raise HTTPException(status_code=404, detail="Worker session not found")
+    return changed
+
+
 class Command(BaseModel):
     text: str = Field(min_length=1, max_length=100_000)
     session_id: str = Field(default="primary", min_length=1, max_length=128)
@@ -59,7 +81,7 @@ async def lifespan(app: FastAPI):
         await app.state.valkey.aclose()
 
 
-app = FastAPI(title="JARVIS Orchestrator", version="0.4.0", lifespan=lifespan)
+app = FastAPI(title="JARVIS Orchestrator", version="0.5.0", lifespan=lifespan)
 
 
 @app.get("/health")
@@ -74,9 +96,7 @@ async def health():
 
 @app.post("/v1/command")
 async def command(body: Command, authorization: str | None = Header(default=None)):
-    token = authorization.removeprefix("Bearer ") if authorization else None
-    if not _authorized(token):
-        raise HTTPException(status_code=401, detail="Unauthorized")
+    _require_http_auth(authorization)
     return await app.state.orchestrator.submit(body.text, body.session_id)
 
 
@@ -87,9 +107,7 @@ async def event_history(
     authorization: str | None = Header(default=None),
 ):
     """Recover state missed while a phone/desktop client was disconnected."""
-    token = authorization.removeprefix("Bearer ") if authorization else None
-    if not _authorized(token):
-        raise HTTPException(status_code=401, detail="Unauthorized")
+    _require_http_auth(authorization)
     events = await app.state.bus.history(session_id, limit)
     return {"session_id": session_id, "events": [
         {
@@ -105,15 +123,47 @@ async def event_history(
     ]}
 
 
+@app.post("/v1/sessions/{session_id}/reset")
+async def reset_session(
+    session_id: str,
+    authorization: str | None = Header(default=None),
+):
+    """Reset the configured worker's conversation while preserving JARVIS session identity."""
+    _require_http_auth(authorization)
+    await _run_lifecycle_operation("reset", session_id)
+    return {"session_id": session_id, "reset": True}
+
+
+@app.delete("/v1/sessions/{session_id}")
+async def terminate_session(
+    session_id: str,
+    authorization: str | None = Header(default=None),
+):
+    """Terminate the configured worker session and clear its runtime context mapping."""
+    _require_http_auth(authorization)
+    await _run_lifecycle_operation("terminate", session_id)
+    return {"session_id": session_id, "terminated": True}
+
+
 @app.websocket("/v1/events")
 async def events(ws: WebSocket):
     token = ws.query_params.get("token")
     if not _authorized(token):
         await ws.close(code=4401)
         return
+
+    # Explicit session subscription is mandatory so an authenticated listener
+    # cannot receive telemetry from unrelated JARVIS sessions.
+    session_id = str(ws.query_params.get("session_id", "")).strip()
+    if not session_id:
+        await ws.close(code=4400)
+        return
+
     await ws.accept()
     try:
         async for event in app.state.bus.subscribe():
+            if event.session_id != session_id:
+                continue
             await ws.send_json({
                 "session_id": event.session_id,
                 "task_id": event.task_id,
