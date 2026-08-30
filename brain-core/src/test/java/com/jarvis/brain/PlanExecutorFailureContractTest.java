@@ -14,6 +14,7 @@ public final class PlanExecutorFailureContractTest {
         retryableConsequentialFailureRequiresFreshApprovalBeforeRetry();
         successfulStatusWithoutOutputFailsClosed();
         failureStatusWithoutOutputFailsClosed();
+        blankSuccessfulOutputFailsClosedAcrossExecutors();
         System.out.println("PlanExecutorFailureContractTest: " + checks + " assertions passed");
     }
 
@@ -127,6 +128,20 @@ public final class PlanExecutorFailureContractTest {
                 "a tool failure without detail must still fail closed");
         check(report.failureDetail().toLowerCase().contains("output"),
                 "missing failure output should be normalized into a useful diagnostic");
+    }
+
+    private static void blankSuccessfulOutputFailsClosedAcrossExecutors() {
+        ToolRegistry registry = new ToolRegistry();
+        registry.register(new ToolSpec("lookup", false, Set.of(), Set.of(), "lookup"),
+                (arguments, context) -> ToolResult.success("   "));
+        Plan plan = new Plan("lookup", List.of(new PlanStep("lookup")));
+        ExecutionReport direct = new PlanExecutor(registry, new ApprovalGate()).execute(plan, new ExecutionContext());
+        ResumablePlanExecutor resumable = new ResumablePlanExecutor(registry, new ApprovalGate());
+        ExecutionReport resumed = resumable.run(resumable.start(plan), new ExecutionContext());
+        check(direct.status() == ExecutionReport.Status.FAILED && resumed.status() == ExecutionReport.Status.FAILED,
+                "whitespace-only success must fail closed in both executors; direct=" + direct.status() + ", resumable=" + resumed.status());
+        check(direct.failureDetail().toLowerCase().contains("output") && resumed.failureDetail().toLowerCase().contains("output"),
+                "both executors should explain that blank success output is not usable evidence");
     }
 
     private static void check(boolean condition, String message) {
