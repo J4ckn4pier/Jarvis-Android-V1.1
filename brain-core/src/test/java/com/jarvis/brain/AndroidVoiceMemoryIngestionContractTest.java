@@ -15,8 +15,8 @@ public final class AndroidVoiceMemoryIngestionContractTest {
         check(runtime.contains("memoryConsolidator.ingestUserTurn(utterance, speechConfidence"), "voice turns must use supplied confidence rather than being promoted blindly");
 
         check(session.contains("SpeechRecognizer.CONFIDENCE_SCORES"), "voice session must read recognizer confidence scores");
-        check(session.contains("brain.handlePresentation(lastCommand, confidence)"), "voice session must forward top-hypothesis confidence to brain memory ingestion");
-        check(!session.contains("brain.handlePresentation(lastCommand, 1.0"), "speech must never be hard-coded as fully trusted");
+        check(session.contains("brain.handlePresentation(submittedCommand, confidence)"), "voice session must forward top-hypothesis confidence to brain memory ingestion");
+        check(!session.contains("brain.handlePresentation(submittedCommand, 1.0"), "speech must never be hard-coded as fully trusted");
 
         System.out.println("AndroidVoiceMemoryIngestionContractTest: PASS");
     }
