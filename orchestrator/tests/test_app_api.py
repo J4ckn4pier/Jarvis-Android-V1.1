@@ -7,6 +7,33 @@ from fastapi import HTTPException
 
 from jarvis_orchestrator import app as app_module
 from jarvis_orchestrator.core import BrainEvent
+from jarvis_orchestrator.identity import scope_session_id
+
+
+class RecordingOrchestrator:
+    def __init__(self) -> None:
+        self.calls: list[tuple[str, str]] = []
+
+    async def submit(self, text: str, session_id: str):
+        self.calls.append((text, session_id))
+        return {"session_id": session_id, "task_id": "task-1", "response": "ok"}
+
+
+@pytest.mark.asyncio
+async def test_command_scopes_session_to_authenticated_principal(monkeypatch):
+    monkeypatch.setenv("JARVIS_API_KEYS_JSON", '{"alice":"token-a","bob":"token-b"}')
+    monkeypatch.delenv("JARVIS_API_TOKEN", raising=False)
+    orchestrator = RecordingOrchestrator()
+    monkeypatch.setattr(app_module.app.state, "orchestrator", orchestrator, raising=False)
+
+    result = await app_module.command(
+        app_module.Command(text="hello", session_id="primary"),
+        authorization="Bearer token-a",
+    )
+
+    scoped = scope_session_id("alice", "primary")
+    assert orchestrator.calls == [("hello", scoped)]
+    assert result["session_id"] == "primary"
 
 
 class LifecycleRuntime:
@@ -28,6 +55,7 @@ class LifecycleRuntime:
 @pytest.mark.asyncio
 async def test_reset_session_calls_runtime(monkeypatch):
     monkeypatch.delenv("JARVIS_API_TOKEN", raising=False)
+    monkeypatch.delenv("JARVIS_API_KEYS_JSON", raising=False)
     runtime = LifecycleRuntime()
     monkeypatch.setattr(app_module.app.state, "runtime", runtime, raising=False)
 
@@ -40,6 +68,7 @@ async def test_reset_session_calls_runtime(monkeypatch):
 @pytest.mark.asyncio
 async def test_terminate_session_calls_runtime(monkeypatch):
     monkeypatch.delenv("JARVIS_API_TOKEN", raising=False)
+    monkeypatch.delenv("JARVIS_API_KEYS_JSON", raising=False)
     runtime = LifecycleRuntime()
     monkeypatch.setattr(app_module.app.state, "runtime", runtime, raising=False)
 
@@ -52,6 +81,7 @@ async def test_terminate_session_calls_runtime(monkeypatch):
 @pytest.mark.asyncio
 async def test_lifecycle_endpoint_rejects_runtime_without_capability(monkeypatch):
     monkeypatch.delenv("JARVIS_API_TOKEN", raising=False)
+    monkeypatch.delenv("JARVIS_API_KEYS_JSON", raising=False)
     monkeypatch.setattr(app_module.app.state, "runtime", SimpleNamespace(), raising=False)
 
     with pytest.raises(HTTPException) as exc:
@@ -63,6 +93,7 @@ async def test_lifecycle_endpoint_rejects_runtime_without_capability(monkeypatch
 @pytest.mark.asyncio
 async def test_lifecycle_endpoint_reports_missing_worker_session(monkeypatch):
     monkeypatch.delenv("JARVIS_API_TOKEN", raising=False)
+    monkeypatch.delenv("JARVIS_API_KEYS_JSON", raising=False)
     runtime = LifecycleRuntime(reset_result=False)
     monkeypatch.setattr(app_module.app.state, "runtime", runtime, raising=False)
 
@@ -99,6 +130,7 @@ class FiniteEventBus:
 @pytest.mark.asyncio
 async def test_events_requires_session_subscription(monkeypatch):
     monkeypatch.delenv("JARVIS_API_TOKEN", raising=False)
+    monkeypatch.delenv("JARVIS_API_KEYS_JSON", raising=False)
     ws = FakeWebSocket({})
 
     await app_module.events(ws)
@@ -110,6 +142,7 @@ async def test_events_requires_session_subscription(monkeypatch):
 @pytest.mark.asyncio
 async def test_events_filters_out_other_sessions(monkeypatch):
     monkeypatch.delenv("JARVIS_API_TOKEN", raising=False)
+    monkeypatch.delenv("JARVIS_API_KEYS_JSON", raising=False)
     monkeypatch.setattr(app_module.app.state, "bus", FiniteEventBus(), raising=False)
     ws = FakeWebSocket({"session_id": "primary"})
 
