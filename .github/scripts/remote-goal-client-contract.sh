@@ -23,10 +23,11 @@ require '"/result"' "$CLIENT"
 require 'Authorization' "$CLIENT"
 require 'Bearer ' "$CLIENT"
 
-# Exact request/reconnect fields. Cursor must be sent as after_event_id, not normalized to another name.
-for field in goal session_id constraints acceptance_criteria deadline approved response after_event_id; do
+# Exact request/reconnect fields. Cursor is a query parameter, so its source literal includes '='.
+for field in goal session_id constraints acceptance_criteria deadline approved response; do
   require "\"$field\"" "$CLIENT"
 done
+require 'after_event_id=' "$CLIENT"
 
 # Public responses must remain provider-neutral and explicitly reject accidental provider exposure.
 require 'provider_details_exposed' "$CLIENT"
