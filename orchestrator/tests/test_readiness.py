@@ -58,3 +58,29 @@ async def test_ready_reports_open_development_mode_without_credentials(monkeypat
     assert result["state_backend"] == "memory"
     assert result["session_locking"] == "memory"
     assert result["auth_mode"] == "open-development"
+
+
+@pytest.mark.asyncio
+async def test_health_distinguishes_liveness_from_dependency_readiness(monkeypatch):
+    monkeypatch.setenv("JARVIS_RUNTIME", "agent-zero")
+    monkeypatch.setattr(app_module.app.state, "valkey", BrokenValkey(), raising=False)
+
+    result = await app_module.health()
+
+    assert result["status"] == "ok"
+    assert result["state_backend"] == "valkey"
+    assert result["runtime"] == "agent-zero"
+    assert result["session_locking"] == "valkey"
+    assert result["checks_dependencies"] is False
+
+
+@pytest.mark.asyncio
+async def test_ready_reports_dependency_check_contract(monkeypatch):
+    monkeypatch.delenv("JARVIS_API_KEYS_JSON", raising=False)
+    monkeypatch.delenv("JARVIS_API_TOKEN", raising=False)
+    monkeypatch.setattr(app_module.app.state, "valkey", HealthyValkey(), raising=False)
+    monkeypatch.setattr(app_module.app.state, "runtime", object(), raising=False)
+
+    result = await app_module.ready()
+
+    assert result["checks_dependencies"] is True
