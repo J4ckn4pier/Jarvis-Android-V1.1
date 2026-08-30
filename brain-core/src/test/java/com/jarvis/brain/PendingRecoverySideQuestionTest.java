@@ -13,7 +13,7 @@ public final class PendingRecoverySideQuestionTest {
 
     public static void main(String[] args) {
         safeSideQuestionDoesNotLoseRecovery();
-        abandonedSideClarificationDoesNotLeakPastRetry();
+        incompleteSideRequestIsNotSecretlyQueuedDuringRecovery();
         System.out.println("PendingRecoverySideQuestionTest: " + checks + " assertions passed");
     }
 
@@ -40,29 +40,39 @@ public final class PendingRecoverySideQuestionTest {
         check(actionAttempts[0] == 3, "original action resumes exactly once after explicit retry");
     }
 
-    private static void abandonedSideClarificationDoesNotLeakPastRetry() {
+    private static void incompleteSideRequestIsNotSecretlyQueuedDuringRecovery() {
         int[] actionAttempts = {0};
         int[] inspections = {0};
         RuntimeApprovalConversation conversation = clarifyingSideBridge(actionAttempts, inspections);
 
         check(conversation.handle("Jarvis, perform zeta operation").state() == AssistantSurfaceState.NEEDS_INPUT,
                 "original recoverable action should reach explicit retry decision");
-        RuntimeSurfacePresentation clarification = conversation.handle("inspect something");
-        check(clarification.state() == AssistantSurfaceState.NEEDS_INPUT,
-                "side clarification should keep the original recovery surface visible");
-        check(clarification.text().toLowerCase().contains("topic"),
-                "side request should ask for its missing topic");
+        RuntimeSurfacePresentation incomplete = conversation.handle("inspect something");
+        check(incomplete.state() == AssistantSurfaceState.NEEDS_INPUT,
+                "incomplete side request should keep the original recovery surface visible");
+        check(incomplete.text().toLowerCase().contains("not") && incomplete.text().toLowerCase().contains("queue"),
+                "incomplete side request must be rejected transparently rather than retained behind recovery");
         check(inspections[0] == 0, "incomplete side request must not execute");
+
+        RuntimeSurfacePresentation unrelatedBeforeRetry = conversation.handle("how are you?");
+        check(unrelatedBeforeRetry.state() == AssistantSurfaceState.NEEDS_INPUT,
+                "ordinary conversation may continue while the original recovery remains pending");
+        check(unrelatedBeforeRetry.text().toLowerCase().contains("i'm doing well"),
+                "unrelated conversation must not be consumed as the missing side-request argument");
+        check(inspections[0] == 0,
+                "unrelated conversation must not execute the abandoned incomplete side request");
+        check(actionAttempts[0] == 2 && conversation.hasPendingRecovery(),
+                "original recoverable action remains untouched and pending after side conversation");
 
         RuntimeSurfacePresentation retried = conversation.handle("retry", 0.95);
         check(retried.state() == AssistantSurfaceState.ACTION_DONE && actionAttempts[0] == 3,
                 "explicit retry should resolve only the original action");
 
-        RuntimeSurfacePresentation unrelated = conversation.handle("how are you?");
-        check(unrelated.text().toLowerCase().contains("i'm doing well"),
-                "after resolving recovery, an abandoned side clarification must not consume the next unrelated utterance");
+        RuntimeSurfacePresentation unrelatedAfterRetry = conversation.handle("how are you?");
+        check(unrelatedAfterRetry.text().toLowerCase().contains("i'm doing well"),
+                "after resolving recovery, the rejected side request must not consume the next unrelated utterance");
         check(inspections[0] == 0,
-                "abandoned recovery-side clarification must not execute later using unrelated speech as its missing argument");
+                "rejected recovery-side clarification must never execute later using unrelated speech as its missing argument");
     }
 
     private static RuntimeApprovalConversation bridge(int[] actionAttempts, int[] reads) {
