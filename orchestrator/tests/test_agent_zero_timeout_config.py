@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from jarvis_orchestrator.runtime import AgentZeroRuntime, InMemoryAgentContextStore, build_runtime
@@ -26,3 +28,10 @@ def test_runtime_factory_rejects_nonpositive_agent_zero_inference_timeout(monkey
 
     with pytest.raises(RuntimeError, match="AGENT_ZERO_TIMEOUT_SECONDS"):
         build_runtime(InMemoryAgentContextStore())
+
+
+def test_packaged_compose_forwards_runtime_and_session_lock_timeouts():
+    compose = Path("compose.yaml").read_text()
+
+    assert "AGENT_ZERO_TIMEOUT_SECONDS: ${AGENT_ZERO_TIMEOUT_SECONDS:-300}" in compose
+    assert "JARVIS_SESSION_LOCK_TIMEOUT_SECONDS: ${JARVIS_SESSION_LOCK_TIMEOUT_SECONDS:-}" in compose
