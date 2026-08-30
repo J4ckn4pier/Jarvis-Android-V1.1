@@ -28,6 +28,7 @@ import android.widget.TextView;
 
 import com.jarvis.brain.AdaptiveEndpointingPolicy;
 import com.jarvis.brain.AssistantSurfaceState;
+import com.jarvis.brain.RuntimeSurfaceAction;
 import com.jarvis.brain.RuntimeSurfacePresentation;
 import com.jarvis.mobile.MainActivity;
 import com.jarvis.mobile.brain.AndroidBrainRuntime;
@@ -43,6 +44,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private static final long NEXT_LISTEN_DELAY_MILLIS = 180L;
     private static final String TEST_TAG = "JARVIS_ASSISTANT_TEST";
     private static final String SHARED_BRAIN_TAG = "JARVIS_SHARED_BRAIN_ACTIVE";
+    private static final String RUNTIME_FAILURE_TAG = "JARVIS_RUNTIME_FAILURE";
     private static final String TEST_COMMAND_EXTRA = "jarvis_test_command";
 
     private final AdaptiveEndpointingPolicy endpointing = new AdaptiveEndpointingPolicy();
@@ -327,10 +329,22 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private void submitBrainWork(Supplier<RuntimeSurfacePresentation> work) {
         long submittedGeneration = sessionGeneration;
         brainExecutor.execute(() -> {
-            RuntimeSurfacePresentation presentation = work.get();
+            RuntimeSurfacePresentation presentation;
+            try {
+                presentation = work.get();
+            } catch (RuntimeException failure) {
+                Log.e(RUNTIME_FAILURE_TAG, "Unexpected shared brain runtime failure", failure);
+                presentation = new RuntimeSurfacePresentation(
+                        AssistantSurfaceState.ERROR,
+                        "I hit an unexpected problem while handling that.",
+                        RUNTIME_FAILURE_TAG,
+                        RuntimeSurfaceAction.NONE,
+                        RuntimeSurfaceAction.NONE);
+            }
+            RuntimeSurfacePresentation deliveredPresentation = presentation;
             if (output != null) output.post(() -> {
                 if (!sessionVisible || submittedGeneration != sessionGeneration) return;
-                deliver(presentation);
+                deliver(deliveredPresentation);
             });
         });
     }
