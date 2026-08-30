@@ -10,6 +10,7 @@ public final class AndroidCortexSharedPlanContractTest {
         Path legacyCore = Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/core");
         Path diagnosticsSmokePath = Path.of("../.github/scripts/diagnostics-smoke.sh");
         Path localCortexSmokePath = Path.of("../.github/scripts/local-cortex-smoke.sh");
+        Path cortexSettingsSmokePath = Path.of("../.github/scripts/cortex-settings-smoke.sh");
         String runtime = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/AndroidBrainRuntime.java"));
         String diagnostics = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/DiagnosticsActivity.java"));
         String settings = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/SettingsActivity.java"));
@@ -44,6 +45,19 @@ public final class AndroidCortexSharedPlanContractTest {
                 "factory must not describe an empty provider as offline general reasoning");
         check(settings.contains("CLEAR SAVED API KEY") && settings.contains("secrets.remove(\"provider_api_key\")"),
                 "provider settings must let the user explicitly remove a previously saved optional credential");
+        check(Files.exists(cortexSettingsSmokePath),
+                "cortex settings controls must have a real Android emulator smoke, not source-only coverage");
+        String cortexSettingsSmoke = Files.readString(cortexSettingsSmokePath);
+        check(cortexSettingsSmoke.contains("com.jarvis.mobile.SettingsActivity")
+                        && cortexSettingsSmoke.contains("Deterministic brain active; no general local cortex configured")
+                        && cortexSettingsSmoke.contains("CLEAR SAVED API KEY")
+                        && cortexSettingsSmoke.contains("OpenAI-compatible local endpoint"),
+                "settings smoke must prove truthful default status, provider-neutral local option, and credential removal are rendered");
+        check(debugManifest.contains("android:name=\"com.jarvis.mobile.SettingsActivity\"")
+                        && debugManifest.contains("android:exported=\"true\""),
+                "SettingsActivity must remain private in production and be directly launchable only in debug emulator verification");
+        check(workflow.contains("cortex-settings-smoke.sh"),
+                "full APK workflow must exercise the real cortex settings screen on Android 16");
         check(!Files.exists(providers.resolve("CortexPlanAdapter.java")),
                 "retired cortex compatibility adapter must not ship");
         check(!Files.exists(providers.resolve("ProviderSchema.java")) && !Files.exists(providers.resolve("ProviderPlanFactory.java")),
