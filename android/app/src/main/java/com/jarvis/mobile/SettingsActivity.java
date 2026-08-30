@@ -82,10 +82,17 @@ public class SettingsActivity extends Activity {
                     : providers.getCheckedRadioButtonId() == anthropic.getId()
                     ? CortexProviderFactory.MODE_ANTHROPIC
                     : CortexProviderFactory.MODE_LOCAL;
+            String cortexEndpointValue = endpoint.getText().toString().trim();
+            if (!cortexEndpointValue.isEmpty() && !EndpointTransportPolicy.allows(cortexEndpointValue)) {
+                Toast.makeText(this,
+                        "Use HTTPS, loopback HTTP, or a user-owned .local HTTP endpoint.",
+                        Toast.LENGTH_LONG).show();
+                return;
+            }
             cortexPreferences.edit()
                     .putString("mode", provider)
                     .putString("model", model.getText().toString().trim())
-                    .putString("endpoint", endpoint.getText().toString().trim())
+                    .putString("endpoint", cortexEndpointValue)
                     .apply();
             try {
                 if (!apiKey.getText().toString().trim().isEmpty()) {
