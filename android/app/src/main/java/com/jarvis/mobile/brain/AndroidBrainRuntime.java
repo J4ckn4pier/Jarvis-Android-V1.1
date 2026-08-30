@@ -5,6 +5,8 @@ import android.util.Log;
 import com.jarvis.brain.*;
 import com.jarvis.mobile.brain.providers.CortexProvider;
 import com.jarvis.mobile.brain.providers.CortexProviderFactory;
+import com.jarvis.mobile.remote.RemoteGoalClient;
+import com.jarvis.mobile.remote.RemoteGoalStateStore;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -30,7 +32,9 @@ public final class AndroidBrainRuntime {
         ExternalResearchGateway research = AndroidExternalResearchGateway.create(app, settings);
         ToolRegistry tools = AndroidToolRegistryFactory.create(app, research);
         ConnectionRegistry connections = new ConnectionRegistry(new AndroidConnectionRegistryPersistence(app));
-        ReasoningRouter reasoning = request -> reasonWithConfiguredCortex(app, request, tools);
+
+        ReasoningRouter localReasoning = request -> reasonWithConfiguredCortex(app, request, tools);
+        ReasoningRouter reasoning = remoteReasoningOrLocal(app, localReasoning);
 
         LongTermMemoryStore memory = new LongTermMemoryStore(new AndroidLongTermMemoryPersistence(
                 app.getNoBackupFilesDir().toPath().resolve("jarvis").resolve("long-term-memory.bin"),
@@ -61,8 +65,7 @@ public final class AndroidBrainRuntime {
         runtime = new BrainRuntime(assistant, tools, clock, followups::recordActedOn);
         conversation = new RuntimeApprovalConversation(runtime);
 
-        DefaultAppPreferenceStore defaultApps = new DefaultAppPreferenceStore(
-                new AndroidDefaultAppPreferencePersistence(app));
+        DefaultAppPreferenceStore defaultApps = new DefaultAppPreferenceStore(new AndroidDefaultAppPreferencePersistence(app));
         UiListStore lists = new UiListStore(new AndroidUiListStorePersistence(app));
         RoutineStore routines = new RoutineStore(new AndroidRoutineStorePersistence(app));
         ActivityLog activity = new ActivityLog(new AndroidActivityLogPersistence(app));
@@ -77,12 +80,8 @@ public final class AndroidBrainRuntime {
     public boolean hasPendingApproval() { return runtime.hasPendingApproval(); }
     public boolean hasPendingRecovery() { return runtime.hasPendingRecovery(); }
 
-    /** Explicit typed/text surfaces are already-confirmed user input. */
-    public RuntimeSurfacePresentation handlePresentation(String utterance) {
-        return handlePresentation(utterance, 1.0);
-    }
+    public RuntimeSurfacePresentation handlePresentation(String utterance) { return handlePresentation(utterance, 1.0); }
 
-    /** Speech surfaces supply recognizer confidence so uncertain ASR never masquerades as trusted memory or approval. */
     public RuntimeSurfacePresentation handlePresentation(String utterance, double speechConfidence) {
         Log.i(TRACE_TAG, "JARVIS_RUNTIME_INPUT utterance=" + String.valueOf(utterance));
         memoryConsolidator.ingestUserTurn(utterance, speechConfidence, clock.instant());
@@ -95,21 +94,36 @@ public final class AndroidBrainRuntime {
     public RuntimeSurfacePresentation retryPresentation() { return conversation.retryPending(); }
     public RuntimeSurfacePresentation cancelPresentation() { return conversation.cancelPending(); }
 
-    /** Compatibility hook for platform events that were acted on outside the shared plan executor. */
-    public void recordActedOnEpisode(RecommendationEpisode episode, Instant actedAt) {
-        followups.recordActedOn(episode, actedAt);
-    }
-
-    /** Platform adapters report semantic signals only; privacy consent remains backend-owned. */
-    public Optional<ProactiveIntervention> onOutcomeFollowupSignal(OutcomeFollowupSignal signal) {
-        return followups.onSignal(signal);
-    }
-
+    public void recordActedOnEpisode(RecommendationEpisode episode, Instant actedAt) { followups.recordActedOn(episode, actedAt); }
+    public Optional<ProactiveIntervention> onOutcomeFollowupSignal(OutcomeFollowupSignal signal) { return followups.onSignal(signal); }
     public SettingsStore settings() { return settings; }
     public JarvisUiBackend uiBackend() { return uiBackend; }
 
-    private static ReasoningResult reasonWithConfiguredCortex(
-            Context context, ReasoningRequest request, ToolRegistry tools) {
+    private static ReasoningRouter remoteReasoningOrLocal(Context app, ReasoningRouter localReasoning) {
+        RemoteGoalStateStore state = new RemoteGoalStateStore(app);
+        RemoteGoalStateStore.Connection connection = state.loadConnection();
+        if (connection == null) return localReasoning;
+        try {
+            RemoteGoalClient client = new RemoteGoalClient(connection.baseUrl(), connection.token());
+            return request -> {
+                try {
+                    RemoteGoalClient.GoalSubmission submitted = client.submitGoal(
+                            request.utterance(), "primary", List.of(), List.of(), null);
+                    state.saveProject(submitted.projectId());
+                    return new ReasoningResult(
+                            "remote-goal",
+                            "Certainly, sir. I've started that and I'll keep you updated.",
+                            null);
+                } catch (RemoteGoalClient.RemoteGoalException unavailable) {
+                    return localReasoning.reason(request);
+                }
+            };
+        } catch (IllegalArgumentException invalidConnection) {
+            return localReasoning;
+        }
+    }
+
+    private static ReasoningResult reasonWithConfiguredCortex(Context context, ReasoningRequest request, ToolRegistry tools) {
         CortexProvider provider = CortexProviderFactory.create(context);
         if (!provider.isConfigured() || "local".equals(provider.id())) {
             return new ReasoningResult("local", "I need a connected reasoning cortex for that request.", null);
