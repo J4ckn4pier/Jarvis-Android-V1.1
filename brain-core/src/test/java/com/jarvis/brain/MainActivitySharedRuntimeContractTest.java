@@ -10,7 +10,7 @@ public final class MainActivitySharedRuntimeContractTest {
         String source = Files.readString(sourcePath);
         check(source.contains("import com.jarvis.mobile.brain.AndroidBrainRuntime;"),"MainActivity must import AndroidBrainRuntime");
         check(source.contains("private AndroidBrainRuntime runtime;"),"MainActivity must own the shared Android runtime");
-        check(source.contains("runtime.handlePresentation(command)"),"typed/recognized commands must enter RuntimeSurfacePresentation");
+        check(source.contains("runtime.handlePresentation(command, speechConfidence)"),"full-app commands must enter RuntimeSurfacePresentation while preserving the trust/confidence boundary");
         check(source.contains("FullAppRuntimeViewState.from(presentation)"),"MainActivity must project runtime state through the shared full-app contract");
         check(source.contains("JARVIS_SHARED_BRAIN_ACTIVE"),"MainActivity must emit the emulator shared-brain evidence marker");
         check(source.contains("Executors.newSingleThreadExecutor")
