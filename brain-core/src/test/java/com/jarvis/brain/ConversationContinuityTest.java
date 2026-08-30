@@ -5,6 +5,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 public final class ConversationContinuityTest {
     private static int checks;
@@ -12,6 +13,7 @@ public final class ConversationContinuityTest {
     public static void main(String[] args) {
         providerSeesItsOwnPriorAnswerOnFollowup();
         conversationHistoryKeepsRolesAndRemainsBounded();
+        cancelledClarificationRemainsVisibleToLaterReasoning();
         System.out.println("ConversationContinuityTest: " + checks + " assertions passed");
     }
 
@@ -48,6 +50,32 @@ public final class ConversationContinuityTest {
         check(last[0].context().contains("JARVIS:"), "conversation context should mark assistant role");
         check(!last[0].context().contains("topic 0"), "bounded working context should evict oldest turns");
         check(last[0].context().contains("topic 11"), "bounded working context should retain newest turn");
+    }
+
+    private static void cancelledClarificationRemainsVisibleToLaterReasoning() {
+        Clock clock = Clock.fixed(Instant.parse("2026-08-27T23:30:00Z"), ZoneOffset.UTC);
+        List<ReasoningRequest> requests = new ArrayList<>();
+        ReasoningRouter router = request -> {
+            requests.add(request);
+            if (requests.size() == 1) {
+                return new ReasoningResult("local", "Where would you like to go?",
+                        new Plan("Navigate", List.of(new PlanStep("navigate", Map.of(), false))));
+            }
+            return new ReasoningResult("local", "Fresh task acknowledged.", null);
+        };
+        AssistantCore core = new AssistantCore(BrainEngine.createDefault(clock), router, ToolRegistry.standard());
+        core.handle("Hey Jarvis");
+        BrainResponse clarification = core.handle("work out a route for me");
+        check(clarification.kind() == BrainResponse.Kind.CONVERSATION && core.hasPendingPlan(),
+                "missing destination should establish a clarification before cancellation");
+        BrainResponse cancelled = core.handle("never mind");
+        check(cancelled.text().equals("Cancelled."), "cancellation should terminate the pending clarification");
+        core.handle("compare two fresh ideas for me");
+        check(requests.size() == 2, "fresh open-ended task should reach reasoning after cancellation");
+        check(requests.get(1).context().contains("USER: never mind"),
+                "later reasoning must know the user cancelled the prior task");
+        check(requests.get(1).context().contains("JARVIS: Cancelled."),
+                "later reasoning must know JARVIS acknowledged cancellation");
     }
 
     private static void check(boolean condition, String message) {
