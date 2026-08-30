@@ -3,7 +3,7 @@ package com.jarvis.brain;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-/** Media requests must stay typed through Android for both search/play and transport controls. */
+/** Media requests must stay typed through Android and must not claim playback state that Android never confirmed. */
 public final class AndroidMediaToolBindingContractTest {
     public static void main(String[] args) throws Exception {
         String registry = Files.readString(Path.of("src/main/java/com/jarvis/brain/ToolRegistry.java"));
@@ -24,6 +24,10 @@ public final class AndroidMediaToolBindingContractTest {
                 "blank media queries must fail closed instead of claiming playback");
         check(media.contains("resolveActivity(context.getPackageManager()) == null"),
                 "media query must fail closed when no compatible media app exists");
+        check(media.contains("Asked a media app to play "),
+                "successful media intent dispatch must report the handoff rather than falsely claiming playback began");
+        check(!media.contains("return \"Playing \" + clean"),
+                "media query must not claim the requested media is playing without observing playback state");
 
         check(registry.contains("r.register(spec(\"media_control\""),
                 "shared brain registry must expose typed media transport control");
@@ -38,6 +42,12 @@ public final class AndroidMediaToolBindingContractTest {
                 "typed media controls must support pause, resume/play, next, and previous");
         check(media.contains("dispatchMediaKeyEvent"),
                 "typed media transport controls must dispatch through Android AudioManager");
+        check(media.contains("Sent pause command.") && media.contains("Sent play command.")
+                        && media.contains("Sent next-track command.") && media.contains("Sent previous-track command."),
+                "media transport acknowledgements must describe commands sent, not unobserved playback outcomes");
+        check(!media.contains("success = \"Paused.\"") && !media.contains("success = \"Resumed.\"")
+                        && !media.contains("success = \"Skipped to the next track.\"") && !media.contains("success = \"Went to the previous track.\""),
+                "media controls must not claim state changes that AudioManager does not confirm");
         check(media.contains("Unsupported media action"),
                 "unknown media-control actions must fail closed rather than guessing");
 
