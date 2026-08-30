@@ -13,6 +13,7 @@ public final class PendingApprovalSideQuestionTest {
 
     public static void main(String[] args) {
         safeSideQuestionDoesNotLoseApproval();
+        incompleteSideRequestIsNotSecretlyQueued();
         abandonedSideClarificationDoesNotLeakPastOriginalApproval();
         abandonedSideClarificationDoesNotLeakPastCancellation();
         System.out.println("PendingApprovalSideQuestionTest: " + checks + " assertions passed");
@@ -40,6 +41,31 @@ public final class PendingApprovalSideQuestionTest {
         check(sends[0] == 1, "original consequential action executes exactly once after explicit approval");
     }
 
+    private static void incompleteSideRequestIsNotSecretlyQueued() {
+        int[] sends = {0};
+        int[] inspections = {0};
+        RuntimeApprovalConversation conversation = clarifyingSideBridge(sends, inspections);
+
+        check(conversation.handle("Jarvis, text Mom I am on my way").state() == AssistantSurfaceState.AWAITING_APPROVAL,
+                "original action should begin pending approval before incomplete side request");
+        RuntimeSurfacePresentation incomplete = conversation.handle("inspect something");
+        check(incomplete.state() == AssistantSurfaceState.AWAITING_APPROVAL,
+                "incomplete side request must not replace original approval state");
+        check(incomplete.text().toLowerCase().contains("not") && incomplete.text().toLowerCase().contains("queue"),
+                "JARVIS must say that an incomplete side request was not queued behind the pending decision");
+        check(inspections[0] == 0, "incomplete side request must not execute");
+
+        RuntimeSurfacePresentation unrelated = conversation.handle("how are you?");
+        check(unrelated.state() == AssistantSurfaceState.AWAITING_APPROVAL,
+                "ordinary conversation may continue while original approval remains pending");
+        check(unrelated.text().toLowerCase().contains("i'm doing well"),
+                "unrelated side conversation must not be consumed as the missing side-request argument");
+        check(inspections[0] == 0,
+                "unrelated side conversation must never execute the abandoned incomplete side request");
+        check(sends[0] == 0 && conversation.hasPendingApproval(),
+                "original consequential action remains untouched and pending");
+    }
+
     private static void abandonedSideClarificationDoesNotLeakPastOriginalApproval() {
         int[] sends = {0};
         int[] inspections = {0};
@@ -50,8 +76,8 @@ public final class PendingApprovalSideQuestionTest {
         RuntimeSurfacePresentation clarification = conversation.handle("inspect something");
         check(clarification.state() == AssistantSurfaceState.AWAITING_APPROVAL,
                 "side clarification should not replace the original approval surface");
-        check(clarification.text().toLowerCase().contains("topic"),
-                "side request should ask for its missing topic before doing anything");
+        check(clarification.text().toLowerCase().contains("not") && clarification.text().toLowerCase().contains("queue"),
+                "incomplete side request should be rejected transparently rather than retained as hidden clarification state");
         check(inspections[0] == 0, "incomplete side request must not execute");
 
         RuntimeSurfacePresentation approved = conversation.handle("confirm", 0.95);
@@ -75,8 +101,8 @@ public final class PendingApprovalSideQuestionTest {
         RuntimeSurfacePresentation clarification = conversation.handle("inspect something");
         check(clarification.state() == AssistantSurfaceState.AWAITING_APPROVAL,
                 "side clarification should keep approval pending before cancellation");
-        check(clarification.text().toLowerCase().contains("topic"),
-                "side clarification should be waiting for its missing topic");
+        check(clarification.text().toLowerCase().contains("not") && clarification.text().toLowerCase().contains("queue"),
+                "incomplete side request should be rejected transparently before cancellation");
         check(inspections[0] == 0, "unfinished side clarification must not execute before cancellation");
 
         RuntimeSurfacePresentation cancelled = conversation.handle("cancel", 0.95);
