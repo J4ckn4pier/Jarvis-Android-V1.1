@@ -18,12 +18,12 @@ public final class AndroidMainActivityDecisionAffordanceContractTest {
                 "MainActivity must expose the shared secondary runtime action as a tappable control");
         check(source.contains("applyDecisionActions(view);"),
                 "every RuntimeSurfacePresentation projection must refresh decision affordances");
-        check(source.contains("case APPROVE: deliverPresentation(runtime.approvePresentation());"),
-                "APPROVE must execute the shared pending-approval continuation");
-        check(source.contains("case RETRY: deliverPresentation(runtime.retryPresentation());"),
-                "RETRY must execute the shared pending-recovery continuation");
-        check(source.contains("case CANCEL: deliverPresentation(runtime.cancelPresentation());"),
-                "CANCEL must execute the shared cancellation continuation");
+        check(source.contains("case APPROVE: submitBrainWork(runtime::approvePresentation);"),
+                "APPROVE must execute the shared pending-approval continuation on the serialized brain worker");
+        check(source.contains("case RETRY: submitBrainWork(runtime::retryPresentation);"),
+                "RETRY must execute the shared pending-recovery continuation on the serialized brain worker");
+        check(source.contains("case CANCEL: submitBrainWork(runtime::cancelPresentation);"),
+                "CANCEL must execute the shared cancellation continuation on the serialized brain worker");
         check(!source.contains("if (view.primaryEnabled()) rendered += \"\\n\\n\" + view.primaryAction();"),
                 "full app must not represent the primary decision affordance only as response text");
         check(!source.contains("if (view.secondaryEnabled()) rendered += \" / \" + view.secondaryAction();"),
