@@ -22,7 +22,10 @@ class Authenticator:
     def from_env(cls) -> "Authenticator":
         raw_multi = os.getenv("JARVIS_API_KEYS_JSON", "").strip()
         if raw_multi:
-            parsed = json.loads(raw_multi)
+            try:
+                parsed = json.loads(raw_multi)
+            except json.JSONDecodeError as exc:
+                raise ValueError("JARVIS_API_KEYS_JSON must be valid JSON") from exc
             if not isinstance(parsed, dict):
                 raise ValueError("JARVIS_API_KEYS_JSON must be a JSON object")
             if not parsed:
