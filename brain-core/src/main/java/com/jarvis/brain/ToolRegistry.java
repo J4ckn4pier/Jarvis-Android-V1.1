@@ -18,27 +18,20 @@ public final class ToolRegistry {
         String canonical = normalize(spec.name());
         RegisteredTool previous = byKey.get(canonical);
         Set<String> aliases = new HashSet<>();
-
         if (previous != null && normalize(previous.spec().name()).equals(canonical)) {
             for (String requestedAlias : spec.aliases()) {
                 String key = normalize(requestedAlias);
                 RegisteredTool owner = byKey.get(key);
                 if (owner == null || owner == previous || normalize(owner.spec().name()).equals(canonical)) aliases.add(key);
             }
-            for (Map.Entry<String, RegisteredTool> entry : byKey.entrySet()) {
-                if (entry.getValue() == previous && !entry.getKey().equals(canonical)) aliases.add(entry.getKey());
-            }
+            for (Map.Entry<String, RegisteredTool> entry : byKey.entrySet()) if (entry.getValue() == previous && !entry.getKey().equals(canonical)) aliases.add(entry.getKey());
             byKey.entrySet().removeIf(entry -> entry.getValue() == previous);
-        } else {
-            aliases.addAll(spec.aliases());
-        }
-
+        } else aliases.addAll(spec.aliases());
         ToolSpec effectiveSpec = new ToolSpec(spec.name(), spec.consequential(), aliases, spec.requiredArguments(), spec.description(), spec.executionClass());
         RegisteredTool registered = new RegisteredTool(effectiveSpec, implementation);
         byKey.put(canonical, registered);
         for (String alias : aliases) byKey.put(normalize(alias), registered);
     }
-
     public Optional<RegisteredTool> resolve(String nameOrAlias) { return Optional.ofNullable(byKey.get(normalize(nameOrAlias))); }
     public List<ToolSpec> specs() { Set<RegisteredTool> unique = new HashSet<>(byKey.values()); ArrayList<ToolSpec> specs = new ArrayList<>(); for (RegisteredTool registered : unique) specs.add(registered.spec()); specs.sort(Comparator.comparing(ToolSpec::name)); return List.copyOf(specs); }
     public Set<String> incompleteTrailingTokens() { Set<String> out = new HashSet<>(); Set<RegisteredTool> unique = new HashSet<>(byKey.values()); for (RegisteredTool registered : unique) { ToolSpec spec = registered.spec(); if (spec.requiredArguments().isEmpty()) continue; addFirstToken(out, spec.name().replace('_', ' ')); for (String alias : spec.aliases()) addFirstToken(out, alias); } return Set.copyOf(out); }
@@ -49,6 +42,7 @@ public final class ToolRegistry {
         ExternalResearchGateway gateway = research == null ? ExternalResearchGateway.unavailable() : research;
         ToolRegistry r = new ToolRegistry();
         r.register(spec("open_dialer", false, Set.of("phone", "phone app", "dialer", "calls", "call", "telephone"), Set.of(), "Open the phone dialer", ToolExecutionClass.DEVICE_REFLEX), ready("dialer-ready"));
+        r.register(spec("open_app", false, Set.of("launch app", "open application"), Set.of("app"), "Open an installed app by exact visible app name", ToolExecutionClass.DEVICE_REFLEX), ready("app-ready"));
         r.register(spec("discover_places", false, Set.of("restaurants", "find food", "dinner"), Set.of("category"), "Discover nearby places; cuisine/type is arbitrary user data, not a fixed enum", ToolExecutionClass.AUTONOMOUS_RESEARCH), gateway::discoverPlaces);
         r.register(spec("rank_options", false, Set.of(), Set.of(), "Rank candidate options using user context and evidence", ToolExecutionClass.AUTONOMOUS_RESEARCH), gateway::rankOptions);
         r.register(spec("present_options", false, Set.of(), Set.of(), "Present ranked options from evidence", ToolExecutionClass.AUTONOMOUS_RESEARCH), gateway::presentOptions);
