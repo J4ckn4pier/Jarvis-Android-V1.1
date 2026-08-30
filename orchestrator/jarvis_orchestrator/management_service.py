@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from typing import Callable, Mapping
 from uuid import uuid4
@@ -66,6 +67,12 @@ class ManagementService:
         if project is None:
             raise KeyError(project_id)
         return project
+
+    async def _mark_project_progress(self, owner_id: str, project_id: str) -> None:
+        project = await self._project(owner_id, project_id)
+        timestamp = self.clock()
+        progressed = replace(project, updated_at=timestamp, last_progress_at=timestamp)
+        await self.store.save_project(progressed, event="project.progress")
 
     @staticmethod
     def _goal_request(owner_id: str, session_id: str, request) -> GoalRequest:
@@ -143,6 +150,8 @@ class ManagementService:
         if outcome.outputs:
             output = "\n".join(outcome.outputs[key] for key in sorted(outcome.outputs))
             await self.store.save_task_output(owner_id, task.project_id, task.task_id, output)
+        if outcome.task.state is not task.state or outcome.outputs or outcome.blocker:
+            await self._mark_project_progress(owner_id, task.project_id)
         return outcome
 
     async def run_ready(self, owner_id: str, project_id: str) -> dict:
@@ -180,6 +189,8 @@ class ManagementService:
             if outcome.outputs:
                 output = "\n".join(outcome.outputs[key] for key in sorted(outcome.outputs))
                 await self.store.save_task_output(owner_id, project_id, task.task_id, output)
+            if outcome.task.state is not task.state or outcome.outputs or outcome.blocker:
+                await self._mark_project_progress(owner_id, project_id)
             if outcome.task.assigned_workers != previous_workers and outcome.task.state is TaskState.COMPLETE:
                 reassigned.append(task.task_id)
             if outcome.needs_user_escalation:
