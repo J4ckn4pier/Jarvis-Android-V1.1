@@ -11,6 +11,7 @@ public final class PlanExecutorFailureContractTest {
     public static void main(String[] args) {
         approvedExceptionFailsClosedAndConsumesApproval();
         approvedNullResultFailsClosedAndConsumesApproval();
+        retryableConsequentialFailureRequiresFreshApprovalBeforeRetry();
         System.out.println("PlanExecutorFailureContractTest: " + checks + " assertions passed");
     }
 
@@ -64,6 +65,32 @@ public final class PlanExecutorFailureContractTest {
         check(second.status() == ExecutionReport.Status.APPROVAL_REQUIRED,
                 "null action must consume one-shot approval and cannot silently retry");
         check(calls[0] == 1, "null consequential tool must not run again without fresh approval");
+    }
+
+    private static void retryableConsequentialFailureRequiresFreshApprovalBeforeRetry() {
+        ToolRegistry registry = new ToolRegistry();
+        ApprovalGate approvals = new ApprovalGate();
+        int[] calls = {0};
+        registry.register(new ToolSpec("send_external", true, Set.of(), Set.of("message"), "send"), (arguments, context) -> {
+            calls[0]++;
+            return calls[0] == 1 ? ToolResult.retryableFailure("service busy") : ToolResult.success("sent");
+        });
+        PlanExecutor executor = new PlanExecutor(registry, approvals);
+        Plan plan = new Plan("send", List.of(new PlanStep("send_external", Map.of("message", "hello"), true)));
+        approvals.approve("send_external");
+        ExecutionReport first = executor.execute(plan, new ExecutionContext());
+        check(first.status() == ExecutionReport.Status.APPROVAL_REQUIRED,
+                "a consequential retry must require a fresh approval before the second external attempt");
+        check(calls[0] == 1, "one approval must authorize exactly one consequential execution attempt");
+        ExecutionReport stillBlocked = executor.execute(plan, new ExecutionContext());
+        check(stillBlocked.status() == ExecutionReport.Status.APPROVAL_REQUIRED,
+                "retry remains blocked until a new approval token is granted");
+        check(calls[0] == 1, "retryable consequential action must not silently run again");
+        approvals.approve("send_external");
+        ExecutionReport afterFreshApproval = executor.execute(plan, new ExecutionContext());
+        check(afterFreshApproval.status() == ExecutionReport.Status.COMPLETED,
+                "fresh approval should permit a new consequential attempt");
+        check(calls[0] == 2, "fresh approval should authorize exactly the next attempt");
     }
 
     private static void check(boolean condition, String message) {
