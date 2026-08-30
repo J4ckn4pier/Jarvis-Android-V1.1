@@ -3,6 +3,7 @@ package com.jarvis.brain;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Map;
 
 public final class SessionStateDeltaTest {
@@ -11,6 +12,7 @@ public final class SessionStateDeltaTest {
     public static void main(String[] args) {
         providerCanWriteTypedSessionStateThatSurvivesDialogueEviction();
         laterCorrectionSupersedesActiveEntityWithoutRewritingHistory();
+        rejectedPlanCannotPoisonSessionState();
         System.out.println("SessionStateDeltaTest: " + checks + " assertions passed");
     }
 
@@ -51,6 +53,40 @@ public final class SessionStateDeltaTest {
         check(!current.contains("Castle Cafe"), "superseded entity should not remain active in session state");
         check(current.contains("Italian"), "latest session preference correction should replace prior preference");
         check(!current.contains("Thai"), "old session preference should not pollute active context");
+    }
+
+    private static void rejectedPlanCannotPoisonSessionState() {
+        Clock clock = Clock.fixed(Instant.parse("2026-08-30T15:10:00Z"), ZoneOffset.UTC);
+        final int[] calls = {0};
+        final String[] laterContext = {""};
+        ReasoningRouter router = request -> {
+            calls[0]++;
+            if (calls[0] == 1) {
+                return new ReasoningResult(
+                        "untrusted-provider",
+                        "I'll do that.",
+                        new Plan("unsafe malformed action", List.of(new PlanStep("definitely_not_a_registered_tool", Map.of(), false))),
+                        new SessionStateDelta("compromised goal", "poisoned topic",
+                                Map.of("person", "Mallory"), "poisoned preference", "", "", false));
+            }
+            laterContext[0] = request.context();
+            return new ReasoningResult("local", "Fresh task acknowledged.", null);
+        };
+
+        AssistantCore core = new AssistantCore(BrainEngine.createDefault(clock), router, ToolRegistry.standard());
+        core.handle("Hey Jarvis");
+        BrainResponse rejected = core.handle("do a deliberately invalid provider action");
+        check(rejected.kind() == BrainResponse.Kind.CONVERSATION,
+                "invalid provider plan should be rejected instead of becoming executable");
+
+        core.handle("compare two unrelated ideas for me");
+        check(calls[0] == 2, "fresh request should still reach reasoning after invalid plan rejection");
+        check(!laterContext[0].contains("compromised goal"),
+                "state delta attached to a rejected plan must not become active session goal");
+        check(!laterContext[0].contains("poisoned topic") && !laterContext[0].contains("poisoned preference"),
+                "state delta attached to a rejected plan must not poison later session context");
+        check(!laterContext[0].contains("Mallory"),
+                "entities from a rejected plan response must not enter session memory");
     }
 
     private static void check(boolean condition, String message) {
