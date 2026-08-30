@@ -17,6 +17,37 @@ Every telemetry event returned by session history and every live telemetry event
 
 Opening the live stream before replay intentionally permits overlap. Stable `event_id` deduplication makes overlap safe and avoids a gap between history retrieval and live subscription.
 
+## Live telemetry state-backend outage
+
+If the Valkey Pub/Sub connection disappears while `/v1/events` is already open, the Orchestrator sends the following final structured message when the socket is still writable:
+
+```json
+{
+  "error": "State backend unavailable",
+  "code": "state_backend_unavailable",
+  "retryable": true
+}
+```
+
+It then closes the WebSocket with code `1013` (`Try Again Later`). A client receiving this condition must:
+
+1. Keep its last durably processed `event_id` for the session.
+2. Back off briefly and reopen the authenticated `/v1/events` socket.
+3. Run the normal history recovery flow from that saved `event_id`.
+4. Merge replayed history with the reopened live stream and discard duplicates by `event_id`.
+5. Continue normally once history reports `has_more: false`.
+
+If the state backend is still unavailable when the client requests history, the history endpoint returns:
+
+```text
+HTTP 503 Service Unavailable
+{"detail":"State backend unavailable"}
+```
+
+Retry telemetry recovery later with the same saved cursor. Do **not** resubmit the user command merely because the telemetry socket closed: command execution/retry uses `request_id` and is a separate contract.
+
+A socket may disappear before the structured error can be delivered. Clients therefore must treat an unexplained `/v1/events` disconnect the same way for recovery purposes: reconnect, request history after the last durable `event_id`, and let the history response determine whether normal catch-up, temporary `503`, or stale-cursor `410` handling is required.
+
 ## Expired or stale cursor
 
 Valkey telemetry history is deliberately bounded and expires. A device may therefore reconnect with a remembered `after_event_id` that is no longer present in retained history.
