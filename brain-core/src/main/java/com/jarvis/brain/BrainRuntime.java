@@ -70,8 +70,7 @@ public final class BrainRuntime {
         return new Result(status,text,pendingTool,outputs);
     }
     private static String sideFailureText(ExecutionReport report,String fallback){
-        String detail=report.failureDetail()==null||report.failureDetail().isBlank()?fallback:report.failureDetail();
-        return detail+" Your previous action is still waiting for your decision.";
+        return failureText(report,fallback)+" Your previous action is still waiting for your decision.";
     }
     private Result runPending(String assistantText){ExecutionReport report=executor.run(pending,new ExecutionContext());return switch(report.status()){
         case COMPLETED->{String text=lastNonBlank(report.outputs(),assistantText);recordCompletedPlan(pending.plan(),pendingRecommendedAt);clearPending();yield new Result(Status.COMPLETED,text,"",report.outputs());}
