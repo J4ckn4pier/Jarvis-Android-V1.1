@@ -21,6 +21,12 @@ require 'client.getEvents(projectId, saved.eventId())'
 require 'page.nextEventId()'
 require 'state.saveCursor(projectId, page.nextEventId())'
 
+# A server-expired recovery cursor is an explicit resync instruction, not a permanent reconnect failure.
+# Android must forget only the stale cursor, preserve the project, and retry the event stream from current history.
+require 'expired.statusCode() != 410'
+require 'state.saveCursor(projectId, null)'
+require 'client.getEvents(projectId, null)'
+
 # Terminal completion and explicit cancellation stay provider-neutral. Local state clears only after confirmed cancel.
 require 'client.getResult(projectId)'
 require 'cancelActiveProject'
