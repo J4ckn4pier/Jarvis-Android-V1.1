@@ -22,6 +22,11 @@ public final class AndroidVoiceConversationContinuityContractTest {
                         && session.contains("brainExecutor.execute(")
                         && session.contains("output.post(() -> deliver("),
                 "voice brain/provider/tool work must run off Android's main thread and marshal presentation back to the UI thread");
+        check(session.contains("sessionGeneration")
+                        && session.contains("long submittedGeneration = sessionGeneration;")
+                        && session.contains("submittedGeneration != sessionGeneration")
+                        && session.contains("!sessionVisible"),
+                "slow results from a hidden/previous voice session must not be delivered into a later visible conversation");
         check(session.contains("brainExecutor.shutdownNow()"),
                 "voice-session destruction must stop its background brain executor");
         check(approval.contains("runtime.hasPendingApproval()")
