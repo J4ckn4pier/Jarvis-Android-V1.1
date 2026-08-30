@@ -2,6 +2,10 @@
 
 This document is the stable provider-neutral boundary between the Android APK and the JARVIS Orchestrator management plane. The APK talks to **JARVIS**, never directly to Agent Zero, Ollama, or any future worker/provider. Provider details are never part of the APK contract; worker identities and implementation details stay behind JARVIS.
 
+## Public schema vocabulary
+
+The stable public fields used below are `project_id`, `session_id`, `state`, `goal`, `task_count`, `task_states`, `last_progress_at`, `event_id`, `kind`, `task_id`, `timestamp`, `next_event_id`, `has_more`, and `result`. Provider-specific fields are deliberately absent.
+
 ## Authentication
 
 Every HTTP request uses the existing owner identity boundary:
