@@ -27,13 +27,20 @@ public final class ResumablePlanExecutor {
                         "Fresh approval required before consequential execution attempt");
             }
 
-            ToolResult result = tool.implementation().execute(step.arguments(), context);
-            if (result.status() == ToolResult.Status.RETRYABLE_FAILURE) {
+            ToolResult result;
+            try {
                 result = tool.implementation().execute(step.arguments(), context);
                 if (result.status() == ToolResult.Status.RETRYABLE_FAILURE) {
-                    return new ExecutionReport(ExecutionReport.Status.RECOVERY_REQUIRED,
-                            append(cursor.outputs(), result.output()), tool.name(), result.output());
+                    result = tool.implementation().execute(step.arguments(), context);
+                    if (result.status() == ToolResult.Status.RETRYABLE_FAILURE) {
+                        return new ExecutionReport(ExecutionReport.Status.RECOVERY_REQUIRED,
+                                append(cursor.outputs(), result.output()), tool.name(), result.output());
+                    }
                 }
+            } catch (RuntimeException failure) {
+                String detail = failure.getMessage() == null ? failure.getClass().getSimpleName() : failure.getMessage();
+                return new ExecutionReport(ExecutionReport.Status.FAILED,
+                        append(cursor.outputs(), detail), tool.name(), detail);
             }
 
             if (result.status() != ToolResult.Status.SUCCESS) {
