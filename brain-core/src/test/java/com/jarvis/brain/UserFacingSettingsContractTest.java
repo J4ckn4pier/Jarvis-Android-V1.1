@@ -48,14 +48,16 @@ public final class UserFacingSettingsContractTest {
 
         check(providerFactory.contains("getSharedPreferences(\"jarvis_shell\"") && providerFactory.contains("personality_label"),
                 "the selected Personality must be read by the production cortex factory, not only saved by Settings");
-        check(providerSchema.contains("personalityDirective"),
-                "provider system prompts must support the selected JARVIS personality as a response-style directive");
-        check(openAiCompatible.contains("systemPrompt(personalityDirective)"),
-                "free/local OpenAI-compatible cortex must receive the selected Personality");
-        check(openAi.contains("systemPrompt(personalityDirective)"),
-                "OpenAI cortex must receive the selected Personality");
-        check(anthropic.contains("systemPrompt(personalityDirective)"),
-                "Anthropic cortex must receive the selected Personality");
+        check(providerFactory.contains("ProviderSharedPlanSchema.setPersonalityLabel"),
+                "the production cortex factory must hydrate the selected Personality into the provider-neutral prompt boundary");
+        check(providerSchema.contains("setPersonalityLabel") && providerSchema.contains("personalityDirectiveFor"),
+                "provider system prompts must translate the selected JARVIS personality into a bounded response-style directive");
+        check(openAiCompatible.contains("ProviderSharedPlanSchema.systemPrompt()"),
+                "free/local OpenAI-compatible cortex must use the provider-neutral Personality-aware system prompt");
+        check(openAi.contains("ProviderSharedPlanSchema.systemPrompt()"),
+                "OpenAI cortex must use the provider-neutral Personality-aware system prompt");
+        check(anthropic.contains("ProviderSharedPlanSchema.systemPrompt()"),
+                "Anthropic cortex must use the provider-neutral Personality-aware system prompt");
 
         System.out.println("UserFacingSettingsContractTest passed");
     }
