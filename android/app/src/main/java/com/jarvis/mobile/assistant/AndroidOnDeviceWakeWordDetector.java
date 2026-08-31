@@ -1,9 +1,11 @@
 package com.jarvis.mobile.assistant;
 
+import android.Manifest;
 import android.annotation.TargetApi;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -93,6 +95,10 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     @Override public boolean start(Runnable wakeCallback) {
         if (wakeCallback == null) {
             status = "wake callback missing";
+            return false;
+        }
+        if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            status = "microphone permission missing";
             return false;
         }
         if (!isAvailable(context)) {
@@ -220,6 +226,11 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
             recognizer = null;
         }
         if (!running || !isAvailable(context)) return false;
+        if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+            status = "microphone permission missing";
+            running = false;
+            return false;
+        }
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
                     && SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
@@ -281,6 +292,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         @Override public void run() {
             if (!running || wakeDispatched) return;
             if (!recreateRecognizer()) {
+                if (!running) return;
                 status = "Android recognizer unavailable during recovery";
                 if (systemOfflineVerified) scheduleRecreate(2500L);
                 return;
@@ -335,10 +347,14 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     @Override public void onError(int error) {
         listening = false;
         if (!running || wakeDispatched) return;
+        if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
+            status = "microphone permission missing";
+            failClosedAfterSupportCheck();
+            return;
+        }
         switch (error) {
             case SpeechRecognizer.ERROR_RECOGNIZER_BUSY,
                     SpeechRecognizer.ERROR_CLIENT,
-                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS,
                     SpeechRecognizer.ERROR_SERVER_DISCONNECTED -> {
                 status = "wake recognizer needs recovery (error " + error + ")";
                 scheduleRecreate(RECREATE_DELAY_MS);
