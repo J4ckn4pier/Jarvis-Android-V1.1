@@ -156,9 +156,10 @@ public final class SemanticGoalInterpreter {
     private static String mediaAction(String lower) {
         boolean media = lower.contains("music") || lower.contains("media") || lower.contains("track") || lower.contains("song");
         if (!media) return null;
+        if (!startsAsRequest(lower, "play ", "pause ", "resume ", "continue ", "next ", "previous ", "skip ", "back ", "go back ")) return null;
         if (lower.contains("pause")) return "pause";
         if (lower.contains("resume") || lower.contains("continue") || lower.contains("play")) return "play";
-        if (lower.contains("next")) return "next";
+        if (lower.contains("next") || lower.contains("skip")) return "next";
         if (lower.contains("previous") || lower.contains("back")) return "previous";
         return null;
     }
