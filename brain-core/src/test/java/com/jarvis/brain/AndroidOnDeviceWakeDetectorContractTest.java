@@ -39,6 +39,11 @@ public final class AndroidOnDeviceWakeDetectorContractTest {
         check(detector.contains("postDelayed") || detector.contains("startListening(intent)"), "wake detector must continue listening after a non-wake utterance");
         check(detector.contains("recreateRecognizer"), "Samsung recovery path must recreate the recognizer after fatal/client/busy errors instead of retrying a poisoned instance forever");
         check(detector.contains("ERROR_CLIENT") && detector.contains("ERROR_RECOGNIZER_BUSY"), "wake recovery must explicitly handle client and busy recognizer failures seen on OEM speech stacks");
+        check(detector.contains("ERROR_TOO_MANY_REQUESTS") && detector.contains("RATE_LIMIT_RECOVERY_DELAY_MS"),
+                "Android speech-service throttling must use an explicit slower recovery path instead of a 500 ms retry loop that can keep Samsung wake rate-limited");
+        check(detector.contains("status = \"wake recognizer rate-limited (error \" + error + \"); backing off\";")
+                        && detector.contains("scheduleRecreate(RATE_LIMIT_RECOVERY_DELAY_MS);"),
+                "rate-limit recovery must recreate the recognizer after a bounded backoff rather than repeatedly calling startListening on the throttled instance");
         check(detector.contains("status = \"Android recognizer unavailable during recovery\";\n                scheduleRecreate(2500L);"),
                 "failed recognizer recreation must keep retrying even when Samsung's dedicated on-device recognizer is the selected engine");
 
