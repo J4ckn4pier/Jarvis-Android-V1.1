@@ -43,14 +43,18 @@ public final class DeveloperSettingsActivity extends Activity {
         body.addView(status);
         String selected = cortex.getString("mode", CortexProviderFactory.MODE_LOCAL);
         RadioGroup providers = new RadioGroup(this);
-        RadioButton local = radio("Local / deterministic", CortexProviderFactory.MODE_LOCAL.equals(selected));
+        RadioButton local = radio("Local / deterministic fallback", CortexProviderFactory.MODE_LOCAL.equals(selected));
+        RadioButton localAi = radio("Local AI (Ollama-compatible)", CortexProviderFactory.MODE_LOCAL_AI.equals(selected));
         RadioButton compatible = radio("OpenAI-compatible endpoint", CortexProviderFactory.MODE_OPENAI_COMPATIBLE.equals(selected));
         RadioButton openai = radio("OpenAI", CortexProviderFactory.MODE_OPENAI.equals(selected));
         RadioButton anthropic = radio("Anthropic", CortexProviderFactory.MODE_ANTHROPIC.equals(selected));
-        providers.addView(local); providers.addView(compatible); providers.addView(openai); providers.addView(anthropic);
+        providers.addView(local); providers.addView(localAi); providers.addView(compatible); providers.addView(openai); providers.addView(anthropic);
         body.addView(providers);
+        body.addView(note("Suggested local model: " + CortexProviderFactory.SUGGESTED_LOCAL_MODEL));
+        body.addView(note("No API key is required for local AI. It runs on hardware you control; performance and capacity depend on that hardware."));
 
-        EditText model = input("Model name", cortex.getString("model", ""));
+        String savedModel = cortex.getString("model", "");
+        EditText model = input("Model name", savedModel);
         EditText endpoint = input("Provider endpoint", cortex.getString("endpoint", ""));
         EditText key = input("API key (leave blank to keep saved key)", "");
         key.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
@@ -60,18 +64,26 @@ public final class DeveloperSettingsActivity extends Activity {
             if (!endpointValue.isEmpty() && !EndpointTransportPolicy.allows(endpointValue)) {
                 Toast.makeText(this, "Use HTTPS, loopback HTTP, or a user-owned .local HTTP endpoint.", Toast.LENGTH_LONG).show(); return;
             }
-            String mode = providers.getCheckedRadioButtonId() == compatible.getId() ? CortexProviderFactory.MODE_OPENAI_COMPATIBLE
+            String mode = providers.getCheckedRadioButtonId() == localAi.getId() ? CortexProviderFactory.MODE_LOCAL_AI
+                    : providers.getCheckedRadioButtonId() == compatible.getId() ? CortexProviderFactory.MODE_OPENAI_COMPATIBLE
                     : providers.getCheckedRadioButtonId() == openai.getId() ? CortexProviderFactory.MODE_OPENAI
                     : providers.getCheckedRadioButtonId() == anthropic.getId() ? CortexProviderFactory.MODE_ANTHROPIC
                     : CortexProviderFactory.MODE_LOCAL;
+            String modelValue = model.getText().toString().trim();
+            if (CortexProviderFactory.MODE_LOCAL_AI.equals(mode) && modelValue.isEmpty()) {
+                modelValue = CortexProviderFactory.SUGGESTED_LOCAL_MODEL;
+                model.setText(modelValue);
+            }
             String keyValue = key.getText().toString().trim();
-            if (!keyValue.isEmpty()) {
+            if (!keyValue.isEmpty() && !CortexProviderFactory.MODE_LOCAL_AI.equals(mode)) {
                 try { secrets.put("provider_api_key", keyValue); key.setText(""); }
                 catch (Exception error) { Toast.makeText(this, "Could not save that provider credential securely. Nothing was changed.", Toast.LENGTH_LONG).show(); return; }
             }
-            cortex.edit().putString("mode", mode).putString("model", model.getText().toString().trim()).putString("endpoint", endpointValue).apply();
+            cortex.edit().putString("mode", mode).putString("model", modelValue).putString("endpoint", endpointValue).apply();
             status.setText(CortexProviderFactory.status(this));
-            Toast.makeText(this, "Provider configuration saved.", Toast.LENGTH_SHORT).show();
+            Toast.makeText(this, CortexProviderFactory.MODE_LOCAL_AI.equals(mode)
+                    ? "Local AI configuration saved. No API key is used."
+                    : "Provider configuration saved.", Toast.LENGTH_SHORT).show();
         }));
         body.addView(button("CLEAR SAVED API KEY", () -> { secrets.remove("provider_api_key"); Toast.makeText(this, "Saved API key removed.", Toast.LENGTH_SHORT).show(); }));
 
