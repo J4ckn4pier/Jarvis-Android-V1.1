@@ -3,7 +3,7 @@ package com.jarvis.brain;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-/** Static contract proving Android persists settings and feeds user-facing profile/personality into reasoning. */
+/** Static contract proving Android persists settings and applies profile/personality to user-facing behavior. */
 public final class AndroidSettingsPersistenceContractTest {
     public static void main(String[] args) throws Exception {
         Path adapterPath = Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/AndroidSharedPreferencesSettingsPersistence.java");
@@ -40,6 +40,16 @@ public final class AndroidSettingsPersistenceContractTest {
         String style = Files.readString(stylePath);
         check(style.contains("user-selected personality") && style.contains("form of address"),
                 "provider response style must explicitly honor user-selected personality and address preferences");
+        check(runtime.contains("private String preferredAddress()"),
+                "deterministic Android runtime replies must use the saved Profile form of address too");
+        check(runtime.contains("getSharedPreferences(\"jarvis_shell\"") && runtime.contains("profile_name"),
+                "deterministic reply address must come from the same Profile setting shown to the user");
+        check(!runtime.contains("needs your approval, sir")
+                        && !runtime.contains("working on that, sir")
+                        && !runtime.contains("background task, sir")
+                        && !runtime.contains("Cancelled, sir")
+                        && !runtime.contains("Certainly, sir"),
+                "background-project replies must not bypass the user-selected Profile with hardcoded sir text");
 
         System.out.println("AndroidSettingsPersistenceContractTest passed");
     }
