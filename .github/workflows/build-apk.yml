@@ -2,7 +2,7 @@ name: Build and Test JARVIS Prefrontal APK
 
 on:
   push:
-    branches: [main, brain-first-v1]
+    branches: [main, brain-first-v1, feature/local-assistant-cortex]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -76,7 +76,7 @@ jobs:
           profile: pixel_6
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim -camera-back none
-          script: sh .github/scripts/emulator-smoke.sh && sh .github/scripts/overlay-decision-smoke.sh && sh .github/scripts/remote-goal-integration-emulator-smoke.sh
+          script: sh .github/scripts/emulator-smoke.sh && sh .github/scripts/overlay-decision-smoke.sh && sh .github/scripts/remote-goal-integration-emulator-smoke.sh && sh .github/scripts/local-assistant-intelligence-smoke.sh
       - name: Preserve APK sprint emulator evidence
         if: always()
         uses: actions/upload-artifact@v4
@@ -88,6 +88,7 @@ jobs:
             android/app/build/outputs/apk/debug/emulator-*.txt
             android/app/build/outputs/apk/debug/remote-integration-*.txt
             android/app/build/outputs/apk/debug/remote-integration-*.xml
+            android/app/build/outputs/apk/debug/local-assistant-*.txt
           if-no-files-found: warn
           retention-days: 7
       - name: Preserve Android failure evidence
