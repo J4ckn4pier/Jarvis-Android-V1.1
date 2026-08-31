@@ -224,7 +224,11 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         if (!running) return;
         status = "recognizer recovery after error " + error;
         Log.w(TAG, "JARVIS_WAKE_RECOGNIZER_ERROR code=" + error);
-        if (error == SpeechRecognizer.ERROR_CLIENT || error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) {
+        if (error == SpeechRecognizer.ERROR_CLIENT
+                || error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY
+                || error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS
+                || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                    && error == SpeechRecognizer.ERROR_SERVER_DISCONNECTED)) {
             scheduleRecreate(RECREATE_DELAY_MS);
         } else {
             scheduleRestart(RESTART_DELAY_MS);
