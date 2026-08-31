@@ -37,12 +37,13 @@ public class JarvisVoiceInteractionService extends VoiceInteractionService {
         if (service != null) service.armPassiveWake("assistant session hidden");
     }
 
-    /** Called by the user-facing Wake Word switch so the control changes the live service now. */
+    /** Called by visible settings so changed wake/language configuration affects the live listener now. */
     public static void refreshPassiveWakePreference() {
         JarvisVoiceInteractionService service = activeInstance;
         if (service == null) return;
+        service.pausePassiveWake();
+        service.wakeWordDetector = null;
         if (service.wakeEnabled()) service.armPassiveWake("user setting enabled");
-        else service.pausePassiveWake();
     }
 
     private boolean wakeEnabled() {
