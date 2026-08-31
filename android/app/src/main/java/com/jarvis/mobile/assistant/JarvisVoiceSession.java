@@ -67,6 +67,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private boolean sessionVisible;
     private boolean autoListenTriggered;
     private boolean resumeAfterSpeech;
+    private boolean destroyed;
     private long conversationDeadlineElapsedRealtime;
     private long sessionGeneration;
     private long recognitionGeneration;
@@ -83,6 +84,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
 
     @Override public void onCreate() {
         super.onCreate();
+        destroyed = false;
         preferences = getContext().getSharedPreferences("jarvis_shell", Context.MODE_PRIVATE);
         brain = new AndroidBrainRuntime(getContext());
         textToSpeech = new TextToSpeech(getContext(), this);
@@ -547,7 +549,20 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private int color(int resourceId) { return getContext().getColor(resourceId); }
     private int dp(int value) { return Math.round(value * getContext().getResources().getDisplayMetrics().density); }
 
+    private void releaseTextToSpeechSafely() {
+        TextToSpeech engine = textToSpeech;
+        textToSpeech = null;
+        if (engine == null) return;
+        try { engine.stop(); } catch (RuntimeException cleanupFailure) {
+            Log.w(VOICE_RECOGNIZER_TAG, "TTS stop failed during voice-session cleanup", cleanupFailure);
+        }
+        try { engine.shutdown(); } catch (RuntimeException cleanupFailure) {
+            Log.w(VOICE_RECOGNIZER_TAG, "TTS shutdown failed during voice-session cleanup", cleanupFailure);
+        }
+    }
+
     @Override public void onInit(int status) {
+        if (destroyed) return;
         if (status == TextToSpeech.SUCCESS && textToSpeech != null) {
             applyVoicePreferences();
             textToSpeech.setOnUtteranceProgressListener(new UtteranceProgressListener() {
@@ -565,6 +580,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     }
 
     @Override public void onDestroy() {
+        destroyed = true;
         sessionGeneration++;
         recognitionGeneration++;
         sessionVisible = false;
@@ -575,7 +591,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         brainExecutor.shutdownNow();
         releaseSpeechRecognizerSafely();
         invalidateSpeechCallback();
-        if (textToSpeech != null) { textToSpeech.stop(); textToSpeech.shutdown(); }
+        releaseTextToSpeechSafely();
         super.onDestroy();
     }
 }

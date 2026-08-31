@@ -47,8 +47,8 @@ public final class AndroidVoiceConversationContinuityContractTest {
                 "callbacks from a destroyed/replaced active-session recognizer must be ignored before they change UI, execute commands, or schedule listening");
         check(session.contains("@Override public void onHide() {\n        sessionGeneration++;\n        recognitionGeneration++;"),
                 "hiding the Assistant session must invalidate the active recognizer generation before late OEM callbacks can arrive");
-        check(session.contains("@Override public void onDestroy() {\n        sessionGeneration++;\n        recognitionGeneration++;"),
-                "destroying the Assistant session must invalidate active recognizer callbacks before the recognizer is torn down");
+        check(session.contains("@Override public void onDestroy() {\n        destroyed = true;\n        sessionGeneration++;\n        recognitionGeneration++;"),
+                "destroying the Assistant session must terminally mark the session and invalidate active recognizer callbacks before the recognizer is torn down");
         check(session.contains("catch (RuntimeException recognitionFailure)")
                         && session.contains("recoverRecognitionStartFailure(recognitionFailure);"),
                 "Samsung/OEM recognizer creation or start exceptions must recover instead of crashing the active Assistant session");
