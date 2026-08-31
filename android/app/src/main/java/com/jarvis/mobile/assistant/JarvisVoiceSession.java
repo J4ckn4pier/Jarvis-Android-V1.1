@@ -68,6 +68,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private boolean resumeAfterSpeech;
     private long conversationDeadlineElapsedRealtime;
     private long sessionGeneration;
+    private long recognitionGeneration;
     private long speechGeneration;
     private long listenScheduleGeneration;
     private volatile String activeUtteranceId = "";
@@ -204,6 +205,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
 
     @Override public void onHide() {
         sessionGeneration++;
+        recognitionGeneration++;
         sessionVisible = false;
         autoListenTriggered = false;
         resumeAfterSpeech = false;
@@ -293,13 +295,23 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
             return;
         }
         lastPartial = "";
+        long listeningGeneration = ++recognitionGeneration;
         if (speechRecognizer != null) speechRecognizer.destroy();
         speechRecognizer = Build.VERSION.SDK_INT >= 31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(getContext())
                 ? SpeechRecognizer.createOnDeviceSpeechRecognizer(getContext())
                 : SpeechRecognizer.createSpeechRecognizer(getContext());
         speechRecognizer.setRecognitionListener(new RecognitionListener() {
-            @Override public void onReadyForSpeech(Bundle params) { output.setText("Listening…"); setActive(true); }
+            private boolean stale() {
+                return listeningGeneration != recognitionGeneration || !sessionVisible;
+            }
+
+            @Override public void onReadyForSpeech(Bundle params) {
+                if (stale()) return;
+                output.setText("Listening…");
+                setActive(true);
+            }
             @Override public void onBeginningOfSpeech() {
+                if (stale()) return;
                 invalidateSpeechCallback();
                 if (textToSpeech != null) textToSpeech.stop();
                 resumeAfterSpeech = false;
@@ -307,8 +319,12 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
             }
             @Override public void onRmsChanged(float rmsdB) { }
             @Override public void onBufferReceived(byte[] buffer) { }
-            @Override public void onEndOfSpeech() { output.setText("Thinking…"); }
+            @Override public void onEndOfSpeech() {
+                if (stale()) return;
+                output.setText("Thinking…");
+            }
             @Override public void onError(int error) {
+                if (stale()) return;
                 output.setText(error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
                         ? "I didn’t catch that. I’m still listening."
                         : "Listening paused briefly; I’ll reopen it.");
@@ -316,6 +332,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
                 scheduleNextListen();
             }
             @Override public void onResults(Bundle results) {
+                if (stale()) return;
                 ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
                 if (matches == null || matches.isEmpty()) {
                     output.setText("I didn’t catch that.");
@@ -328,6 +345,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
                 execute(matches.get(0), confidence);
             }
             @Override public void onPartialResults(Bundle partialResults) {
+                if (stale()) return;
                 ArrayList<String> partial = partialResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
                 if (partial != null && !partial.isEmpty()) {
                     lastPartial = partial.get(0);
@@ -509,6 +527,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
 
     @Override public void onDestroy() {
         sessionGeneration++;
+        recognitionGeneration++;
         sessionVisible = false;
         resumeAfterSpeech = false;
         conversationDeadlineElapsedRealtime = 0L;
