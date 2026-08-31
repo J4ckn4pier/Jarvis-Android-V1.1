@@ -550,6 +550,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             return;
         }
         if (roleManager.isRoleHeld(RoleManager.ROLE_ASSISTANT)) {
+            JarvisVoiceInteractionService.refreshPassiveWakePreference();
             status.setText("JARVIS is already your default Android Assistant.");
             return;
         }
@@ -559,7 +560,12 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == ASSISTANT_ROLE_REQUEST) {
-            status.setText(resultCode == RESULT_OK ? "JARVIS is now your default Android Assistant." : "Assistant selection was not completed.");
+            if (resultCode == RESULT_OK) {
+                JarvisVoiceInteractionService.refreshPassiveWakePreference();
+                status.setText("JARVIS is now your default Android Assistant.");
+            } else {
+                status.setText("Assistant selection was not completed.");
+            }
         }
     }
 
