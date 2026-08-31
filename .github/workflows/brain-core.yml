@@ -2,7 +2,7 @@ name: JARVIS Brain Core
 
 on:
   push:
-    branches: [brain-first-v1]
+    branches: [brain-first-v1, feature/local-assistant-cortex]
     paths:
       - 'brain-core/**'
       - '.github/workflows/brain-core.yml'
@@ -27,4 +27,6 @@ jobs:
           java-version: '17'
       - name: Run standalone brain acceptance suite
         working-directory: brain-core
-        run: ./run-tests.sh
+        run: |
+          ./run-tests.sh
+          java -cp out com.jarvis.brain.GeneralCortexRoutingTest
