@@ -6,9 +6,15 @@ import java.nio.file.Path;
 public final class UserFacingSettingsContractTest {
     public static void main(String[] args) throws Exception {
         Path mobile = Path.of("../android/app/src/main/java/com/jarvis/mobile");
+        Path providers = mobile.resolve("brain/providers");
         String settings = Files.readString(mobile.resolve("SettingsActivity.java"));
         String voiceSession = Files.readString(mobile.resolve("assistant/JarvisVoiceSession.java"));
         String quickWidget = Files.readString(mobile.resolve("widgets/QuickActivationWidget.java"));
+        String providerFactory = Files.readString(providers.resolve("CortexProviderFactory.java"));
+        String providerSchema = Files.readString(providers.resolve("ProviderSharedPlanSchema.java"));
+        String openAiCompatible = Files.readString(providers.resolve("OpenAiCompatibleChatProvider.java"));
+        String openAi = Files.readString(providers.resolve("OpenAIResponsesProvider.java"));
+        String anthropic = Files.readString(providers.resolve("AnthropicMessagesProvider.java"));
         String manifest = Files.readString(Path.of("../android/app/src/main/AndroidManifest.xml"));
         for (String title : new String[]{"Voice", "Wake Word", "Voice Model", "Language", "App Permissions", "AI Providers", "Backup & Sync", "Profile", "Default Apps", "Personality", "Widgets & Lock Screen"}) {
             check(settings.contains(title), "user Settings must include canonical group: " + title);
@@ -39,6 +45,17 @@ public final class UserFacingSettingsContractTest {
                 "Widgets & Lock Screen may only advertise widget setup when a real Android home-screen widget exists");
         check(settings.contains("requestPinAppWidget") && settings.contains("QuickActivationWidget.class"),
                 "Widgets & Lock Screen must expose a real Android action to add the working JARVIS Quick Access widget");
+
+        check(providerFactory.contains("getSharedPreferences(\"jarvis_shell\"") && providerFactory.contains("personality_label"),
+                "the selected Personality must be read by the production cortex factory, not only saved by Settings");
+        check(providerSchema.contains("personalityDirective"),
+                "provider system prompts must support the selected JARVIS personality as a response-style directive");
+        check(openAiCompatible.contains("systemPrompt(personalityDirective)"),
+                "free/local OpenAI-compatible cortex must receive the selected Personality");
+        check(openAi.contains("systemPrompt(personalityDirective)"),
+                "OpenAI cortex must receive the selected Personality");
+        check(anthropic.contains("systemPrompt(personalityDirective)"),
+                "Anthropic cortex must receive the selected Personality");
 
         System.out.println("UserFacingSettingsContractTest passed");
     }
