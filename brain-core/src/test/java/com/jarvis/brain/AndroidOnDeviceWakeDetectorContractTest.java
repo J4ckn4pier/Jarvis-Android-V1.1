@@ -48,6 +48,8 @@ public final class AndroidOnDeviceWakeDetectorContractTest {
                 "each recognizer must receive a listener bound to the generation that created it");
         check(detector.contains("generation != recognizerGeneration"),
                 "wake callbacks must reject stale recognizer generations before changing wake/session state");
+        check(detector.contains("if (!running || generation != recognizerGeneration) return;"),
+                "offline-support callbacks must also reject stale recognizer generations before installing a listener or failing the live detector");
 
         check(detector.contains("wakeDispatched"), "wake detector must latch the first matching partial/final result so one phrase cannot trigger duplicate assistant sessions");
         check(detector.contains("stopListeningForWakeHandoff"), "wake detector must have an explicit handoff path that releases passive recognition before showing the assistant");
