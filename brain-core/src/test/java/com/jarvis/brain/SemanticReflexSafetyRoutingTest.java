@@ -17,6 +17,7 @@ public final class SemanticReflexSafetyRoutingTest {
         descriptiveAlarmPhraseFallsThroughToCortex();
         descriptiveNearestGasStationPhraseFallsThroughToCortex();
         descriptivePhoneCallPhraseFallsThroughToCortex();
+        descriptivePlayPhraseFallsThroughToCortex();
         directImperativeStillUsesSafeLocalReflex();
         System.out.println("SemanticReflexSafetyRoutingTest passed");
     }
@@ -118,6 +119,15 @@ public final class SemanticReflexSafetyRoutingTest {
         check(calls.get() == 1, "descriptive phone-call language must reach cortex");
         check(response.kind() == BrainResponse.Kind.CONVERSATION,
                 "descriptive phone-call language must not open the dialer");
+    }
+
+    private static void descriptivePlayPhraseFallsThroughToCortex() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+        BrainResponse response = core.handle("Play is an important part of childhood development.");
+        check(calls.get() == 1, "descriptive play language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "descriptive play language must not start media playback");
     }
 
     private static void directImperativeStillUsesSafeLocalReflex() {
