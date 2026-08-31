@@ -7,6 +7,7 @@ import android.appwidget.AppWidgetManager;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.ResolveInfo;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
@@ -24,13 +25,17 @@ import android.widget.TextView;
 import android.widget.Toast;
 
 import com.jarvis.mobile.assistant.JarvisVoiceInteractionService;
+import com.jarvis.mobile.brain.AndroidDefaultAppPreferencePersistence;
 import com.jarvis.mobile.brain.providers.CortexProviderFactory;
 import com.jarvis.mobile.brain.providers.LocalAiEndpointPolicy;
 import com.jarvis.mobile.brain.providers.SecureSecretStore;
 import com.jarvis.mobile.remote.RemoteGoalStateStore;
 import com.jarvis.mobile.widgets.QuickActivationWidget;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 /** Canonical user-facing JARVIS Settings. Raw expert provider fields remain available in DeveloperSettingsActivity. */
 public class SettingsActivity extends Activity {
@@ -62,7 +67,7 @@ public class SettingsActivity extends Activity {
         body.addView(row("AI Providers", providerSummary(), this::showProviderConnections));
         body.addView(row("Backup & Sync", backupSummary(), this::showBackupSyncSettings));
         body.addView(row("Profile", preferences.getString("profile_name", "Sir"), this::showProfileEditor));
-        body.addView(row("Default Apps", "Choose Android defaults used by JARVIS", () -> launch(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)));
+        body.addView(row("Default Apps", defaultAppsSummary(), this::showDefaultAppSettings));
         body.addView(row("Personality", preferences.getString("personality_label", "Humble Butler"), this::showPersonalityPicker));
         body.addView(row("Widgets & Lock Screen", widgetLockSummary(), this::showWidgetLockSettings));
         body.addView(section("ANDROID INTEGRATION"));
@@ -108,6 +113,45 @@ public class SettingsActivity extends Activity {
 
     private void showPermissionChoices(){String[] items={"App permissions","Notification access","Screen controls (Accessibility)"};new AlertDialog.Builder(this).setTitle("JARVIS Permissions").setItems(items,(dialog,which)->{if(which==0)launchAppDetails();else if(which==1)launch(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS);else launch(Settings.ACTION_ACCESSIBILITY_SETTINGS);}).setNegativeButton("CANCEL",null).show();}
     private void showBackupSyncSettings(){boolean remoteConfigured=new RemoteGoalStateStore(this).loadConnection()!=null;String message=remoteConfigured?"Remote JARVIS is configured. Choose whether this phone may use that connection for synchronization-capable features.":"No remote JARVIS connection is configured. Local memory remains on this phone until you explicitly configure one.";boolean enabled=preferences.getBoolean("backup_sync_enabled",false);int initial=enabled&&remoteConfigured?1:0;new AlertDialog.Builder(this).setTitle("Backup & Sync").setMessage(message).setSingleChoiceItems(new String[]{"Local only","Allow configured remote sync"},initial,null).setPositiveButton(remoteConfigured?"SAVE":"CONFIGURE CONNECTION",(dialog,which)->{if(remoteConfigured){AlertDialog d=(AlertDialog)dialog;int selected=d.getListView().getCheckedItemPosition();if(selected<0)selected=initial;preferences.edit().putBoolean("backup_sync_enabled",selected==1).apply();}else{startActivity(new Intent(this,DeveloperSettingsActivity.class));}render();}).setNegativeButton("CANCEL",null).show();}
+
+    private void showDefaultAppSettings(){
+        String[] choices={"Browser used by JARVIS","Android system default apps"};
+        new AlertDialog.Builder(this).setTitle("Default Apps").setMessage(defaultAppsSummary())
+                .setItems(choices,(dialog,which)->{if(which==0)showBrowserPicker();else launch(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS);})
+                .setNegativeButton("CANCEL",null).show();
+    }
+
+    private void showBrowserPicker(){
+        Intent probe=new Intent(Intent.ACTION_VIEW,Uri.parse("https://example.com"));
+        List<ResolveInfo> matches=getPackageManager().queryIntentActivities(probe,0);
+        ArrayList<String> labels=new ArrayList<>();
+        ArrayList<String> packages=new ArrayList<>();
+        labels.add("Use Android default"); packages.add("");
+        for(ResolveInfo match:matches){
+            if(match.activityInfo==null||match.activityInfo.packageName==null)continue;
+            String packageName=match.activityInfo.packageName;
+            if(packages.contains(packageName))continue;
+            CharSequence label=match.loadLabel(getPackageManager());
+            labels.add(label==null||label.toString().isBlank()?packageName:label.toString());
+            packages.add(packageName);
+        }
+        AndroidDefaultAppPreferencePersistence store=new AndroidDefaultAppPreferencePersistence(this);
+        String current=store.load().getOrDefault("browser","");
+        int selected=Math.max(0,packages.indexOf(current));
+        new AlertDialog.Builder(this).setTitle("Browser used by JARVIS").setSingleChoiceItems(labels.toArray(new String[0]),selected,null)
+                .setPositiveButton("SAVE",(dialog,which)->{AlertDialog d=(AlertDialog)dialog;int index=d.getListView().getCheckedItemPosition();if(index<0)index=selected;String packageName=packages.get(index);if(packageName.isBlank())store.remove("browser");else store.put("browser",packageName);Toast.makeText(this,packageName.isBlank()?"JARVIS will follow Android's default browser.":"JARVIS browser updated.",Toast.LENGTH_SHORT).show();render();})
+                .setNeutralButton("ANDROID DEFAULT APPS",(dialog,which)->launch(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS))
+                .setNegativeButton("CANCEL",null).show();
+    }
+
+    private String defaultAppsSummary(){
+        Map<String,String> saved=new AndroidDefaultAppPreferencePersistence(this).load();
+        String packageName=saved.get("browser");
+        if(packageName==null||packageName.isBlank())return "Browser: follow Android default";
+        try{CharSequence label=getPackageManager().getApplicationLabel(getPackageManager().getApplicationInfo(packageName,0));return "Browser: "+label;}
+        catch(Exception missing){return "Browser preference unavailable — tap to repair";}
+    }
+
     private void showWidgetLockSettings(){boolean lock=preferences.getBoolean("lock_screen_assistant_enabled",true);String[] labels={"Allow assistant access from lock screen","Add JARVIS Quick Access widget","Open Android display / lock-screen settings"};new AlertDialog.Builder(this).setTitle("Widgets & Lock Screen").setMultiChoiceItems(labels,new boolean[]{lock,false,false},(dialog,which,checked)->{if(which==0)preferences.edit().putBoolean("lock_screen_assistant_enabled",checked).apply();if(which==1&&checked){dialog.dismiss();requestQuickAccessWidget();}if(which==2&&checked){dialog.dismiss();launch(Settings.ACTION_DISPLAY_SETTINGS);}}).setPositiveButton("DONE",(dialog,which)->render()).show();}
     private void requestQuickAccessWidget(){AppWidgetManager manager=AppWidgetManager.getInstance(this);if(Build.VERSION.SDK_INT>=Build.VERSION_CODES.O&&manager.isRequestPinAppWidgetSupported()){boolean requested=manager.requestPinAppWidget(new ComponentName(this,QuickActivationWidget.class),null,null);Toast.makeText(this,requested?"Android opened the JARVIS widget request.":"Your launcher did not accept the widget request.",Toast.LENGTH_SHORT).show();}else{Toast.makeText(this,"Long-press your Home screen, choose Widgets, then add JARVIS Quick Access.",Toast.LENGTH_LONG).show();}}
 
