@@ -10,18 +10,24 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 
-/** Help & Features screen for the shared JARVIS command system. */
+/** Honest Help & Features screen: examples shown here map to production-wired local actions. */
 public class CommandsActivity extends Activity {
     private static final String[] COMMANDS = {
-            "Call Mom", "Dial 555 0100", "Text Alex saying I’m on my way",
-            "Email Jordan subject Update saying the build is ready",
-            "Schedule lunch with Maria tomorrow at 1 PM", "Set a timer for 10 minutes",
-            "Set an alarm for 7:30 AM", "Open Spotify", "Search for nearby coffee",
-            "Take me to the airport", "Turn on the flashlight", "Volume up",
-            "Play / Pause / Next / Previous", "Read my notifications",
-            "Remember that Deadworld launches in October", "What do you remember about Deadworld?",
-            "Add task buy groceries", "List tasks", "Complete task 1",
-            "Read the screen", "Tap Continue", "Type hello world", "Scroll down", "Back", "Home"
+            "Open the phone app",
+            "Call Mom",
+            "Text Alex I’m on my way",
+            "Set a timer for 10 minutes",
+            "Set an alarm for 7:30 AM",
+            "Remind me to buy groceries tomorrow",
+            "Open Spotify",
+            "Search the web for nearby coffee",
+            "Take me to the airport",
+            "Turn on the flashlight",
+            "Volume up",
+            "Pause the music",
+            "What’s on my calendar today?",
+            "Read my notifications",
+            "Open JARVIS settings"
     };
 
     @Override protected void onCreate(Bundle state) {
@@ -32,12 +38,13 @@ public class CommandsActivity extends Activity {
         body.setPadding(dp(18), dp(18), dp(18), dp(28));
         body.setBackgroundColor(getColor(R.color.jarvis_bg));
 
-        TextView title = label("JARVIS COMMANDS", 24, getColor(R.color.jarvis_cyan));
+        TextView title = label("WORKING EXAMPLES", 24, getColor(R.color.jarvis_cyan));
         title.setTypeface(Typeface.MONOSPACE, Typeface.BOLD);
         title.setGravity(Gravity.CENTER);
         body.addView(title, fullWrap());
 
-        TextView hint = label("Tap the reactor and speak naturally. Long-press it to type.",
+        TextView hint = label(
+                "Speak naturally. These examples are limited to actions currently wired into the Android runtime; permissions may be required. General AI and online research depend on the provider you connect in Settings.",
                 14, getColor(R.color.jarvis_text_dim));
         hint.setGravity(Gravity.CENTER);
         hint.setPadding(0, dp(8), 0, dp(18));
