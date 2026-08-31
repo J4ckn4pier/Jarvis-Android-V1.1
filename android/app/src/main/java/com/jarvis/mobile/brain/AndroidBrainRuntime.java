@@ -1,6 +1,7 @@
 package com.jarvis.mobile.brain;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.util.Log;
 import com.jarvis.brain.*;
 import com.jarvis.mobile.brain.providers.CortexProvider;
@@ -145,7 +146,7 @@ public final class AndroidBrainRuntime {
                 remoteApprovalVisible = true;
                 return Optional.of(new RuntimeSurfacePresentation(
                         AssistantSurfaceState.AWAITING_APPROVAL,
-                        "That background task needs your approval, sir.",
+                        "That background task needs your approval, " + preferredAddress() + ".",
                         "Review the requested step before choosing APPROVE or CANCEL.",
                         RuntimeSurfaceAction.APPROVE,
                         RuntimeSurfaceAction.CANCEL));
@@ -169,7 +170,7 @@ public final class AndroidBrainRuntime {
                     : "I have new progress on that task.";
             return Optional.of(new RuntimeSurfacePresentation(
                     AssistantSurfaceState.RESPONDING,
-                    "I'm still working on that, sir.",
+                    "I'm still working on that, " + preferredAddress() + ".",
                     detail,
                     RuntimeSurfaceAction.NONE,
                     RuntimeSurfaceAction.CANCEL));
@@ -197,7 +198,7 @@ public final class AndroidBrainRuntime {
             remoteProjectVisible = false;
             return new RuntimeSurfacePresentation(
                     AssistantSurfaceState.ACTION_DONE,
-                    "Cancelled, sir.",
+                    "Cancelled, " + preferredAddress() + ".",
                     "The remote task confirmed cancellation.",
                     RuntimeSurfaceAction.NONE,
                     RuntimeSurfaceAction.NONE);
@@ -223,13 +224,23 @@ public final class AndroidBrainRuntime {
             remoteProjectVisible = true;
             return new RuntimeSurfacePresentation(
                     AssistantSurfaceState.RESPONDING,
-                    approved ? "Approved. I'll continue that background task, sir." : "Understood. I declined that step.",
+                    approved ? "Approved. I'll continue that background task, " + preferredAddress() + "." : "Understood. I declined that step.",
                     "",
                     RuntimeSurfaceAction.NONE,
                     RuntimeSurfaceAction.CANCEL);
         } catch (RemoteGoalClient.RemoteGoalException unavailable) {
             return remoteUnavailablePresentation();
         }
+    }
+
+    private String preferredAddress() { return preferredAddress(app); }
+
+    private static String preferredAddress(Context context) {
+        SharedPreferences preferences = context.getSharedPreferences("jarvis_shell", Context.MODE_PRIVATE);
+        String raw = preferences.getString("profile_name", "Sir");
+        String clean = raw == null ? "" : raw.trim().replaceAll("[\\r\\n\\t]+", " ");
+        if (clean.isEmpty()) return "Sir";
+        return clean.length() > 80 ? clean.substring(0, 80).trim() : clean;
     }
 
     private RemoteGoalCoordinator remoteCoordinator() {
@@ -319,7 +330,7 @@ public final class AndroidBrainRuntime {
                     state.saveProject(submitted.projectId());
                     return new ReasoningResult(
                             "remote-goal",
-                            "Certainly, sir. I've started that and I'll keep you updated.",
+                            "Certainly, " + preferredAddress(app) + ". I've started that and I'll keep you updated.",
                             null);
                 } catch (RemoteGoalClient.RemoteGoalException unavailable) {
                     return localReasoning.reason(request);
