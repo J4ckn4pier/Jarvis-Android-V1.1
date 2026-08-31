@@ -2,6 +2,7 @@ package com.jarvis.brain;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Locale;
 
 /** APK sprint: passive wake must use locally proven Android recognition, including a Samsung-safe fallback. */
 public final class AndroidOnDeviceWakeDetectorContractTest {
@@ -11,6 +12,7 @@ public final class AndroidOnDeviceWakeDetectorContractTest {
         Path detectorPath = assistant.resolve("AndroidOnDeviceWakeWordDetector.java");
         check(Files.exists(detectorPath), "production must include a real Android wake detector");
         String detector = Files.readString(detectorPath);
+        String detectorLower = detector.toLowerCase(Locale.ROOT);
         String service = Files.readString(assistant.resolve("JarvisVoiceInteractionService.java"));
         Path managedSessionPath = assistant.resolve("ManagedJarvisVoiceSession.java");
         check(Files.exists(managedSessionPath), "assistant must include a lifecycle-managed voice session");
@@ -32,7 +34,7 @@ public final class AndroidOnDeviceWakeDetectorContractTest {
             check(detector.contains("systemOfflineVerified"), "system recognizer must be gated by a durable in-session offline-verification flag");
         }
 
-        check(detector.contains("hey jarvis") && detector.contains("jarvis"), "wake detector must recognize both requested invocation forms");
+        check(detectorLower.contains("hey\\\\s+") && detectorLower.contains("jarvis"), "wake detector must recognize both requested invocation forms");
         check(detector.contains("startListening") && detector.contains("RecognitionListener"), "wake detector must actually listen instead of reporting a ready stub");
         check(detector.contains("postDelayed") || detector.contains("startListening(intent)"), "wake detector must continue listening after a non-wake utterance");
         check(detector.contains("recreateRecognizer"), "Samsung recovery path must recreate the recognizer after fatal/client/busy errors instead of retrying a poisoned instance forever");
