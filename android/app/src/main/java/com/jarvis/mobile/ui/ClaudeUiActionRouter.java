@@ -24,6 +24,13 @@ public final class ClaudeUiActionRouter {
     public static final String ACTION_DEVELOPER_OPTIONS = "developer_options";
     public static final String ACTION_HELP = "help";
     public static final String ACTION_NOTES = "notes";
+    public static final String ACTION_MEMORY = "memory";
+    public static final String ACTION_ROUTINES = "routines";
+    public static final String ACTION_SKILLS = "skills";
+    public static final String ACTION_OVERLAYS = "overlays";
+    public static final String ACTION_ACTIVITY_FEED = "activity_feed";
+    public static final String ACTION_BROWSER = "browser";
+    public static final String ACTION_HUB = "hub";
     public static final String ACTION_DEFAULT_ASSISTANT = "default_assistant";
     public static final String ACTION_NOTIFICATION_ACCESS = "notification_access";
     public static final String ACTION_ACCESSIBILITY = "accessibility";
@@ -61,6 +68,27 @@ public final class ClaudeUiActionRouter {
                 break;
             case ACTION_NOTES:
                 activity.startActivity(new Intent(activity, NotesActivity.class));
+                break;
+            case ACTION_MEMORY:
+                activity.startActivity(new Intent(activity, MemoryActivity.class));
+                break;
+            case ACTION_ROUTINES:
+                activity.startActivity(new Intent(activity, RoutinesActivity.class));
+                break;
+            case ACTION_SKILLS:
+                activity.startActivity(new Intent(activity, SkillsActivity.class));
+                break;
+            case ACTION_OVERLAYS:
+                activity.startActivity(new Intent(activity, OverlaysActivity.class));
+                break;
+            case ACTION_ACTIVITY_FEED:
+                activity.startActivity(new Intent(activity, ActivityFeedActivity.class));
+                break;
+            case ACTION_BROWSER:
+                activity.startActivity(new Intent(activity, BrowserActivity.class));
+                break;
+            case ACTION_HUB:
+                activity.startActivity(new Intent(activity, JarvisHubActivity.class));
                 break;
             case ACTION_DEFAULT_ASSISTANT:
                 requestAssistantRole();
