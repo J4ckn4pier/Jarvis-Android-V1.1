@@ -9,6 +9,8 @@ public final class SemanticReflexSafetyRoutingTest {
         descriptiveOpenPhraseFallsThroughToCortex();
         descriptiveVolumePhraseFallsThroughToCortex();
         descriptiveFlashlightPhraseFallsThroughToCortex();
+        descriptiveNotificationPhraseFallsThroughToCortex();
+        descriptiveWeatherPhraseFallsThroughToCortex();
         directImperativeStillUsesSafeLocalReflex();
         System.out.println("SemanticReflexSafetyRoutingTest passed");
     }
@@ -38,6 +40,24 @@ public final class SemanticReflexSafetyRoutingTest {
         check(calls.get() == 1, "descriptive flashlight language must reach cortex");
         check(response.kind() == BrainResponse.Kind.CONVERSATION,
                 "descriptive flashlight language must not change flashlight state");
+    }
+
+    private static void descriptiveNotificationPhraseFallsThroughToCortex() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+        BrainResponse response = core.handle("Why are my notifications delayed when battery saver is on?");
+        check(calls.get() == 1, "descriptive notification language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "descriptive notification language must not query notifications");
+    }
+
+    private static void descriptiveWeatherPhraseFallsThroughToCortex() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+        BrainResponse response = core.handle("Why does cold weather drain phone batteries faster?");
+        check(calls.get() == 1, "descriptive weather language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "descriptive weather language must not trigger a weather lookup");
     }
 
     private static void directImperativeStillUsesSafeLocalReflex() {
