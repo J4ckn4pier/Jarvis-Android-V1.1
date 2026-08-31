@@ -8,6 +8,7 @@ public final class UserFacingSettingsContractTest {
         Path mobile = Path.of("../android/app/src/main/java/com/jarvis/mobile");
         String settings = Files.readString(mobile.resolve("SettingsActivity.java"));
         String voiceSession = Files.readString(mobile.resolve("assistant/JarvisVoiceSession.java"));
+        String quickWidget = Files.readString(mobile.resolve("widgets/QuickActivationWidget.java"));
         String manifest = Files.readString(Path.of("../android/app/src/main/AndroidManifest.xml"));
         for (String title : new String[]{"Voice", "Wake Word", "Voice Model", "Language", "App Permissions", "AI Providers", "Backup & Sync", "Profile", "Default Apps", "Personality", "Widgets & Lock Screen"}) {
             check(settings.contains(title), "user Settings must include canonical group: " + title);
@@ -34,6 +35,10 @@ public final class UserFacingSettingsContractTest {
                 "the real assistant session must enforce the saved lock-screen preference against Android keyguard state");
         check(voiceSession.contains("lockScreenAssistantAllowed()"),
                 "lock-screen access enforcement must be explicit and reviewable in the production voice session");
+        check(manifest.contains(".widgets.QuickActivationWidget") && quickWidget.contains("AppWidgetProvider"),
+                "Widgets & Lock Screen may only advertise widget setup when a real Android home-screen widget exists");
+        check(settings.contains("requestPinAppWidget") && settings.contains("QuickActivationWidget.class"),
+                "Widgets & Lock Screen must expose a real Android action to add the working JARVIS Quick Access widget");
 
         System.out.println("UserFacingSettingsContractTest passed");
     }
