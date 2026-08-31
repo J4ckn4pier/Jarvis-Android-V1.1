@@ -26,8 +26,13 @@ public class JarvisVoiceInteractionService extends VoiceInteractionService {
     }
 
     private void showWakeSession() {
-        showSession(new Bundle(), VoiceInteractionSession.SHOW_WITH_ASSIST);
-        Log.i(WAKE_TAG, "JARVIS_PASSIVE_WAKE_TRIGGERED");
+        try {
+            showSession(new Bundle(), VoiceInteractionSession.SHOW_WITH_ASSIST);
+            Log.i(WAKE_TAG, "JARVIS_PASSIVE_WAKE_TRIGGERED");
+        } catch (RuntimeException failure) {
+            Log.w(WAKE_TAG, "JARVIS_PASSIVE_WAKE_SESSION_SHOW_FAILED", failure);
+            armPassiveWake("wake session show failed");
+        }
     }
 
     public static void pausePassiveWakeForSession() {
