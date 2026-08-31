@@ -30,10 +30,12 @@ public final class UserFacingSettingsContractTest {
                 "disconnect must return JARVIS to private local mode and remove the saved external credential");
         check(settings.contains("DeveloperSettingsActivity.class"),
                 "connect/change may enter the explicitly advanced provider setup surface without exposing raw fields inline");
-        check(settings.contains("provider_source") && settings.contains("local_ai"),
-                "normal Settings must mark configurations created by the Free Local AI flow so they can be identified truthfully");
-        check(developerSettings.contains("remove(\"provider_source\")"),
-                "Developer Options must clear the Free Local AI source marker when saving a generic provider configuration");
+        check(providerFactory.contains("isLocalCompatibleEndpoint"),
+                "provider status must classify a compatible endpoint before normal Settings calls it free/local AI");
+        check(providerFactory.contains("endsWith(\".local\")") && providerFactory.contains("localhost"),
+                "local compatible classification must be limited to local hostnames or loopback rather than arbitrary HTTPS providers");
+        check(developerSettings.contains("EndpointTransportPolicy.allows"),
+                "Developer Options must apply the shared safe endpoint transport policy before saving provider endpoints");
         check(!settings.contains("PREFRONTAL CORTEX"), "normal Settings must not expose internal cortex jargon");
         check(!settings.contains("API key"), "normal Settings must not expose a raw API-key field");
         check(!settings.contains("RESEARCH ENDPOINT"), "normal Settings must not expose raw research endpoint controls");
