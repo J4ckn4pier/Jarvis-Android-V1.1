@@ -175,6 +175,7 @@ public class SettingsActivity extends Activity {
                     int index = d.getListView().getCheckedItemPosition();
                     if (index < 0) index = initial;
                     preferences.edit().putString("language", tags[index]).apply();
+                    JarvisVoiceInteractionService.refreshPassiveWakePreference();
                     render();
                 })
                 .setNeutralButton("ANDROID LANGUAGE SETTINGS", (dialog, which) -> launch(Settings.ACTION_LOCALE_SETTINGS))
