@@ -303,8 +303,16 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
                     ? SpeechRecognizer.createOnDeviceSpeechRecognizer(getContext())
                     : SpeechRecognizer.createSpeechRecognizer(getContext());
             speechRecognizer.setRecognitionListener(new RecognitionListener() {
+                private boolean terminalDelivered;
+
                 private boolean stale() {
-                    return listeningGeneration != recognitionGeneration || !sessionVisible;
+                    return listeningGeneration != recognitionGeneration || !sessionVisible || terminalDelivered;
+                }
+
+                private boolean claimTerminal() {
+                    if (stale()) return false;
+                    terminalDelivered = true;
+                    return true;
                 }
 
                 @Override public void onReadyForSpeech(Bundle params) {
@@ -326,7 +334,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
                     output.setText("Thinking…");
                 }
                 @Override public void onError(int error) {
-                    if (stale()) return;
+                    if (!claimTerminal()) return;
                     output.setText(error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
                             ? "I didn’t catch that. I’m still listening."
                             : "Listening paused briefly; I’ll reopen it.");
@@ -334,7 +342,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
                     scheduleNextListen();
                 }
                 @Override public void onResults(Bundle results) {
-                    if (stale()) return;
+                    if (!claimTerminal()) return;
                     ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
                     if (matches == null || matches.isEmpty()) {
                         output.setText("I didn’t catch that.");

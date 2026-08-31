@@ -57,6 +57,11 @@ public final class AndroidVoiceConversationContinuityContractTest {
                         && session.contains("speechRecognizer = null;")
                         && session.contains("scheduleNextListen();"),
                 "recognizer-start recovery must invalidate callbacks, discard the failed recognizer, and reopen listening while the conversation remains active");
+        check(session.contains("private boolean terminalDelivered;")
+                        && session.contains("private boolean claimTerminal()"),
+                "each active listening turn must latch its first terminal callback");
+        check(occurrences(session, "if (!claimTerminal()) return;") >= 2,
+                "both recognition error and final-result paths must reject duplicate terminal callbacks from the same Samsung/OEM listening turn");
         check(session.contains("brainExecutor.shutdownNow()"),
                 "voice-session destruction must stop its background brain executor");
         check(approval.contains("runtime.hasPendingApproval()")
@@ -71,6 +76,16 @@ public final class AndroidVoiceConversationContinuityContractTest {
         check(session.contains("speechRecognizer.cancel()"), "hide/destroy lifecycle must cancel active recognition");
 
         System.out.println("AndroidVoiceConversationContinuityContractTest: PASS");
+    }
+
+    private static int occurrences(String value, String needle) {
+        int count = 0;
+        int index = 0;
+        while ((index = value.indexOf(needle, index)) >= 0) {
+            count++;
+            index += needle.length();
+        }
+        return count;
     }
 
     private static void check(boolean condition, String message) {
