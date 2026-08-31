@@ -12,6 +12,7 @@ public final class LocalAiSettingsValidationContractTest {
         check(start >= 0 && end > start, "Settings must retain a dedicated Free Local AI setup method");
         String localAiSetup = settings.substring(start, end);
 
+        // Validation failures must be correctable in-place rather than closing the form.
         check(localAiSetup.contains("setPositiveButton(\"SAVE\",null)"),
                 "Free Local AI SAVE must not use AlertDialog's auto-dismiss click listener");
         check(localAiSetup.contains("setOnShowListener"),
