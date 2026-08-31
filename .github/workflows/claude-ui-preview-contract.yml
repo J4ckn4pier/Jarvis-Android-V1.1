@@ -20,6 +20,8 @@ jobs:
         run: sh .github/scripts/claude-ui-capabilities-contract.sh
       - name: Verify Claude UI trusted navigation contract
         run: sh .github/scripts/claude-ui-trusted-navigation-contract.sh
+      - name: Verify Claude UI preview lifecycle contract
+        run: sh .github/scripts/claude-ui-preview-lifecycle-contract.sh
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
