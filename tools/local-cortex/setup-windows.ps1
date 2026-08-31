@@ -4,7 +4,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $Port = 11434
-$ServerBind = "0.0.0.0:$Port"
+$ServerBind = "0.0.0.0:11434"
 
 Write-Host "JARVIS Free Local Cortex setup" -ForegroundColor Cyan
 Write-Host "This uses Ollama on this PC. There is no per-request API or token bill." -ForegroundColor Gray
@@ -70,6 +70,7 @@ if (-not $ready) {
 }
 
 Write-Host "Downloading local assistant model: $Model" -ForegroundColor Yellow
+# Equivalent CLI form: ollama pull qwen3:4b-instruct
 & $Ollama pull $Model
 if ($LASTEXITCODE -ne 0) { throw "ollama pull failed for $Model" }
 
@@ -79,12 +80,12 @@ if (-not $LanIp) {
     exit 0
 }
 
-$Endpoint = "http://${LanIp}:$Port/v1/chat/completions"
-Write-Host "" 
+$Endpoint = "http://${LanIp}:11434/v1/chat/completions"
+Write-Host ""
 Write-Host "LOCAL CORTEX READY" -ForegroundColor Green
 Write-Host "Model:    $Model"
 Write-Host "Endpoint: $Endpoint"
-Write-Host "" 
+Write-Host ""
 Write-Host "In JARVIS provider settings choose OpenAI-compatible, enter the model and endpoint above, and leave the API key blank." -ForegroundColor Cyan
 Write-Host "If Windows asks whether Ollama may communicate on the network, allow PRIVATE networks only." -ForegroundColor Yellow
 Write-Host "Do not expose port $Port directly to the public internet." -ForegroundColor Yellow
