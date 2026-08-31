@@ -18,6 +18,8 @@ jobs:
         run: sh .github/scripts/claude-ui-navigation-contract.sh
       - name: Verify Claude UI truthful capability contract
         run: sh .github/scripts/claude-ui-capabilities-contract.sh
+      - name: Verify Claude UI trusted navigation contract
+        run: sh .github/scripts/claude-ui-trusted-navigation-contract.sh
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
