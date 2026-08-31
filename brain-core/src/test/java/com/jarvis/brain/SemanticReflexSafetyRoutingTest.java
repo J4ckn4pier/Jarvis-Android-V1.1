@@ -8,6 +8,7 @@ public final class SemanticReflexSafetyRoutingTest {
     public static void main(String[] args) {
         descriptiveOpenPhraseFallsThroughToCortex();
         descriptiveVolumePhraseFallsThroughToCortex();
+        descriptiveFlashlightPhraseFallsThroughToCortex();
         directImperativeStillUsesSafeLocalReflex();
         System.out.println("SemanticReflexSafetyRoutingTest passed");
     }
@@ -28,6 +29,15 @@ public final class SemanticReflexSafetyRoutingTest {
         check(calls.get() == 1, "descriptive volume language must reach cortex");
         check(response.kind() == BrainResponse.Kind.CONVERSATION,
                 "descriptive volume language must not lower volume");
+    }
+
+    private static void descriptiveFlashlightPhraseFallsThroughToCortex() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+        BrainResponse response = core.handle("Why does my flashlight turn off when the camera opens?");
+        check(calls.get() == 1, "descriptive flashlight language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "descriptive flashlight language must not change flashlight state");
     }
 
     private static void directImperativeStillUsesSafeLocalReflex() {
