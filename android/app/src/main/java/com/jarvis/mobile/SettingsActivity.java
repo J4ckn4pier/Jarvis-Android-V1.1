@@ -29,7 +29,6 @@ import java.util.Locale;
 
 /** Canonical user-facing JARVIS Settings. Raw endpoint/provider fields live in DeveloperSettingsActivity. */
 public class SettingsActivity extends Activity {
-    private static final String ACTION_TTS_SETTINGS = "com.android.settings.TTS_SETTINGS";
     private SharedPreferences preferences;
 
     @Override protected void onCreate(Bundle state) {
@@ -160,12 +159,26 @@ public class SettingsActivity extends Activity {
         String current=preferences.getString("voice_model_label",labels[0]); int selected=0; for(int i=0;i<labels.length;i++) if(labels[i].equals(current)) selected=i; final int initial=selected;
         new AlertDialog.Builder(this).setTitle("Voice Model").setSingleChoiceItems(labels, selected, null)
                 .setPositiveButton("SAVE",(dialog,which)->{AlertDialog d=(AlertDialog)dialog;int index=d.getListView().getCheckedItemPosition();if(index<0)index=initial;preferences.edit().putString("voice_model_label",labels[index]).putFloat("voice_rate",rates[index]).apply();render();})
-                .setNeutralButton("ANDROID VOICE SETTINGS",(dialog,which)->launch(ACTION_TTS_SETTINGS)).setNegativeButton("CANCEL",null).show();
+                .setNeutralButton("ANDROID VOICE SETTINGS",(dialog,which)->launch("com.android.settings.TTS_SETTINGS")).setNegativeButton("CANCEL",null).show();
     }
 
     private void showLanguageSettings() {
-        new AlertDialog.Builder(this).setTitle("Language").setMessage("JARVIS currently follows your Android language for recognition and speech.")
-                .setPositiveButton("OPEN ANDROID LANGUAGE",(dialog,which)->launch(Settings.ACTION_LOCALE_SETTINGS)).setNegativeButton("CANCEL",null).show();
+        String[] labels = {"Follow Android system", "English (United States)", "English (United Kingdom)", "English (Australia)", "Spanish", "French", "German"};
+        String[] tags = {"system", "en-US", "en-GB", "en-AU", "es", "fr", "de"};
+        String current = preferences.getString("language", "system");
+        int selected = 0;
+        for (int i = 0; i < tags.length; i++) if (tags[i].equalsIgnoreCase(current)) selected = i;
+        final int initial = selected;
+        new AlertDialog.Builder(this).setTitle("Language").setSingleChoiceItems(labels, selected, null)
+                .setPositiveButton("SAVE", (dialog, which) -> {
+                    AlertDialog d = (AlertDialog) dialog;
+                    int index = d.getListView().getCheckedItemPosition();
+                    if (index < 0) index = initial;
+                    preferences.edit().putString("language", tags[index]).apply();
+                    render();
+                })
+                .setNeutralButton("ANDROID LANGUAGE SETTINGS", (dialog, which) -> launch(Settings.ACTION_LOCALE_SETTINGS))
+                .setNegativeButton("CANCEL", null).show();
     }
 
     private void showPermissionChoices() {
@@ -195,7 +208,7 @@ public class SettingsActivity extends Activity {
     private String assistantSummary(){return isAssistantRoleHeld()?"JARVIS is the default assistant":"Required for passive wake — tap to enable";}
     private String wakeSummary(){if(!preferences.getBoolean("wake_enabled",true))return "Disabled";return isAssistantRoleHeld()?"Listen locally for “Jarvis” or “Hey Jarvis”":"Requires JARVIS as your default assistant — tap to finish setup";}
     private String voiceModelSummary(){return preferences.getString("voice_model_label","System voice");}
-    private String languageSummary(){return getResources().getConfiguration().getLocales().get(0).getDisplayLanguage();}
+    private String languageSummary(){String tag=preferences.getString("language","system");if("system".equalsIgnoreCase(tag))return "Follow Android system — "+getResources().getConfiguration().getLocales().get(0).getDisplayLanguage();Locale locale=Locale.forLanguageTag(tag);return locale.getDisplayName();}
     private String permissionSummary(){return "Microphone, contacts, calendar, notifications and screen control";}
     private String backupSummary(){if(!preferences.getBoolean("backup_sync_enabled",false))return "Local only";return new RemoteGoalStateStore(this).loadConnection()==null?"Local only — remote connection not configured":"Configured remote sync allowed";}
     private String widgetLockSummary(){return preferences.getBoolean("lock_screen_assistant_enabled",true)?"Lock-screen assistant enabled":"Lock-screen assistant disabled";}
