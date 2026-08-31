@@ -48,6 +48,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private static final String TEST_TAG = "JARVIS_ASSISTANT_TEST";
     private static final String SHARED_BRAIN_TAG = "JARVIS_SHARED_BRAIN_ACTIVE";
     private static final String RUNTIME_FAILURE_TAG = "JARVIS_RUNTIME_FAILURE";
+    private static final String VOICE_RECOGNIZER_TAG = "JARVIS_VOICE_RECOGNIZER";
     private static final String TEST_COMMAND_EXTRA = "jarvis_test_command";
 
     private final AdaptiveEndpointingPolicy endpointing = new AdaptiveEndpointingPolicy();
@@ -296,73 +297,91 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         }
         lastPartial = "";
         long listeningGeneration = ++recognitionGeneration;
-        if (speechRecognizer != null) speechRecognizer.destroy();
-        speechRecognizer = Build.VERSION.SDK_INT >= 31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(getContext())
-                ? SpeechRecognizer.createOnDeviceSpeechRecognizer(getContext())
-                : SpeechRecognizer.createSpeechRecognizer(getContext());
-        speechRecognizer.setRecognitionListener(new RecognitionListener() {
-            private boolean stale() {
-                return listeningGeneration != recognitionGeneration || !sessionVisible;
-            }
+        try {
+            if (speechRecognizer != null) speechRecognizer.destroy();
+            speechRecognizer = Build.VERSION.SDK_INT >= 31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(getContext())
+                    ? SpeechRecognizer.createOnDeviceSpeechRecognizer(getContext())
+                    : SpeechRecognizer.createSpeechRecognizer(getContext());
+            speechRecognizer.setRecognitionListener(new RecognitionListener() {
+                private boolean stale() {
+                    return listeningGeneration != recognitionGeneration || !sessionVisible;
+                }
 
-            @Override public void onReadyForSpeech(Bundle params) {
-                if (stale()) return;
-                output.setText("Listening…");
-                setActive(true);
-            }
-            @Override public void onBeginningOfSpeech() {
-                if (stale()) return;
-                invalidateSpeechCallback();
-                if (textToSpeech != null) textToSpeech.stop();
-                resumeAfterSpeech = false;
-                output.setText("I’m listening.");
-            }
-            @Override public void onRmsChanged(float rmsdB) { }
-            @Override public void onBufferReceived(byte[] buffer) { }
-            @Override public void onEndOfSpeech() {
-                if (stale()) return;
-                output.setText("Thinking…");
-            }
-            @Override public void onError(int error) {
-                if (stale()) return;
-                output.setText(error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
-                        ? "I didn’t catch that. I’m still listening."
-                        : "Listening paused briefly; I’ll reopen it.");
-                setActive(false);
-                scheduleNextListen();
-            }
-            @Override public void onResults(Bundle results) {
-                if (stale()) return;
-                ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-                if (matches == null || matches.isEmpty()) {
-                    output.setText("I didn’t catch that.");
+                @Override public void onReadyForSpeech(Bundle params) {
+                    if (stale()) return;
+                    output.setText("Listening…");
+                    setActive(true);
+                }
+                @Override public void onBeginningOfSpeech() {
+                    if (stale()) return;
+                    invalidateSpeechCallback();
+                    if (textToSpeech != null) textToSpeech.stop();
+                    resumeAfterSpeech = false;
+                    output.setText("I’m listening.");
+                }
+                @Override public void onRmsChanged(float rmsdB) { }
+                @Override public void onBufferReceived(byte[] buffer) { }
+                @Override public void onEndOfSpeech() {
+                    if (stale()) return;
+                    output.setText("Thinking…");
+                }
+                @Override public void onError(int error) {
+                    if (stale()) return;
+                    output.setText(error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+                            ? "I didn’t catch that. I’m still listening."
+                            : "Listening paused briefly; I’ll reopen it.");
                     setActive(false);
                     scheduleNextListen();
-                    return;
                 }
-                float[] scores = results.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES);
-                double confidence = scores != null && scores.length > 0 && scores[0] >= 0.0f ? Math.min(1.0, scores[0]) : 0.0;
-                execute(matches.get(0), confidence);
-            }
-            @Override public void onPartialResults(Bundle partialResults) {
-                if (stale()) return;
-                ArrayList<String> partial = partialResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-                if (partial != null && !partial.isEmpty()) {
-                    lastPartial = partial.get(0);
-                    output.setText(lastPartial);
-                    Log.d("JARVIS_ENDPOINTING", "partial completeSilenceHintMs=" + endpointing.completeSilenceMillis(lastPartial));
+                @Override public void onResults(Bundle results) {
+                    if (stale()) return;
+                    ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+                    if (matches == null || matches.isEmpty()) {
+                        output.setText("I didn’t catch that.");
+                        setActive(false);
+                        scheduleNextListen();
+                        return;
+                    }
+                    float[] scores = results.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES);
+                    double confidence = scores != null && scores.length > 0 && scores[0] >= 0.0f ? Math.min(1.0, scores[0]) : 0.0;
+                    execute(matches.get(0), confidence);
                 }
-            }
-            @Override public void onEvent(int eventType, Bundle params) { }
-        });
-        Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, configuredLanguage().toLanguageTag());
-        intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
-        intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, endpointing.minimumUtteranceMillis());
-        intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, endpointing.possiblyCompleteSilenceMillis(""));
-        intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, endpointing.completeSilenceMillis(""));
-        speechRecognizer.startListening(intent);
+                @Override public void onPartialResults(Bundle partialResults) {
+                    if (stale()) return;
+                    ArrayList<String> partial = partialResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+                    if (partial != null && !partial.isEmpty()) {
+                        lastPartial = partial.get(0);
+                        output.setText(lastPartial);
+                        Log.d("JARVIS_ENDPOINTING", "partial completeSilenceHintMs=" + endpointing.completeSilenceMillis(lastPartial));
+                    }
+                }
+                @Override public void onEvent(int eventType, Bundle params) { }
+            });
+            Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, configuredLanguage().toLanguageTag());
+            intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
+            intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, endpointing.minimumUtteranceMillis());
+            intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, endpointing.possiblyCompleteSilenceMillis(""));
+            intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, endpointing.completeSilenceMillis(""));
+            speechRecognizer.startListening(intent);
+        } catch (RuntimeException recognitionFailure) {
+            recoverRecognitionStartFailure(recognitionFailure);
+        }
+    }
+
+    private void recoverRecognitionStartFailure(RuntimeException recognitionFailure) {
+        Log.w(VOICE_RECOGNIZER_TAG, "Active recognizer failed to start; retrying", recognitionFailure);
+        recognitionGeneration++;
+        SpeechRecognizer failedRecognizer = speechRecognizer;
+        speechRecognizer = null;
+        if (failedRecognizer != null) {
+            try { failedRecognizer.cancel(); } catch (RuntimeException ignored) { }
+            try { failedRecognizer.destroy(); } catch (RuntimeException ignored) { }
+        }
+        setActive(false);
+        if (output != null) output.setText("Listening paused briefly; I’ll reopen it.");
+        scheduleNextListen();
     }
 
     private void execute(String command, double confidence) {
