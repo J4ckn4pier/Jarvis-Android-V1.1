@@ -3,6 +3,8 @@ package com.jarvis.mobile.assistant;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.service.voice.VoiceInteractionService;
 import android.service.voice.VoiceInteractionSession;
 import android.util.Log;
@@ -13,6 +15,7 @@ public class JarvisVoiceInteractionService extends VoiceInteractionService {
     private static final String WAKE_TAG = "JARVIS_PASSIVE_WAKE";
     private static final String TEST_COMMAND_EXTRA = "jarvis_test_command";
     private static volatile JarvisVoiceInteractionService activeInstance;
+    private final Handler main = new Handler(Looper.getMainLooper());
     private WakeWordDetectorPort wakeWordDetector;
 
     @Override public void onReady() {
@@ -23,26 +26,39 @@ public class JarvisVoiceInteractionService extends VoiceInteractionService {
     }
 
     private void showWakeSession() {
-        showSession(new Bundle(), VoiceInteractionSession.SHOW_WITH_ASSIST);
-        Log.i(WAKE_TAG, "JARVIS_PASSIVE_WAKE_TRIGGERED");
+        try {
+            showSession(new Bundle(), VoiceInteractionSession.SHOW_WITH_ASSIST);
+            Log.i(WAKE_TAG, "JARVIS_PASSIVE_WAKE_TRIGGERED");
+        } catch (RuntimeException failure) {
+            Log.w(WAKE_TAG, "JARVIS_PASSIVE_WAKE_SESSION_SHOW_FAILED", failure);
+            armPassiveWake("wake session show failed");
+        }
     }
 
-    static void pausePassiveWakeForSession() {
+    public static void pausePassiveWakeForSession() {
         JarvisVoiceInteractionService service = activeInstance;
-        if (service != null) service.pausePassiveWake();
+        if (service != null) service.runWakeLifecycleOnMain(service::pausePassiveWake);
     }
 
-    static void rearmPassiveWakeAfterSession() {
+    public static void rearmPassiveWakeAfterSession() {
         JarvisVoiceInteractionService service = activeInstance;
-        if (service != null) service.armPassiveWake("assistant session hidden");
+        if (service != null) service.runWakeLifecycleOnMain(() -> service.armPassiveWake("assistant session hidden"));
     }
 
-    /** Called by the user-facing Wake Word switch so the control changes the live service now. */
+    /** Called by visible settings so changed wake/language configuration affects the live listener now. */
     public static void refreshPassiveWakePreference() {
         JarvisVoiceInteractionService service = activeInstance;
         if (service == null) return;
-        if (service.wakeEnabled()) service.armPassiveWake("user setting enabled");
-        else service.pausePassiveWake();
+        service.runWakeLifecycleOnMain(() -> {
+            service.pausePassiveWake();
+            service.wakeWordDetector = null;
+            if (service.wakeEnabled()) service.armPassiveWake("user setting enabled");
+        });
+    }
+
+    private void runWakeLifecycleOnMain(Runnable action) {
+        if (Looper.myLooper() == Looper.getMainLooper()) action.run();
+        else main.post(action);
     }
 
     private boolean wakeEnabled() {

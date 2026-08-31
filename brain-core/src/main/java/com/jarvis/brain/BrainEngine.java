@@ -79,7 +79,8 @@ public final class BrainEngine {
             return BrainResponse.of(BrainResponse.Kind.ACTION_PLAN, "I'll look for dinner options and rank the best matches.", plan, true, acceptedWithoutWake, context);
         }
 
-        if (isConversationalFollowup(lower)) return BrainResponse.of(BrainResponse.Kind.CONVERSATION, "I'm with you. Tell me more.", null, true, acceptedWithoutWake, context);
+        // Everything outside high-confidence reflexes belongs to the general cortex. This includes
+        // conversational follow-ups so the provider sees the full active dialogue instead of a canned reply.
         return BrainResponse.of(BrainResponse.Kind.REASONING_REQUIRED, "I'll reason through that and work out the best next step.", null, true, acceptedWithoutWake, context);
     }
 
@@ -158,6 +159,5 @@ public final class BrainEngine {
     }
     private static boolean isDialerAlias(String lower) { return lower.matches("(?:open\\s+)?(?:the\\s+)?(?:phone(?:\\s+app)?|dialer|calls?|telephone)"); }
     private static boolean isDinnerDiscovery(String lower, String context) { if (lower.contains("find me a place to eat") || lower.contains("find me somewhere good") || lower.contains("where should i eat") || lower.contains("dinner tonight")) return true; return lower.contains("find me somewhere") && (context.contains("food") || context.contains("italian") || context.contains("dinner")); }
-    private static boolean isConversationalFollowup(String lower) { return lower.startsWith("what have you") || lower.startsWith("how about you") || lower.startsWith("why do you") || lower.startsWith("tell me more") || lower.startsWith("and what") || lower.startsWith("what do you think"); }
     private static String normalizeTime(String hourRaw, String minuteRaw, String meridiemRaw) { int hour = Integer.parseInt(hourRaw); int minute = minuteRaw == null ? 0 : Integer.parseInt(minuteRaw); String meridiem = meridiemRaw == null ? (hour <= 7 ? "PM" : "AM") : meridiemRaw.toUpperCase(Locale.ROOT); return String.format(Locale.ROOT, "%d:%02d %s", hour, minute, meridiem); }
 }

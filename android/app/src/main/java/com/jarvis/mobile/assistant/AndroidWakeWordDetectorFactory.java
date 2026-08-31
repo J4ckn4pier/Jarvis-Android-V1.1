@@ -2,6 +2,8 @@ package com.jarvis.mobile.assistant;
 
 import android.content.Context;
 
+import com.jarvis.brain.WakeWordReleaseTrustRegistry;
+
 /** Creates the zero-token passive-wake detector backed by Android's configured speech service. */
 final class AndroidWakeWordDetectorFactory {
     private AndroidWakeWordDetectorFactory() { }
@@ -10,15 +12,18 @@ final class AndroidWakeWordDetectorFactory {
         if (context == null) return new DisabledWakeWordDetector("wake detector context missing");
         Context app = context.getApplicationContext();
 
-        // Prefer Android's dedicated on-device recognizer when the phone exposes it. On Samsung
-        // devices where that API reports unavailable, AndroidOnDeviceWakeWordDetector falls back
-        // to the configured system SpeechRecognizer with EXTRA_PREFER_OFFLINE. This keeps wake
-        // usable without a token-billed API while preserving the same system-assistant boundary.
         if (AndroidOnDeviceWakeWordDetector.isAvailable(app)) {
-            return new AndroidOnDeviceWakeWordDetector(app);
+            AndroidOnDeviceWakeWordDetector detector = new AndroidOnDeviceWakeWordDetector(app);
+            if (WakeWordReleaseTrustRegistry.isPlatformManagedServiceApproved(detector.modelDescriptor())) {
+                return detector;
+            }
+            return new DisabledWakeWordDetector("Android platform wake service is not approved by this JARVIS release");
         }
 
+        // Any future APK-shipped custom wake model remains subject to the fingerprint policy below.
+        // Beta intentionally has no such artifact approved/configured.
+        WakeWordReleaseTrustRegistry.currentPolicy();
         return new DisabledWakeWordDetector(
-                "Android speech recognition is unavailable on this device");
+                "commercial wake model not configured and Android speech recognition is unavailable on this device");
     }
 }

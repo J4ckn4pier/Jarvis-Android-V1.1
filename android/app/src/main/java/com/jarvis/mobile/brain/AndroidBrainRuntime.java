@@ -1,6 +1,7 @@
 package com.jarvis.mobile.brain;
 
 import android.content.Context;
+import android.content.SharedPreferences;
 import android.util.Log;
 import com.jarvis.brain.*;
 import com.jarvis.mobile.brain.providers.CortexProvider;
@@ -12,6 +13,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 
@@ -38,7 +40,7 @@ public final class AndroidBrainRuntime {
         ConnectionRegistry connections = new ConnectionRegistry(new AndroidConnectionRegistryPersistence(app));
 
         ReasoningRouter localReasoning = request -> reasonWithConfiguredCortex(app, request, tools);
-        ReasoningRouter reasoning = remoteReasoningOrLocal(app, localReasoning);
+        ReasoningRouter reasoning = selectiveReasoning(app, localReasoning);
 
         LongTermMemoryStore memory = new LongTermMemoryStore(new AndroidLongTermMemoryPersistence(
                 app.getNoBackupFilesDir().toPath().resolve("jarvis").resolve("long-term-memory.bin"),
@@ -50,6 +52,7 @@ public final class AndroidBrainRuntime {
                 new AndroidRecentNotificationContextSource(app),
                 Set.of("notification", "notifications", "what did i miss"));
         AssistantContextSource runtimeContext = new CompositeAssistantContextSource(List.of(
+                new AndroidUserPreferenceContextSource(app),
                 memoryContext,
                 new RuntimeEnvironmentContextSource(clock, devices),
                 notificationContext));
@@ -143,7 +146,7 @@ public final class AndroidBrainRuntime {
                 remoteApprovalVisible = true;
                 return Optional.of(new RuntimeSurfacePresentation(
                         AssistantSurfaceState.AWAITING_APPROVAL,
-                        "That background task needs your approval, sir.",
+                        "That background task needs your approval, " + preferredAddress() + ".",
                         "Review the requested step before choosing APPROVE or CANCEL.",
                         RuntimeSurfaceAction.APPROVE,
                         RuntimeSurfaceAction.CANCEL));
@@ -167,7 +170,7 @@ public final class AndroidBrainRuntime {
                     : "I have new progress on that task.";
             return Optional.of(new RuntimeSurfacePresentation(
                     AssistantSurfaceState.RESPONDING,
-                    "I'm still working on that, sir.",
+                    "I'm still working on that, " + preferredAddress() + ".",
                     detail,
                     RuntimeSurfaceAction.NONE,
                     RuntimeSurfaceAction.CANCEL));
@@ -176,13 +179,8 @@ public final class AndroidBrainRuntime {
         }
     }
 
-    public RuntimeSurfacePresentation approveRemoteGoalPresentation() {
-        return respondToRemoteApproval(true);
-    }
-
-    public RuntimeSurfacePresentation declineRemoteGoalPresentation() {
-        return respondToRemoteApproval(false);
-    }
+    public RuntimeSurfacePresentation approveRemoteGoalPresentation() { return respondToRemoteApproval(true); }
+    public RuntimeSurfacePresentation declineRemoteGoalPresentation() { return respondToRemoteApproval(false); }
 
     public RuntimeSurfacePresentation cancelRemoteGoalPresentation() {
         RemoteGoalCoordinator coordinator = remoteCoordinator();
@@ -200,7 +198,7 @@ public final class AndroidBrainRuntime {
             remoteProjectVisible = false;
             return new RuntimeSurfacePresentation(
                     AssistantSurfaceState.ACTION_DONE,
-                    "Cancelled, sir.",
+                    "Cancelled, " + preferredAddress() + ".",
                     "The remote task confirmed cancellation.",
                     RuntimeSurfaceAction.NONE,
                     RuntimeSurfaceAction.NONE);
@@ -226,13 +224,23 @@ public final class AndroidBrainRuntime {
             remoteProjectVisible = true;
             return new RuntimeSurfacePresentation(
                     AssistantSurfaceState.RESPONDING,
-                    approved ? "Approved. I'll continue that background task, sir." : "Understood. I declined that step.",
+                    approved ? "Approved. I'll continue that background task, " + preferredAddress() + "." : "Understood. I declined that step.",
                     "",
                     RuntimeSurfaceAction.NONE,
                     RuntimeSurfaceAction.CANCEL);
         } catch (RemoteGoalClient.RemoteGoalException unavailable) {
             return remoteUnavailablePresentation();
         }
+    }
+
+    private String preferredAddress() { return preferredAddress(app); }
+
+    private static String preferredAddress(Context context) {
+        SharedPreferences preferences = context.getSharedPreferences("jarvis_shell", Context.MODE_PRIVATE);
+        String raw = preferences.getString("profile_name", "Sir");
+        String clean = raw == null ? "" : raw.trim().replaceAll("[\\r\\n\\t]+", " ");
+        if (clean.isEmpty()) return "Sir";
+        return clean.length() > 80 ? clean.substring(0, 80).trim() : clean;
     }
 
     private RemoteGoalCoordinator remoteCoordinator() {
@@ -271,6 +279,44 @@ public final class AndroidBrainRuntime {
     public SettingsStore settings() { return settings; }
     public JarvisUiBackend uiBackend() { return uiBackend; }
 
+    /**
+     * Keeps normal assistant conversation and one-device reasoning local, but hands genuinely complex,
+     * multi-part projects to the provider-neutral background orchestrator when one is configured.
+     */
+    private static ReasoningRouter selectiveReasoning(Context app, ReasoningRouter localReasoning) {
+        ReasoningRouter remoteReasoning = remoteReasoningOrLocal(app, localReasoning);
+        return request -> shouldDelegateComplexGoal(request.utterance())
+                ? remoteReasoning.reason(request)
+                : localReasoning.reason(request);
+    }
+
+    private static boolean shouldDelegateComplexGoal(String utterance) {
+        String lower = utterance == null ? "" : utterance.toLowerCase(Locale.ROOT);
+        boolean projectSignal = lower.contains("multi-step")
+                || lower.contains("multistep")
+                || lower.contains("project")
+                || lower.contains("workflow")
+                || lower.contains("long-running")
+                || lower.contains("long running");
+        boolean synthesisSignal = lower.contains("research")
+                || lower.contains("compare")
+                || lower.contains("approach")
+                || lower.contains("recommendation")
+                || lower.contains("tradeoff")
+                || lower.contains("trade-off")
+                || lower.contains("analyze");
+        boolean coordinationSignal = lower.contains("multiple")
+                || lower.contains("several")
+                || lower.contains("steps")
+                || lower.contains("tasks")
+                || lower.contains("workers")
+                || lower.contains("coordinate")
+                || lower.contains("in the background");
+        return (projectSignal && synthesisSignal)
+                || (projectSignal && coordinationSignal)
+                || (synthesisSignal && coordinationSignal);
+    }
+
     private static ReasoningRouter remoteReasoningOrLocal(Context app, ReasoningRouter localReasoning) {
         RemoteGoalStateStore state = new RemoteGoalStateStore(app);
         RemoteGoalStateStore.Connection connection = state.loadConnection();
@@ -284,7 +330,7 @@ public final class AndroidBrainRuntime {
                     state.saveProject(submitted.projectId());
                     return new ReasoningResult(
                             "remote-goal",
-                            "Certainly, sir. I've started that and I'll keep you updated.",
+                            "Certainly, " + preferredAddress(app) + ". I've started that and I'll keep you updated.",
                             null);
                 } catch (RemoteGoalClient.RemoteGoalException unavailable) {
                     return localReasoning.reason(request);

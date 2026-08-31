@@ -14,6 +14,9 @@ public final class CortexProviderFactory {
     private CortexProviderFactory() {}
 
     public static CortexProvider create(Context context) {
+        SharedPreferences shell = context.getSharedPreferences("jarvis_shell", Context.MODE_PRIVATE);
+        ProviderSharedPlanSchema.setPersonalityLabel(shell.getString("personality_label", "Humble Butler"));
+
         SharedPreferences p = context.getSharedPreferences("jarvis_cortex", Context.MODE_PRIVATE);
         String mode = p.getString("mode", p.getString("provider", MODE_LOCAL));
         String endpoint = p.getString("endpoint", "");

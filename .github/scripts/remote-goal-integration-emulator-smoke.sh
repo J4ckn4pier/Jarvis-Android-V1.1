@@ -239,7 +239,7 @@ tap_desc "$OUTPUT/remote-integration-cancel.xml" 'JARVIS CANCEL action'
 sleep 2
 grep -q 'POST /v1/projects/project-cancel/cancel auth=Bearer emulator-secret' "$LOG"
 dump_ui remote-integration-cancelled
-grep -q 'Cancelled, sir' "$OUTPUT/remote-integration-cancelled.xml"
+grep -q 'Cancelled, Sir' "$OUTPUT/remote-integration-cancelled.xml"
 
 # UI proof must remain provider/worker-neutral.
 ! grep -Eiq 'agent[ _-]?zero|valkey|ollama|anthropic|openai|claude|chatgpt|management plane' \
