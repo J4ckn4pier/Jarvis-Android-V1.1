@@ -38,7 +38,7 @@ public final class AndroidBrainRuntime {
         ConnectionRegistry connections = new ConnectionRegistry(new AndroidConnectionRegistryPersistence(app));
 
         ReasoningRouter localReasoning = request -> reasonWithConfiguredCortex(app, request, tools);
-        ReasoningRouter reasoning = remoteReasoningOrLocal(app, localReasoning);
+        ReasoningRouter reasoning = localReasoning;
 
         LongTermMemoryStore memory = new LongTermMemoryStore(new AndroidLongTermMemoryPersistence(
                 app.getNoBackupFilesDir().toPath().resolve("jarvis").resolve("long-term-memory.bin"),
