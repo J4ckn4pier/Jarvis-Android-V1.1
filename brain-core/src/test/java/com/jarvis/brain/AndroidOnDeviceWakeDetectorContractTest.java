@@ -46,8 +46,10 @@ public final class AndroidOnDeviceWakeDetectorContractTest {
         check(detector.contains("getString(\"language\""), "wake detector must resolve its recognizer language from the visible Language setting");
         check(settings.contains("putString(\"language\", tags[index]).apply();\n                    JarvisVoiceInteractionService.refreshPassiveWakePreference();"),
                 "saving a new JARVIS language must immediately rebuild/re-arm passive wake so the live recognizer stops using the previous language");
-        check(service.contains("service.pausePassiveWake();\n        if (service.wakeEnabled()) service.armPassiveWake(\"user setting enabled\")"),
-                "refreshPassiveWakePreference must stop the running listener before re-arming so changed language/configuration is actually re-read");
+        check(service.contains("service.pausePassiveWake();")
+                        && service.contains("service.wakeWordDetector = null;")
+                        && service.contains("if (service.wakeEnabled()) service.armPassiveWake(\"user setting enabled\")"),
+                "refreshPassiveWakePreference must stop and discard the running listener before re-arming so changed language/configuration is actually re-read");
 
         check(service.contains("pausePassiveWakeForSession"), "voice service must expose a session hook that pauses passive wake while the assistant is active");
         check(service.contains("rearmPassiveWakeAfterSession"), "voice service must expose a session hook that re-arms passive wake after the assistant closes");
