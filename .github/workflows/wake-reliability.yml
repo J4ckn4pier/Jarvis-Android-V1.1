@@ -13,3 +13,5 @@ jobs:
       - uses: actions/checkout@v4
       - name: Verify OEM end-of-speech recovery contract
         run: bash .github/scripts/wake-end-speech-recovery-contract.sh
+      - name: Run shared Brain Core regression
+        run: bash brain-core/run-tests.sh
