@@ -561,6 +561,14 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         if (checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED) missing.add(permission);
     }
 
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == PERMISSION_REQUEST &&
+                checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            JarvisVoiceInteractionService.refreshPassiveWakePreference();
+        }
+    }
+
     private void requestAssistantRole() {
         RoleManager roleManager = getSystemService(RoleManager.class);
         if (roleManager == null || !roleManager.isRoleAvailable(RoleManager.ROLE_ASSISTANT)) {
