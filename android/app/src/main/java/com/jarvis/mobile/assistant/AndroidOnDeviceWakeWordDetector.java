@@ -58,15 +58,12 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         String identifier = usingDedicatedOnDeviceRecognizer
                 ? "android-on-device-speech-platform"
                 : "android-system-speech-platform";
-        String provenance = usingDedicatedOnDeviceRecognizer
-                ? "Android dedicated on-device recognition service"
-                : "Android configured speech recognition service; offline preference requested";
         return new WakeWordModelDescriptor(
                 identifier,
                 1L,
+                "",
                 "platform-managed-not-redistributed",
-                provenance,
-                true,
+                false,
                 true);
     }
 
@@ -94,7 +91,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         }
         status = usingDedicatedOnDeviceRecognizer
                 ? "listening with Android on-device recognition for Jarvis / Hey Jarvis"
-                : "listening with Android system recognition for Jarvis / Hey Jarvis";
+                : "listening with Android system recognition for Jarvis / Hey Jarvis (offline preferred)";
         startListening();
         return true;
     }
@@ -177,27 +174,10 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
             }
             status = usingDedicatedOnDeviceRecognizer
                     ? "on-device recognizer recovered; listening for Jarvis / Hey Jarvis"
-                    : "system recognizer recovered; listening for Jarvis / Hey Jarvis";
-            Log.i(TAG, "JARVIS_WAKE_RECOGNIZER_RECOVERED");
+                    : "system recognizer recovered; listening for Jarvis / Hey Jarvis (offline preferred)";
             startListening();
         }
     };
-
-    private void inspect(Bundle results) {
-        if (!running || results == null) return;
-        ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-        if (matches == null) return;
-        for (String phrase : matches) {
-            if (phrase != null && WAKE.matcher(phrase).find()) {
-                Runnable callback = onWake;
-                status = "wake detected";
-                stopInternal();
-                Log.i(TAG, "JARVIS_WAKE_MATCH phrase=" + phrase);
-                if (callback != null) callback.run();
-                return;
-            }
-        }
-    }
 
     private void stopInternal() {
         running = false;
@@ -210,37 +190,61 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
             recognizer = null;
         }
         onWake = null;
-        if (!"wake detected".equals(status)) status = "stopped";
+        status = "stopped";
     }
 
-    @Override public void onReadyForSpeech(Bundle params) { }
+    @Override public void onReadyForSpeech(Bundle params) {
+        listening = true;
+        status = usingDedicatedOnDeviceRecognizer
+                ? "listening with Android on-device recognition for Jarvis / Hey Jarvis"
+                : "listening with Android system recognition for Jarvis / Hey Jarvis (offline preferred)";
+    }
+
     @Override public void onBeginningOfSpeech() { }
     @Override public void onRmsChanged(float rmsdB) { }
     @Override public void onBufferReceived(byte[] buffer) { }
-    @Override public void onEndOfSpeech() { }
+    @Override public void onEndOfSpeech() { listening = false; }
 
     @Override public void onError(int error) {
         listening = false;
         if (!running) return;
-        status = "recognizer recovery after error " + error;
-        Log.w(TAG, "JARVIS_WAKE_RECOGNIZER_ERROR code=" + error);
-        if (error == SpeechRecognizer.ERROR_CLIENT
-                || error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY
-                || error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS
-                || (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-                    && error == SpeechRecognizer.ERROR_SERVER_DISCONNECTED)) {
-            scheduleRecreate(RECREATE_DELAY_MS);
-        } else {
-            scheduleRestart(RESTART_DELAY_MS);
+        switch (error) {
+            case SpeechRecognizer.ERROR_RECOGNIZER_BUSY,
+                    SpeechRecognizer.ERROR_CLIENT,
+                    SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS,
+                    SpeechRecognizer.ERROR_SERVER_DISCONNECTED -> {
+                status = "wake recognizer needs recovery (error " + error + ")";
+                scheduleRecreate(RECREATE_DELAY_MS);
+            }
+            default -> {
+                status = "wake recognizer retrying (error " + error + ")";
+                scheduleRestart(RESTART_DELAY_MS);
+            }
         }
     }
 
     @Override public void onResults(Bundle results) {
         listening = false;
         inspect(results);
-        if (running) scheduleRestart(RESTART_DELAY_MS);
+        scheduleRestart(RESTART_DELAY_MS);
     }
 
     @Override public void onPartialResults(Bundle partialResults) { inspect(partialResults); }
     @Override public void onEvent(int eventType, Bundle params) { }
+
+    private void inspect(Bundle bundle) {
+        if (!running || bundle == null) return;
+        ArrayList<String> candidates = bundle.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+        if (candidates == null) return;
+        for (String candidate : candidates) {
+            if (candidate != null && WAKE.matcher(candidate).find()) {
+                Runnable callback = onWake;
+                if (callback != null) {
+                    Log.i(TAG, "JARVIS_WAKE_MATCH phrase=" + candidate);
+                    callback.run();
+                }
+                return;
+            }
+        }
+    }
 }
