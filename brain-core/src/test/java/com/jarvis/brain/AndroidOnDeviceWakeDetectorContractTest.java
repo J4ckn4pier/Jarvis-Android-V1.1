@@ -40,6 +40,14 @@ public final class AndroidOnDeviceWakeDetectorContractTest {
         check(detector.contains("recreateRecognizer"), "Samsung recovery path must recreate the recognizer after fatal/client/busy errors instead of retrying a poisoned instance forever");
         check(detector.contains("ERROR_CLIENT") && detector.contains("ERROR_RECOGNIZER_BUSY"), "wake recovery must explicitly handle client and busy recognizer failures seen on OEM speech stacks");
 
+        // Samsung recognition stacks can emit the same phrase as multiple partials and then again as a
+        // final result. One spoken wake phrase must hand off exactly once and release the passive mic
+        // before the active assistant recognizer starts, otherwise duplicate sessions/recognizer-busy
+        // loops are possible on the physical device.
+        check(detector.contains("wakeDispatched"), "wake detector must latch the first matching partial/final result so one phrase cannot trigger duplicate assistant sessions");
+        check(detector.contains("stopListeningForWakeHandoff"), "wake detector must have an explicit handoff path that releases passive recognition before showing the assistant");
+        check(detector.contains("recognizer.cancel()"), "wake handoff must cancel passive recognition immediately to release the microphone for the assistant session");
+
         check(service.contains("pausePassiveWakeForSession"), "voice service must expose a session hook that pauses passive wake while the assistant is active");
         check(service.contains("rearmPassiveWakeAfterSession"), "voice service must expose a session hook that re-arms passive wake after the assistant closes");
         check(managedSession.contains("JarvisVoiceInteractionService.pausePassiveWakeForSession()"), "assistant session must pause passive wake when shown to avoid microphone contention");
