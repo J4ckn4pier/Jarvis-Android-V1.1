@@ -26,6 +26,19 @@ public final class AndroidVoiceTtsCallbackGenerationContractTest {
         check(session.contains("scheduledGeneration != listenScheduleGeneration"),
                 "a stale delayed re-listen must not reopen the microphone during a newer assistant turn");
 
+        check(session.contains("private boolean destroyed;"),
+                "voice session must remember terminal destruction so asynchronous TTS initialization cannot revive stale state");
+        check(session.contains("@Override public void onInit(int status) {\n        if (destroyed) return;"),
+                "a late Samsung/OEM TTS onInit callback after session destruction must be ignored");
+        check(session.contains("private void releaseTextToSpeechSafely()")
+                        && session.contains("textToSpeech = null;")
+                        && session.contains("try { engine.stop(); } catch (RuntimeException cleanupFailure)")
+                        && session.contains("try { engine.shutdown(); } catch (RuntimeException cleanupFailure)"),
+                "TTS teardown must detach the engine first and contain OEM stop/shutdown exceptions independently");
+        check(session.contains("destroyed = true;")
+                        && session.contains("releaseTextToSpeechSafely();"),
+                "session destruction must mark TTS callbacks stale before safely releasing the engine");
+
         System.out.println("AndroidVoiceTtsCallbackGenerationContractTest: PASS");
     }
 
