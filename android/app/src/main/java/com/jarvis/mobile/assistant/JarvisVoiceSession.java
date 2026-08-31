@@ -69,6 +69,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private long conversationDeadlineElapsedRealtime;
     private long sessionGeneration;
     private long speechGeneration;
+    private long listenScheduleGeneration;
     private volatile String activeUtteranceId = "";
     private String lastCommand = "";
     private String lastPartial = "";
@@ -207,6 +208,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         autoListenTriggered = false;
         resumeAfterSpeech = false;
         conversationDeadlineElapsedRealtime = 0L;
+        invalidateScheduledListen();
         bargeInMonitor.stop();
         if (speechRecognizer != null) speechRecognizer.cancel();
         invalidateSpeechCallback();
@@ -223,6 +225,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private void interruptSpeechAndListen() {
         beginConversationWindowIfNeeded();
         resumeAfterSpeech = false;
+        invalidateScheduledListen();
         bargeInMonitor.stop();
         invalidateSpeechCallback();
         if (textToSpeech != null) textToSpeech.stop();
@@ -235,6 +238,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         surface.post(() -> {
             if (!conversationWindowOpen()) return;
             resumeAfterSpeech = false;
+            invalidateScheduledListen();
             bargeInMonitor.stop();
             invalidateSpeechCallback();
             if (textToSpeech != null) textToSpeech.stop();
@@ -253,18 +257,25 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         startListening();
     }
 
+    private void invalidateScheduledListen() {
+        listenScheduleGeneration++;
+    }
+
     private void scheduleNextListen() {
+        long scheduledGeneration = ++listenScheduleGeneration;
         if (!viewReady || !conversationWindowOpen() || output == null) {
             setActive(false);
             return;
         }
         output.postDelayed(() -> {
+            if (scheduledGeneration != listenScheduleGeneration) return;
             if (conversationWindowOpen()) startListening();
             else setActive(false);
         }, NEXT_LISTEN_DELAY_MILLIS);
     }
 
     private void startListening() {
+        invalidateScheduledListen();
         bargeInMonitor.stop();
         if (!conversationWindowOpen()) {
             if (output != null) output.setText("Conversation paused. Tap LISTEN when you want me again.");
@@ -381,6 +392,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         cancelButton.setContentDescription("JARVIS CANCEL action");
         cancelButton.setVisibility(approval || recovery ? View.VISIBLE : View.GONE);
 
+        invalidateScheduledListen();
         bargeInMonitor.stop();
         resumeAfterSpeech = conversationWindowOpen();
         if (!text.isBlank() && textToSpeech != null && voiceEnabled()) {
@@ -500,6 +512,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         sessionVisible = false;
         resumeAfterSpeech = false;
         conversationDeadlineElapsedRealtime = 0L;
+        invalidateScheduledListen();
         bargeInMonitor.stop();
         brainExecutor.shutdownNow();
         if (speechRecognizer != null) { speechRecognizer.cancel(); speechRecognizer.destroy(); }
