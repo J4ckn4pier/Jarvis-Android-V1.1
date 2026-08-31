@@ -294,7 +294,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
             if (!recreateRecognizer()) {
                 if (!running) return;
                 status = "Android recognizer unavailable during recovery";
-                if (systemOfflineVerified) scheduleRecreate(2500L);
+                scheduleRecreate(2500L);
                 return;
             }
             status = usingDedicatedOnDeviceRecognizer
