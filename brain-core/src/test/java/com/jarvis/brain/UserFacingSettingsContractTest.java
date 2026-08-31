@@ -46,6 +46,10 @@ public final class UserFacingSettingsContractTest {
 
         check(settings.contains("lock_screen_assistant_enabled"),
                 "Widgets & Lock Screen must persist the user-visible lock-screen assistant preference");
+        check(settings.contains("boolean[] pendingLockScreen")
+                        && settings.contains("setPositiveButton(\"SAVE\"")
+                        && settings.contains("setNegativeButton(\"CANCEL\",null)"),
+                "Widgets & Lock Screen must keep lock-screen edits provisional until SAVE and allow CANCEL without mutating runtime state");
         check(voiceSession.contains("lock_screen_assistant_enabled") && voiceSession.contains("KeyguardManager"),
                 "the real assistant session must enforce the saved lock-screen preference against Android keyguard state");
         check(voiceSession.contains("lockScreenAssistantAllowed()"),
