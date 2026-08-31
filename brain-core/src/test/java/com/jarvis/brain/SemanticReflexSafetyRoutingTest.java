@@ -15,6 +15,7 @@ public final class SemanticReflexSafetyRoutingTest {
         descriptiveDatedSchedulePhraseFallsThroughToCortex();
         descriptiveTimerPhraseFallsThroughToCortex();
         descriptiveAlarmPhraseFallsThroughToCortex();
+        descriptiveNearestGasStationPhraseFallsThroughToCortex();
         directImperativeStillUsesSafeLocalReflex();
         System.out.println("SemanticReflexSafetyRoutingTest passed");
     }
@@ -98,6 +99,15 @@ public final class SemanticReflexSafetyRoutingTest {
         check(calls.get() == 1, "descriptive alarm language must reach cortex");
         check(response.kind() == BrainResponse.Kind.CONVERSATION,
                 "descriptive alarm language must not set an alarm");
+    }
+
+    private static void descriptiveNearestGasStationPhraseFallsThroughToCortex() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+        BrainResponse response = core.handle("Why does the nearest gas station close so early?");
+        check(calls.get() == 1, "descriptive nearby-place language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "descriptive nearby-place language must not start navigation");
     }
 
     private static void directImperativeStillUsesSafeLocalReflex() {
