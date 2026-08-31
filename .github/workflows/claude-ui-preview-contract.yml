@@ -1,0 +1,14 @@
+name: Claude UI Preview Contract
+
+on:
+  push:
+    branches: [feature/claude-ui-integration]
+  workflow_dispatch:
+
+jobs:
+  preview-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify exact-source Claude preview boundary
+        run: sh .github/scripts/claude-ui-preview-contract.sh
