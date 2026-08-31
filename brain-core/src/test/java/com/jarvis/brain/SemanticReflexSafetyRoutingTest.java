@@ -14,6 +14,7 @@ public final class SemanticReflexSafetyRoutingTest {
         descriptiveCalendarPhraseFallsThroughToCortex();
         descriptiveDatedSchedulePhraseFallsThroughToCortex();
         descriptiveTimerPhraseFallsThroughToCortex();
+        descriptiveAlarmPhraseFallsThroughToCortex();
         directImperativeStillUsesSafeLocalReflex();
         System.out.println("SemanticReflexSafetyRoutingTest passed");
     }
@@ -88,6 +89,15 @@ public final class SemanticReflexSafetyRoutingTest {
         check(calls.get() == 1, "descriptive timer language must reach cortex");
         check(response.kind() == BrainResponse.Kind.CONVERSATION,
                 "descriptive timer language must not start a timer");
+    }
+
+    private static void descriptiveAlarmPhraseFallsThroughToCortex() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+        BrainResponse response = core.handle("Why do I set an alarm for 7:30 when I have an early meeting?");
+        check(calls.get() == 1, "descriptive alarm language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "descriptive alarm language must not set an alarm");
     }
 
     private static void directImperativeStillUsesSafeLocalReflex() {
