@@ -33,8 +33,15 @@ public final class PassiveWakeConversationTest {
         BrainResponse first = brain.handle("how are you");
         check(first.kind() == BrainResponse.Kind.CONVERSATION, "first turn after passive wake should work without repeating Jarvis");
         check(first.acceptedWithoutWakeWord(), "continued-conversation turn should be marked as accepted without repeated wake word");
+
+        // Generic follow-ups are intentionally delegated to the general cortex rather than answered by
+        // a canned phrase handler. The continued-conversation contract is that the session remains active
+        // and the follow-up is accepted without another wake word while that reasoning is delegated.
         BrainResponse followup = brain.handle("tell me more");
-        check(followup.kind() == BrainResponse.Kind.CONVERSATION, "subsequent turns should remain conversational without repeated wake word");
+        check(followup.kind() == BrainResponse.Kind.REASONING_REQUIRED,
+                "generic follow-up should reach the general cortex during continued conversation");
+        check(followup.sessionActive(), "cortex-routed follow-up must keep the passive conversation active");
+        check(followup.acceptedWithoutWakeWord(), "cortex-routed follow-up must not require another wake word");
     }
 
     private static void falseWakePhraseDoesNotActivate() {
