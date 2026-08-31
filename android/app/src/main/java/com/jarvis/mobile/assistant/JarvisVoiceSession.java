@@ -68,6 +68,8 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private boolean resumeAfterSpeech;
     private long conversationDeadlineElapsedRealtime;
     private long sessionGeneration;
+    private long speechGeneration;
+    private volatile String activeUtteranceId = "";
     private String lastCommand = "";
     private String lastPartial = "";
 
@@ -207,6 +209,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         conversationDeadlineElapsedRealtime = 0L;
         bargeInMonitor.stop();
         if (speechRecognizer != null) speechRecognizer.cancel();
+        invalidateSpeechCallback();
         if (textToSpeech != null) textToSpeech.stop();
         setActive(false);
         super.onHide();
@@ -221,6 +224,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         beginConversationWindowIfNeeded();
         resumeAfterSpeech = false;
         bargeInMonitor.stop();
+        invalidateSpeechCallback();
         if (textToSpeech != null) textToSpeech.stop();
         startListening();
     }
@@ -232,6 +236,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
             if (!conversationWindowOpen()) return;
             resumeAfterSpeech = false;
             bargeInMonitor.stop();
+            invalidateSpeechCallback();
             if (textToSpeech != null) textToSpeech.stop();
             startListening();
         });
@@ -284,6 +289,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         speechRecognizer.setRecognitionListener(new RecognitionListener() {
             @Override public void onReadyForSpeech(Bundle params) { output.setText("Listening…"); setActive(true); }
             @Override public void onBeginningOfSpeech() {
+                invalidateSpeechCallback();
                 if (textToSpeech != null) textToSpeech.stop();
                 resumeAfterSpeech = false;
                 output.setText("I’m listening.");
@@ -379,14 +385,42 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         resumeAfterSpeech = conversationWindowOpen();
         if (!text.isBlank() && textToSpeech != null && voiceEnabled()) {
             applyVoicePreferences();
-            int result = textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "jarvis-session");
+            String utteranceId = beginSpeechCallback();
+            int result = textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId);
             if (result == TextToSpeech.SUCCESS) bargeInMonitor.start(this::handleHandsFreeBargeIn);
-            else if (resumeAfterSpeech) { resumeAfterSpeech = false; scheduleNextListen(); }
+            else {
+                invalidateSpeechCallback();
+                if (resumeAfterSpeech) { resumeAfterSpeech = false; scheduleNextListen(); }
+            }
         } else if (resumeAfterSpeech) {
             resumeAfterSpeech = false;
             scheduleNextListen();
         }
         setActive(false);
+    }
+
+    private String beginSpeechCallback() {
+        speechGeneration++;
+        activeUtteranceId = "jarvis-session-" + speechGeneration;
+        return activeUtteranceId;
+    }
+
+    private void invalidateSpeechCallback() {
+        speechGeneration++;
+        activeUtteranceId = "";
+    }
+
+    private boolean isCurrentSpeechCallback(String utteranceId) {
+        return utteranceId != null && !utteranceId.isBlank() && utteranceId.equals(activeUtteranceId);
+    }
+
+    private void finishSpeechCallback(String utteranceId) {
+        if (!isCurrentSpeechCallback(utteranceId)) return;
+        invalidateSpeechCallback();
+        bargeInMonitor.stop();
+        if (!resumeAfterSpeech) return;
+        resumeAfterSpeech = false;
+        scheduleNextListen();
     }
 
     private boolean voiceEnabled() {
@@ -448,20 +482,14 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         if (status == TextToSpeech.SUCCESS && textToSpeech != null) {
             applyVoicePreferences();
             textToSpeech.setOnUtteranceProgressListener(new UtteranceProgressListener() {
-                @Override public void onStart(String utteranceId) { }
+                @Override public void onStart(String utteranceId) {
+                    if (!isCurrentSpeechCallback(utteranceId)) return;
+                }
                 @Override public void onDone(String utteranceId) {
-                    if (!"jarvis-session".equals(utteranceId)) return;
-                    bargeInMonitor.stop();
-                    if (!resumeAfterSpeech) return;
-                    resumeAfterSpeech = false;
-                    if (output != null) output.post(JarvisVoiceSession.this::scheduleNextListen);
+                    if (output != null) output.post(() -> finishSpeechCallback(utteranceId));
                 }
                 @Override public void onError(String utteranceId) {
-                    if (!"jarvis-session".equals(utteranceId)) return;
-                    bargeInMonitor.stop();
-                    if (!resumeAfterSpeech) return;
-                    resumeAfterSpeech = false;
-                    if (output != null) output.post(JarvisVoiceSession.this::scheduleNextListen);
+                    if (output != null) output.post(() -> finishSpeechCallback(utteranceId));
                 }
             });
         }
@@ -475,6 +503,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         bargeInMonitor.stop();
         brainExecutor.shutdownNow();
         if (speechRecognizer != null) { speechRecognizer.cancel(); speechRecognizer.destroy(); }
+        invalidateSpeechCallback();
         if (textToSpeech != null) { textToSpeech.stop(); textToSpeech.shutdown(); }
         super.onDestroy();
     }
