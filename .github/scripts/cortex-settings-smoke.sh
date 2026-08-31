@@ -5,7 +5,7 @@ OUTPUT="android/app/build/outputs/apk/debug"
 PACKAGE="com.jarvis.mobile"
 SETTINGS="$PACKAGE/com.jarvis.mobile.DeveloperSettingsActivity"
 
-# Raw model/endpoint/credential controls are preserved, but are no longer the normal user Settings screen.
+# Raw model/endpoint controls remain advanced, but the free local AI mode must be explicit and honest.
 adb shell am force-stop "$PACKAGE"
 sleep 1
 adb logcat -c
@@ -18,8 +18,10 @@ for attempt in $(seq 1 20); do
   if adb pull /sdcard/jarvis-cortex-settings-ui.xml "$OUTPUT/jarvis-cortex-settings-ui-attempt-$attempt.xml" >/dev/null 2>&1; then
     UI="$OUTPUT/jarvis-cortex-settings-ui-attempt-$attempt.xml"
     if grep -q 'DEVELOPER OPTIONS' "$UI" \
-        && grep -q 'Deterministic brain active; no general local cortex configured' "$UI" \
-        && grep -q 'OpenAI-compatible endpoint' "$UI" \
+        && grep -q 'Deterministic fallback active; local AI is not configured' "$UI" \
+        && grep -q 'Local AI (Ollama-compatible)' "$UI" \
+        && grep -q 'Suggested local model: gpt-oss:20b' "$UI" \
+        && grep -q 'No API key is required for local AI' "$UI" \
         && grep -q 'CLEAR SAVED API KEY' "$UI"; then
       cp "$UI" "$OUTPUT/jarvis-cortex-settings-ui.xml"
       SETTINGS_READY=1
