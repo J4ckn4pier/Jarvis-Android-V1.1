@@ -19,6 +19,7 @@ public final class CortexProviderFactory {
         String endpoint = p.getString("endpoint", "");
         String model = p.getString("model", "");
         String key = new SecureSecretStore(context).get("provider_api_key");
+        // User-owned Ollama/llama.cpp endpoints use the OpenAI-compatible mode without an API key.
         if (MODE_OPENAI_COMPATIBLE.equals(mode)) return new OpenAiCompatibleChatProvider(endpoint, model, key);
         if (MODE_OPENAI.equals(mode)) return new OpenAIResponsesProvider(endpoint, model, key);
         if (MODE_ANTHROPIC.equals(mode)) return new AnthropicMessagesProvider(endpoint, model, key);
@@ -33,10 +34,10 @@ public final class CortexProviderFactory {
 
     public static String status(Context context) {
         CortexProvider provider = create(context);
-        if ("local".equals(provider.id())) return "Deterministic brain active; no general local cortex configured";
+        if ("local".equals(provider.id())) return "Deterministic brain active; free local cortex not configured";
         if (MODE_OPENAI_COMPATIBLE.equals(provider.id())) {
-            return provider.isConfigured() ? "OpenAI-compatible local cortex configured"
-                    : "OpenAI-compatible local cortex needs a model and allowed endpoint";
+            return provider.isConfigured() ? "Free local OpenAI-compatible cortex configured; no API key required"
+                    : "Free local OpenAI-compatible cortex needs a model and allowed local endpoint; no API key required";
         }
         return provider.isConfigured() ? provider.id() + " configured"
                 : provider.id() + " needs a model and API key";
