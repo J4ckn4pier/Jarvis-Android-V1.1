@@ -1,0 +1,15 @@
+name: Wake Reliability
+
+on:
+  push:
+    branches:
+      - feature/wake-end-speech-recovery
+  workflow_dispatch:
+
+jobs:
+  end-of-speech-recovery:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify OEM end-of-speech recovery contract
+        run: bash .github/scripts/wake-end-speech-recovery-contract.sh
