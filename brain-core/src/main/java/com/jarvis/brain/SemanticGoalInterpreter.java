@@ -90,8 +90,9 @@ public final class SemanticGoalInterpreter {
 
     private static boolean isJarvisSettingsRequest(String lower) {
         if (!lower.contains("settings")) return false;
-        return lower.contains("open settings") || lower.contains("open the settings") || lower.contains("show settings")
-                || lower.contains("show me settings") || lower.contains("go to settings") || lower.contains("jarvis settings");
+        return startsAsRequest(lower,
+                "settings", "open settings", "open the settings", "open jarvis settings",
+                "show settings", "show me settings", "show jarvis settings", "go to settings");
     }
 
     private static boolean isDialer(String lower) {
