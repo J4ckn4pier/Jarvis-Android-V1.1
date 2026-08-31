@@ -30,12 +30,12 @@ public class JarvisVoiceInteractionService extends VoiceInteractionService {
         Log.i(WAKE_TAG, "JARVIS_PASSIVE_WAKE_TRIGGERED");
     }
 
-    static void pausePassiveWakeForSession() {
+    public static void pausePassiveWakeForSession() {
         JarvisVoiceInteractionService service = activeInstance;
         if (service != null) service.runWakeLifecycleOnMain(service::pausePassiveWake);
     }
 
-    static void rearmPassiveWakeAfterSession() {
+    public static void rearmPassiveWakeAfterSession() {
         JarvisVoiceInteractionService service = activeInstance;
         if (service != null) service.runWakeLifecycleOnMain(() -> service.armPassiveWake("assistant session hidden"));
     }
