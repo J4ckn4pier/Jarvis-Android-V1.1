@@ -22,6 +22,7 @@ import java.io.InputStream;
 public final class ClaudeUiPreviewActivity extends Activity {
     static final String CANONICAL_ASSET = "jarvis-live.html";
     private static final String CANONICAL_URL = "file:///android_asset/jarvis-live.html";
+    static final String ANDROID_BRIDGE = "JarvisAndroid";
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -39,6 +40,7 @@ public final class ClaudeUiPreviewActivity extends Activity {
         settings.setAllowFileAccess(true);
         settings.setAllowFileAccessFromFileURLs(false);
         settings.setAllowUniversalAccessFromFileURLs(false);
+        preview.addJavascriptInterface(new ClaudeUiActionRouter(this), ANDROID_BRIDGE);
         setContentView(preview, new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT));
