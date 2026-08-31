@@ -31,7 +31,7 @@ public final class SemanticGoalInterpreter {
                 Map.of("amount", timer.group(1), "unit", timer.group(2)), false))));
 
         Matcher alarm = ALARM.matcher(lower);
-        if (alarm.find()) {
+        if (startsAsRequest(lower, "set ", "make ") && alarm.find()) {
             int hour = Integer.parseInt(alarm.group(1));
             int minute = alarm.group(2) == null ? 0 : Integer.parseInt(alarm.group(2));
             String meridiem = alarm.group(3);
