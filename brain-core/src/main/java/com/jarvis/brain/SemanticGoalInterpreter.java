@@ -20,19 +20,18 @@ public final class SemanticGoalInterpreter {
         String raw = utterance == null ? "" : utterance.trim();
         String lower = normalize(raw);
         if (lower.isEmpty()) return Optional.empty();
-        boolean actionRequest = isActionRequest(lower);
 
-        if (actionRequest && isJarvisSettingsRequest(lower)) return Optional.of(new Plan("Open JARVIS settings",
+        if (isJarvisSettingsRequest(lower)) return Optional.of(new Plan("Open JARVIS settings",
                 List.of(new PlanStep("open_jarvis_settings"))));
 
-        if (actionRequest && isDialer(lower)) return Optional.of(new Plan("Open the phone dialer", List.of(new PlanStep("open_dialer"))));
+        if (isDialer(lower)) return Optional.of(new Plan("Open the phone dialer", List.of(new PlanStep("open_dialer"))));
 
         Matcher timer = TIMER.matcher(lower);
-        if (actionRequest && timer.find()) return Optional.of(new Plan("Set timer", List.of(new PlanStep("set_timer",
+        if (timer.find()) return Optional.of(new Plan("Set timer", List.of(new PlanStep("set_timer",
                 Map.of("amount", timer.group(1), "unit", timer.group(2)), false))));
 
         Matcher alarm = ALARM.matcher(lower);
-        if (actionRequest && alarm.find()) {
+        if (alarm.find()) {
             int hour = Integer.parseInt(alarm.group(1));
             int minute = alarm.group(2) == null ? 0 : Integer.parseInt(alarm.group(2));
             String meridiem = alarm.group(3);
@@ -44,15 +43,15 @@ public final class SemanticGoalInterpreter {
             }
         }
 
-        String volumeAction = actionRequest ? volumeAction(lower) : null;
+        String volumeAction = volumeAction(lower);
         if (volumeAction != null) return Optional.of(new Plan("Control volume",
                 List.of(new PlanStep("volume_control", Map.of("action", volumeAction), false))));
 
-        String mediaAction = actionRequest ? mediaAction(lower) : null;
+        String mediaAction = mediaAction(lower);
         if (mediaAction != null) return Optional.of(new Plan("Control media",
                 List.of(new PlanStep("media_control", Map.of("action", mediaAction), false))));
 
-        String webQuery = actionRequest ? webQuery(raw, lower) : "";
+        String webQuery = webQuery(raw, lower);
         if (!webQuery.isBlank()) return Optional.of(new Plan("Search the web",
                 List.of(new PlanStep("web_search", Map.of("query", webQuery), false))));
 
@@ -60,17 +59,17 @@ public final class SemanticGoalInterpreter {
         if (calendarWhen != null) return Optional.of(new Plan("Read calendar agenda",
                 List.of(new PlanStep("calendar_query", Map.of("when", calendarWhen), false))));
 
-        String destination = actionRequest ? navigationDestination(raw, lower) : "";
+        String destination = navigationDestination(raw, lower);
         if (!destination.isBlank()) return Optional.of(new Plan("Navigate to destination",
                 List.of(new PlanStep("navigate", Map.of("destination", destination), false))));
 
-        if (actionRequest && (lower.contains("torch") || lower.contains("flashlight"))) {
+        if (lower.contains("torch") || lower.contains("flashlight")) {
             String state = offLanguage(lower) ? "off" : onLanguage(lower) ? "on" : "";
             if (!state.isBlank()) return Optional.of(new Plan("Set flashlight",
                     List.of(new PlanStep("set_flashlight", Map.of("state", state), false))));
         }
 
-        String app = actionRequest ? openedApp(raw, lower) : "";
+        String app = openedApp(raw, lower);
         if (!app.isBlank()) return Optional.of(new Plan("Open " + app,
                 List.of(new PlanStep("open_app", Map.of("app", app), false))));
 
@@ -101,6 +100,7 @@ public final class SemanticGoalInterpreter {
     }
 
     private static String openedApp(String raw, String lower) {
+        if (!startsAsRequest(lower, "open ", "launch ")) return "";
         String[] cues = {"open ", "launch "};
         for (String cue : cues) {
             int idx = lower.indexOf(cue);
@@ -126,11 +126,31 @@ public final class SemanticGoalInterpreter {
 
     private static String volumeAction(String lower) {
         if (!lower.contains("volume") && !lower.contains("sound")) return null;
+        if (!startsAsRequest(lower, "turn ", "lower ", "raise ", "mute ", "unmute ", "make ", "volume ", "sound ")) return null;
         if (lower.contains("unmute")) return "unmute";
         if (lower.contains("mute")) return "mute";
         if (lower.contains("down") || lower.contains("lower") || lower.contains("quieter")) return "down";
         if (lower.contains("up") || lower.contains("raise") || lower.contains("louder")) return "up";
         return null;
+    }
+
+    private static boolean startsAsRequest(String lower, String... commandPrefixes) {
+        String value = lower;
+        String[] polite = {"please ", "can you ", "could you ", "would you ", "will you ", "jarvis ",
+                "i want you to ", "i need you to "};
+        boolean changed;
+        do {
+            changed = false;
+            for (String prefix : polite) {
+                if (value.startsWith(prefix)) {
+                    value = value.substring(prefix.length()).trim();
+                    changed = true;
+                    break;
+                }
+            }
+        } while (changed && !value.isEmpty());
+        for (String prefix : commandPrefixes) if (value.startsWith(prefix)) return true;
+        return false;
     }
 
     private static String mediaAction(String lower) {
@@ -163,37 +183,6 @@ public final class SemanticGoalInterpreter {
             return candidate;
         }
         return "";
-    }
-
-    private static boolean isActionRequest(String lower) {
-        String request = stripPolitePrefix(lower);
-        String[] direct = {
-                "open ", "launch ", "set ", "start ", "make an alarm", "make a phone call", "make calls",
-                "turn ", "switch ", "shut ", "kill ", "enable ", "disable ", "lower ", "raise ",
-                "mute ", "unmute ", "play ", "pause ", "resume ", "continue ", "next ", "previous ",
-                "get me to ", "take me to ", "navigate to ", "directions to ", "route me to ",
-                "search ", "look up ", "call ", "dial ", "show settings", "show me settings", "go to settings"
-        };
-        for (String prefix : direct) if (request.startsWith(prefix)) return true;
-        return false;
-    }
-
-    private static String stripPolitePrefix(String lower) {
-        String value = lower;
-        String[] prefixes = {"please ", "can you ", "could you ", "would you ", "will you ", "jarvis ",
-                "i want you to ", "i need you to "};
-        boolean changed;
-        do {
-            changed = false;
-            for (String prefix : prefixes) {
-                if (value.startsWith(prefix)) {
-                    value = value.substring(prefix.length()).trim();
-                    changed = true;
-                    break;
-                }
-            }
-        } while (changed && !value.isEmpty());
-        return value;
     }
 
     private static boolean offLanguage(String lower) {
