@@ -18,6 +18,8 @@ jobs:
         run: sh .github/scripts/claude-ui-navigation-contract.sh
       - name: Verify Claude UI truthful capability contract
         run: sh .github/scripts/claude-ui-capabilities-contract.sh
+      - name: Verify Claude UI action result contract
+        run: sh .github/scripts/claude-ui-action-result-contract.sh
       - name: Verify Claude UI trusted navigation contract
         run: sh .github/scripts/claude-ui-trusted-navigation-contract.sh
       - name: Verify Claude UI preview lifecycle contract
