@@ -20,6 +20,7 @@ import android.speech.RecognitionListener;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.speech.tts.TextToSpeech;
+import android.speech.tts.UtteranceProgressListener;
 import android.util.Log;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -61,6 +62,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private static final int PERMISSION_REQUEST = 70;
     private static final int ASSISTANT_ROLE_REQUEST = 71;
     private static final long PULSE_MS = 260L;
+    private static final long FOLLOW_UP_DELAY_MS = 260L;
     private static final String SELF_TEST_TAG = "JARVIS_SELF_TEST";
     private static final String COMMAND_TEST_TAG = "JARVIS_COMMAND_TEST";
     private static final String UI_TEST_TAG = "JARVIS_UI_TEST";
@@ -92,6 +94,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private boolean active;
     private boolean pulseFrame;
     private boolean destroyed;
+    private boolean continuedConversation;
     private SharedPreferences preferences;
     private boolean commandTestMode;
 
@@ -349,6 +352,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private void runCommand(String raw, double speechConfidence) {
         String command = raw == null ? "" : raw.trim();
         if (command.isEmpty()) { setActive(false, "I’m listening."); return; }
+        if (isConversationEndCommand(command)) continuedConversation = false;
         setActive(true, "Processing ...");
         if (decisionPanel != null) decisionPanel.setVisibility(View.GONE);
         status.setText("Heard you say, “" + command + "”");
@@ -394,6 +398,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         Log.i(SHARED_BRAIN_TAG, "state=" + view.state() + " primary=" + view.primaryAction());
         if (commandTestMode) Log.i(COMMAND_TEST_TAG, "JARVIS_COMMAND_RESULT " + view.text());
         if (!view.text().isBlank()) speak(view.text());
+        else resumeListeningAfterSpeech();
     }
 
     private void applyDecisionActions(FullAppRuntimeViewState view) {
@@ -462,6 +467,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             status.setText("Android speech recognition is unavailable on this device.");
             return;
         }
+        continuedConversation = !commandTestMode;
         if (speechRecognizer != null) speechRecognizer.destroy();
         speechRecognizer = Build.VERSION.SDK_INT >= 31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
                 ? SpeechRecognizer.createOnDeviceSpeechRecognizer(this)
@@ -475,11 +481,19 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             @Override public void onRmsChanged(float rmsdB) { }
             @Override public void onBufferReceived(byte[] buffer) { }
             @Override public void onEndOfSpeech() { setActive(true, "Processing ..."); }
-            @Override public void onError(int error) { setActive(false, "Listening stopped: " + speechError(error)); }
+            @Override public void onError(int error) {
+                if (error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT || error == SpeechRecognizer.ERROR_NO_MATCH) {
+                    continuedConversation = false;
+                    setActive(false, "Conversation paused. Say “Jarvis” when you need me again.");
+                } else {
+                    setActive(false, "Listening stopped: " + speechError(error));
+                }
+            }
             @Override public void onResults(Bundle results) {
                 ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
                 if (matches == null || matches.isEmpty()) {
-                    setActive(false, "I didn’t catch that. Tap the core to try again.");
+                    continuedConversation = false;
+                    setActive(false, "I didn’t catch that. Say “Jarvis” when you need me again.");
                     return;
                 }
                 float[] scores = results.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES);
@@ -495,7 +509,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
         intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
         intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3);
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault());
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, configuredLanguage().toLanguageTag());
         speechRecognizer.startListening(intent);
     }
 
@@ -559,19 +573,61 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             modeStatus.setText(("office".equals(mode) ? "Office" : "Quiet") + " Mode Active");
             modeStatus.setVisibility(View.VISIBLE);
         }
+        applyVoicePreferences();
     }
 
     @Override public void onInit(int statusCode) {
         if (statusCode == TextToSpeech.SUCCESS && textToSpeech != null) {
-            textToSpeech.setLanguage(Locale.getDefault());
-            textToSpeech.setSpeechRate(0.92f);
+            applyVoicePreferences();
+            textToSpeech.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                @Override public void onStart(String utteranceId) { }
+                @Override public void onDone(String utteranceId) {
+                    if ("jarvis-response".equals(utteranceId)) ui.post(MainActivity.this::resumeListeningAfterSpeech);
+                }
+                @Override public void onError(String utteranceId) {
+                    if ("jarvis-response".equals(utteranceId)) ui.post(MainActivity.this::resumeListeningAfterSpeech);
+                }
+            });
         }
+    }
+
+    private void applyVoicePreferences() {
+        if (textToSpeech == null || preferences == null) return;
+        textToSpeech.setLanguage(configuredLanguage());
+        float rate = preferences.getFloat("voice_rate", 1.0f);
+        if (rate < 0.5f) rate = 0.5f;
+        if (rate > 1.5f) rate = 1.5f;
+        textToSpeech.setSpeechRate(rate);
+    }
+
+    private Locale configuredLanguage() {
+        String tag = preferences == null ? "system" : preferences.getString("language", "system");
+        if (tag == null || tag.isBlank() || "system".equalsIgnoreCase(tag)) return Locale.getDefault();
+        Locale configured = Locale.forLanguageTag(tag);
+        return configured.getLanguage().isBlank() ? Locale.getDefault() : configured;
     }
 
     private void speak(String text) {
         if (preferences.getBoolean("voice_enabled", true) && textToSpeech != null) {
-            textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "jarvis-response");
+            applyVoicePreferences();
+            int result = textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "jarvis-response");
+            if (result == TextToSpeech.ERROR) resumeListeningAfterSpeech();
+        } else {
+            resumeListeningAfterSpeech();
         }
+    }
+
+    private void resumeListeningAfterSpeech() {
+        if (destroyed || commandTestMode || !continuedConversation) return;
+        ui.postDelayed(() -> {
+            if (!destroyed && continuedConversation) listen();
+        }, FOLLOW_UP_DELAY_MS);
+    }
+
+    private static boolean isConversationEndCommand(String command) {
+        if (command == null) return false;
+        String normalized = command.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9' ]", " ").replaceAll("\\s+", " ").trim();
+        return normalized.matches("(?:go to )?sleep|stop listening|that's all|that is all|thanks jarvis|thank you jarvis");
     }
 
     private String speechError(int code) {
@@ -609,6 +665,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     @Override protected void onDestroy() {
         destroyed = true;
         active = false;
+        continuedConversation = false;
         ui.removeCallbacksAndMessages(null);
         brainExecutor.shutdownNow();
         if (speechRecognizer != null) speechRecognizer.destroy();
