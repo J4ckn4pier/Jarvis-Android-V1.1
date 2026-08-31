@@ -3,6 +3,7 @@ package com.jarvis.mobile.assistant;
 import android.Manifest;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.graphics.Color;
@@ -54,6 +55,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private AndroidBrainRuntime brain;
     private SpeechRecognizer speechRecognizer;
     private TextToSpeech textToSpeech;
+    private SharedPreferences preferences;
     private FrameLayout background;
     private TextView core;
     private TextView output;
@@ -75,6 +77,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
 
     @Override public void onCreate() {
         super.onCreate();
+        preferences = getContext().getSharedPreferences("jarvis_shell", Context.MODE_PRIVATE);
         brain = new AndroidBrainRuntime(getContext());
         textToSpeech = new TextToSpeech(getContext(), this);
     }
@@ -163,6 +166,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         sessionGeneration++;
         sessionVisible = true;
         beginConversationWindowIfNeeded();
+        applyVoicePreferences();
         Log.i(TEST_TAG, "JARVIS_OVERLAY_SESSION_SHOWN");
         String testCommand = debugTestCommand(args);
         if (viewReady && output != null && !testCommand.isBlank()) {
@@ -310,7 +314,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         });
         Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault());
+        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, configuredLanguage().toLanguageTag());
         intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
         intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, endpointing.minimumUtteranceMillis());
         intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS,
@@ -321,7 +325,8 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     }
 
     private void execute(String command, double confidence) {
-        String submittedCommand = command == null ? "" : command;
+        String submittedCommand = command == null ? "" : command.trim();
+        if (isConversationEndCommand(submittedCommand)) conversationDeadlineElapsedRealtime = 0L;
         lastCommand = submittedCommand;
         output.setText("YOU: " + lastCommand + "\n\nJARVIS: Thinking…");
         submitBrainWork(() -> brain.handlePresentation(submittedCommand, confidence));
@@ -373,7 +378,8 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
 
         bargeInMonitor.stop();
         resumeAfterSpeech = conversationWindowOpen();
-        if (!text.isBlank() && textToSpeech != null) {
+        if (!text.isBlank() && textToSpeech != null && voiceEnabled()) {
+            applyVoicePreferences();
             int result = textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "jarvis-session");
             if (result == TextToSpeech.SUCCESS) {
                 bargeInMonitor.start(this::handleHandsFreeBargeIn);
@@ -386,6 +392,32 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
             scheduleNextListen();
         }
         setActive(false);
+    }
+
+    private boolean voiceEnabled() {
+        return preferences == null || preferences.getBoolean("voice_enabled", true);
+    }
+
+    private void applyVoicePreferences() {
+        if (textToSpeech == null) return;
+        textToSpeech.setLanguage(configuredLanguage());
+        float rate = preferences == null ? 1.0f : preferences.getFloat("voice_rate", 1.0f);
+        if (rate < 0.5f) rate = 0.5f;
+        if (rate > 1.5f) rate = 1.5f;
+        textToSpeech.setSpeechRate(rate);
+    }
+
+    private Locale configuredLanguage() {
+        String tag = preferences == null ? "system" : preferences.getString("language", "system");
+        if (tag == null || tag.isBlank() || "system".equalsIgnoreCase(tag)) return Locale.getDefault();
+        Locale configured = Locale.forLanguageTag(tag);
+        return configured.getLanguage().isBlank() ? Locale.getDefault() : configured;
+    }
+
+    private static boolean isConversationEndCommand(String command) {
+        if (command == null) return false;
+        String normalized = command.toLowerCase(Locale.ROOT).replaceAll("[^a-z0-9' ]", " ").replaceAll("\\s+", " ").trim();
+        return normalized.matches("(?:go to )?sleep|stop listening|that's all|that is all|thanks jarvis|thank you jarvis");
     }
 
     private void setActive(boolean active) {
@@ -426,8 +458,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
 
     @Override public void onInit(int status) {
         if (status == TextToSpeech.SUCCESS && textToSpeech != null) {
-            textToSpeech.setLanguage(Locale.getDefault());
-            textToSpeech.setSpeechRate(0.95f);
+            applyVoicePreferences();
             textToSpeech.setOnUtteranceProgressListener(new UtteranceProgressListener() {
                 @Override public void onStart(String utteranceId) { }
 
