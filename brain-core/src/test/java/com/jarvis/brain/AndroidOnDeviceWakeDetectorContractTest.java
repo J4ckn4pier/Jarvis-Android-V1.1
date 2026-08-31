@@ -32,6 +32,8 @@ public final class AndroidOnDeviceWakeDetectorContractTest {
             check(detector.contains("systemOfflineVerified"), "system recognizer must be gated by a durable in-session offline-verification flag");
         }
 
+        check(detector.contains("Manifest.permission.RECORD_AUDIO") && detector.contains("PackageManager.PERMISSION_GRANTED"),
+                "passive wake must fail closed before creating/retrying recognizers when microphone permission is missing");
         check(detectorLower.contains("hey\\\\s+") && detectorLower.contains("jarvis"), "wake detector must recognize both requested invocation forms");
         check(detector.contains("startListening") && detector.contains("RecognitionListener"), "wake detector must actually listen instead of reporting a ready stub");
         check(detector.contains("postDelayed") || detector.contains("startListening(intent)"), "wake detector must continue listening after a non-wake utterance");
