@@ -11,6 +11,7 @@ public final class SemanticReflexSafetyRoutingTest {
         descriptiveFlashlightPhraseFallsThroughToCortex();
         descriptiveNotificationPhraseFallsThroughToCortex();
         descriptiveWeatherPhraseFallsThroughToCortex();
+        descriptiveCalendarPhraseFallsThroughToCortex();
         directImperativeStillUsesSafeLocalReflex();
         System.out.println("SemanticReflexSafetyRoutingTest passed");
     }
@@ -58,6 +59,15 @@ public final class SemanticReflexSafetyRoutingTest {
         check(calls.get() == 1, "descriptive weather language must reach cortex");
         check(response.kind() == BrainResponse.Kind.CONVERSATION,
                 "descriptive weather language must not trigger a weather lookup");
+    }
+
+    private static void descriptiveCalendarPhraseFallsThroughToCortex() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+        BrainResponse response = core.handle("What calendar system is best for shared schedules?");
+        check(calls.get() == 1, "descriptive calendar language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "descriptive calendar language must not query the user's calendar");
     }
 
     private static void directImperativeStillUsesSafeLocalReflex() {
