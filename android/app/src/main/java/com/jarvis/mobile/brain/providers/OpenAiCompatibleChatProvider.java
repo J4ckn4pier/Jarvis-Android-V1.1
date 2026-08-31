@@ -17,17 +17,11 @@ public final class OpenAiCompatibleChatProvider implements CortexProvider {
     private final String endpoint;
     private final String model;
     private final String apiKey;
-    private final String personalityDirective;
 
     public OpenAiCompatibleChatProvider(String endpoint, String model, String apiKey) {
-        this(endpoint, model, apiKey, "");
-    }
-
-    public OpenAiCompatibleChatProvider(String endpoint, String model, String apiKey, String personalityDirective) {
         this.endpoint = normalizeEndpoint(endpoint);
         this.model = clean(model);
         this.apiKey = clean(apiKey);
-        this.personalityDirective = clean(personalityDirective);
     }
 
     @Override public String id() { return "openai_compatible"; }
@@ -51,7 +45,7 @@ public final class OpenAiCompatibleChatProvider implements CortexProvider {
         JSONArray messages = new JSONArray()
                 .put(new JSONObject()
                         .put("role", "system")
-                        .put("content", ProviderSharedPlanSchema.systemPrompt(personalityDirective)))
+                        .put("content", ProviderSharedPlanSchema.systemPrompt()))
                 .put(new JSONObject()
                         .put("role", "user")
                         .put("content", ProviderReasoningEnvelope.userContent(request)));
