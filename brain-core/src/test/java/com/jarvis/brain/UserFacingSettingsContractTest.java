@@ -10,6 +10,8 @@ public final class UserFacingSettingsContractTest {
         String settings = Files.readString(mobile.resolve("SettingsActivity.java"));
         String voiceSession = Files.readString(mobile.resolve("assistant/JarvisVoiceSession.java"));
         String quickWidget = Files.readString(mobile.resolve("widgets/QuickActivationWidget.java"));
+        String webSearch = Files.readString(mobile.resolve("actions/AndroidWebSearchActions.java"));
+        String defaultAppPersistence = Files.readString(mobile.resolve("brain/AndroidDefaultAppPreferencePersistence.java"));
         String providerFactory = Files.readString(providers.resolve("CortexProviderFactory.java"));
         String providerSchema = Files.readString(providers.resolve("ProviderSharedPlanSchema.java"));
         String openAiCompatible = Files.readString(providers.resolve("OpenAiCompatibleChatProvider.java"));
@@ -45,6 +47,17 @@ public final class UserFacingSettingsContractTest {
                 "Widgets & Lock Screen may only advertise widget setup when a real Android home-screen widget exists");
         check(settings.contains("requestPinAppWidget") && settings.contains("QuickActivationWidget.class"),
                 "Widgets & Lock Screen must expose a real Android action to add the working JARVIS Quick Access widget");
+
+        check(defaultAppPersistence.contains("jarvis_default_apps"),
+                "JARVIS must preserve an app-private default-app preference store rather than relying only on Android system defaults");
+        check(settings.contains("showDefaultAppSettings") && settings.contains("AndroidDefaultAppPreferencePersistence"),
+                "Default Apps must expose a real JARVIS preference editor instead of only opening Android's generic default-app screen");
+        check(settings.contains("browser") && settings.contains("ACTION_VIEW"),
+                "Default Apps must let the user choose a browser that can actually handle web links");
+        check(webSearch.contains("AndroidDefaultAppPreferencePersistence") && webSearch.contains("preferredBrowserPackage"),
+                "the production web-search action must read the saved JARVIS browser preference");
+        check(webSearch.contains("setPackage(preferredBrowserPackage)"),
+                "the saved JARVIS browser preference must affect the actual Android browser intent");
 
         check(providerFactory.contains("getSharedPreferences(\"jarvis_shell\"") && providerFactory.contains("personality_label"),
                 "the selected Personality must be read by the production cortex factory, not only saved by Settings");
