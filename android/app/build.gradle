@@ -6,6 +6,7 @@ plugins {
 
 def repositoryRoot = rootProject.projectDir.parentFile
 def generatedIntegrityAssets = file("$buildDir/generated/release-integrity/assets")
+def canonicalUiAssets = new File(repositoryRoot, 'assets/ui/claude-artifact')
 def integrityRoots = [
         new File(repositoryRoot, 'brain-core/src'),
         new File(repositoryRoot, 'android/app/src')
@@ -74,6 +75,10 @@ android {
     }
 
     sourceSets.main.assets.srcDir(generatedIntegrityAssets)
+    // The exact Claude Developer-view export belongs here as jarvis-live.html. Keeping the
+    // directory in the Android asset roots means the app automatically packages the canonical
+    // source once it is committed; no copy/reconstruction script is involved.
+    sourceSets.main.assets.srcDir(canonicalUiAssets)
 
     compileOptions {
         sourceCompatibility JavaVersion.VERSION_17
