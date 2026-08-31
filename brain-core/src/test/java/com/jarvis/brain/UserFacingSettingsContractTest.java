@@ -39,6 +39,10 @@ public final class UserFacingSettingsContractTest {
                         && localAiPolicy.contains("endsWith(\".local\")")
                         && localAiPolicy.contains("localhost"),
                 "normal Free Local AI setup must require both safe transport and a genuinely local/self-hosted hostname instead of accepting an arbitrary cloud HTTPS endpoint");
+        check(settings.contains("Use a local .local hostname, localhost, or loopback address for Free Local AI."),
+                "Free Local AI validation errors must describe the endpoints the local-only policy actually accepts");
+        check(!settings.contains("Use HTTPS or a local .local JARVIS/Ollama endpoint."),
+                "Free Local AI must not tell users arbitrary HTTPS endpoints are accepted when the local-only policy rejects them");
         check(developerSettings.contains("EndpointTransportPolicy.allows"),
                 "Developer Options must apply the shared safe endpoint transport policy before saving provider endpoints");
         check(!settings.contains("PREFRONTAL CORTEX"), "normal Settings must not expose internal cortex jargon");
