@@ -14,6 +14,7 @@ public final class UserFacingSettingsContractTest {
         String webSearch = Files.readString(mobile.resolve("actions/AndroidWebSearchActions.java"));
         String defaultAppPersistence = Files.readString(mobile.resolve("brain/AndroidDefaultAppPreferencePersistence.java"));
         String providerFactory = Files.readString(providers.resolve("CortexProviderFactory.java"));
+        String localAiPolicy = Files.readString(providers.resolve("LocalAiEndpointPolicy.java"));
         String providerSchema = Files.readString(providers.resolve("ProviderSharedPlanSchema.java"));
         String openAiCompatible = Files.readString(providers.resolve("OpenAiCompatibleChatProvider.java"));
         String openAi = Files.readString(providers.resolve("OpenAIResponsesProvider.java"));
@@ -34,6 +35,10 @@ public final class UserFacingSettingsContractTest {
                 "provider status must classify a compatible endpoint before normal Settings calls it free/local AI");
         check(providerFactory.contains("endsWith(\".local\")") && providerFactory.contains("localhost"),
                 "local compatible classification must be limited to local hostnames or loopback rather than arbitrary HTTPS providers");
+        check(localAiPolicy.contains("EndpointTransportPolicy.allows")
+                        && localAiPolicy.contains("endsWith(\".local\")")
+                        && localAiPolicy.contains("localhost"),
+                "normal Free Local AI setup must require both safe transport and a genuinely local/self-hosted hostname instead of accepting an arbitrary cloud HTTPS endpoint");
         check(developerSettings.contains("EndpointTransportPolicy.allows"),
                 "Developer Options must apply the shared safe endpoint transport policy before saving provider endpoints");
         check(!settings.contains("PREFRONTAL CORTEX"), "normal Settings must not expose internal cortex jargon");
