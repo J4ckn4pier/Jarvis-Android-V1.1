@@ -79,8 +79,6 @@ public final class BrainEngine {
             return BrainResponse.of(BrainResponse.Kind.ACTION_PLAN, "I'll look for dinner options and rank the best matches.", plan, true, acceptedWithoutWake, context);
         }
 
-        // Everything outside high-confidence reflexes belongs to the general cortex. This includes
-        // conversational follow-ups so the provider sees the full active dialogue instead of a canned reply.
         return BrainResponse.of(BrainResponse.Kind.REASONING_REQUIRED, "I'll reason through that and work out the best next step.", null, true, acceptedWithoutWake, context);
     }
 
@@ -114,7 +112,7 @@ public final class BrainEngine {
     }
 
     private BrainResponse handleCommonAssistantTools(String input, String lower, boolean acceptedWithoutWake, String context) {
-        if (lower.contains("weather") && !isExplicitWebSearch(lower)) {
+        if (isWeatherLookupRequest(lower) && !isExplicitWebSearch(lower)) {
             String location = extractWeatherLocation(input);
             if (!location.isBlank()) lastWeatherLocation = location;
             if (location.isBlank()) location = lastWeatherLocation;
@@ -132,7 +130,7 @@ public final class BrainEngine {
         if (lower.startsWith("play ")) return action("Play media", "media_play", Map.of("query", input.substring(5).trim()), false, acceptedWithoutWake, context);
         if (isFlashlightCommand(lower)) return action("Set flashlight", "set_flashlight", Map.of("state", flashlightState(lower)), false, acceptedWithoutWake, context);
         if (lower.contains("calendar") && (lower.contains("what") || lower.contains("show") || lower.contains("on my"))) return action("Query calendar", "calendar_query", Map.of("when", lower.contains("tomorrow") ? "tomorrow" : "today"), false, acceptedWithoutWake, context);
-        if (lower.contains("notification")) return action("Query notifications", "notification_query", Map.of(), false, acceptedWithoutWake, context);
+        if (isNotificationQueryRequest(lower)) return action("Query notifications", "notification_query", Map.of(), false, acceptedWithoutWake, context);
         if (lower.startsWith("translate ")) return action("Translate", "translate", Map.of("request", input.substring(10).trim()), false, acceptedWithoutWake, context);
         Matcher text = Pattern.compile("(?i)^(?:text|message)\\s+([^,]+?)\\s+(.+)$").matcher(input);
         if (text.matches()) return action("Send message", "send_message", Map.of("recipient", text.group(1).trim(), "message", text.group(2).trim()), true, acceptedWithoutWake, context);
@@ -142,6 +140,28 @@ public final class BrainEngine {
     private static boolean isExplicitWebSearch(String lower) {
         return lower.contains("search the web for ") || lower.contains("search web for ")
                 || lower.contains("search online for ") || lower.contains("look up online ");
+    }
+
+    private static boolean isWeatherLookupRequest(String lower) {
+        if (!lower.contains("weather")) return false;
+        String value = lower.trim();
+        return value.startsWith("weather ") || value.equals("weather")
+                || value.startsWith("what's the weather") || value.startsWith("what is the weather")
+                || value.startsWith("how's the weather") || value.startsWith("how is the weather")
+                || value.startsWith("check the weather") || value.startsWith("check weather")
+                || value.startsWith("show me the weather") || value.startsWith("tell me the weather");
+    }
+
+    private static boolean isNotificationQueryRequest(String lower) {
+        if (!lower.contains("notification")) return false;
+        String value = lower.trim();
+        return value.startsWith("what notification") || value.startsWith("what notifications")
+                || value.startsWith("what are my notification") || value.startsWith("what are my notifications")
+                || value.startsWith("show notification") || value.startsWith("show notifications")
+                || value.startsWith("show me my notification") || value.startsWith("show me my notifications")
+                || value.startsWith("check notification") || value.startsWith("check notifications")
+                || value.startsWith("read notification") || value.startsWith("read notifications")
+                || value.startsWith("do i have any notification") || value.startsWith("any notification");
     }
 
     private static boolean isFlashlightCommand(String lower) {
