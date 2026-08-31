@@ -124,7 +124,7 @@ public final class BrainEngine {
             return action("Check follow-up weather", "weather_lookup", Map.of("location", lastWeatherLocation, "when", when), false, acceptedWithoutWake, context);
         }
         Matcher timer = Pattern.compile("(?i)set (?:a )?timer for (\\d+)\\s*(seconds?|minutes?|hours?)").matcher(input);
-        if (timer.find()) return action("Set timer", "set_timer", Map.of("amount", timer.group(1), "unit", timer.group(2)), false, acceptedWithoutWake, context);
+        if (startsAsRequest(lower, "set ", "start ") && timer.find()) return action("Set timer", "set_timer", Map.of("amount", timer.group(1), "unit", timer.group(2)), false, acceptedWithoutWake, context);
         if (lower.startsWith("remind me ")) return action("Create reminder", "create_reminder", Map.of("request", input.substring(10).trim()), false, acceptedWithoutWake, context);
         if (lower.startsWith("navigate ") || lower.startsWith("directions ") || lower.contains("nearest gas station")) return action("Navigate", "navigate", Map.of("destination", input.replaceFirst("(?i)^(navigate|directions)(?:\\s+to)?\\s+", "")), false, acceptedWithoutWake, context);
         if (lower.startsWith("play ")) return action("Play media", "media_play", Map.of("query", input.substring(5).trim()), false, acceptedWithoutWake, context);
@@ -173,6 +173,25 @@ public final class BrainEngine {
                 || value.startsWith("check notification") || value.startsWith("check notifications")
                 || value.startsWith("read notification") || value.startsWith("read notifications")
                 || value.startsWith("do i have any notification") || value.startsWith("any notification");
+    }
+
+    private static boolean startsAsRequest(String lower, String... commandPrefixes) {
+        String value = lower.trim();
+        String[] polite = {"please ", "can you ", "could you ", "would you ", "will you ", "jarvis ",
+                "i want you to ", "i need you to "};
+        boolean changed;
+        do {
+            changed = false;
+            for (String prefix : polite) {
+                if (value.startsWith(prefix)) {
+                    value = value.substring(prefix.length()).trim();
+                    changed = true;
+                    break;
+                }
+            }
+        } while (changed && !value.isEmpty());
+        for (String prefix : commandPrefixes) if (value.startsWith(prefix)) return true;
+        return false;
     }
 
     private static boolean isFlashlightCommand(String lower) {
