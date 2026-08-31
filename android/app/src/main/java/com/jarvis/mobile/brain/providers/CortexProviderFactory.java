@@ -39,7 +39,7 @@ public final class CortexProviderFactory {
         String mode = p.getString("mode", p.getString("provider", MODE_LOCAL));
         CortexProvider provider = create(context);
         if (MODE_LOCAL.equals(mode) || "local".equals(provider.id())) {
-            return "Deterministic fallback active; local AI is not configured";
+            return "Deterministic brain active; no general local cortex configured";
         }
         if (MODE_LOCAL_AI.equals(mode)) {
             return provider.isConfigured() ? "Local AI cortex configured"
