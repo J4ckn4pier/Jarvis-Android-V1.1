@@ -27,7 +27,7 @@ public final class SemanticGoalInterpreter {
         if (isDialer(lower)) return Optional.of(new Plan("Open the phone dialer", List.of(new PlanStep("open_dialer"))));
 
         Matcher timer = TIMER.matcher(lower);
-        if (timer.find()) return Optional.of(new Plan("Set timer", List.of(new PlanStep("set_timer",
+        if (startsAsRequest(lower, "set ", "start ") && timer.find()) return Optional.of(new Plan("Set timer", List.of(new PlanStep("set_timer",
                 Map.of("amount", timer.group(1), "unit", timer.group(2)), false))));
 
         Matcher alarm = ALARM.matcher(lower);
