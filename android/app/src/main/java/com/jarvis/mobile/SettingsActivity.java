@@ -3,10 +3,13 @@ package com.jarvis.mobile;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.role.RoleManager;
+import android.appwidget.AppWidgetManager;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.graphics.Color;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
 import android.text.InputType;
@@ -25,6 +28,7 @@ import com.jarvis.mobile.brain.providers.CortexProviderFactory;
 import com.jarvis.mobile.brain.providers.LocalAiEndpointPolicy;
 import com.jarvis.mobile.brain.providers.SecureSecretStore;
 import com.jarvis.mobile.remote.RemoteGoalStateStore;
+import com.jarvis.mobile.widgets.QuickActivationWidget;
 
 import java.util.Locale;
 
@@ -104,7 +108,8 @@ public class SettingsActivity extends Activity {
 
     private void showPermissionChoices(){String[] items={"App permissions","Notification access","Screen controls (Accessibility)"};new AlertDialog.Builder(this).setTitle("JARVIS Permissions").setItems(items,(dialog,which)->{if(which==0)launchAppDetails();else if(which==1)launch(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS);else launch(Settings.ACTION_ACCESSIBILITY_SETTINGS);}).setNegativeButton("CANCEL",null).show();}
     private void showBackupSyncSettings(){boolean remoteConfigured=new RemoteGoalStateStore(this).loadConnection()!=null;String message=remoteConfigured?"Remote JARVIS is configured. Choose whether this phone may use that connection for synchronization-capable features.":"No remote JARVIS connection is configured. Local memory remains on this phone until you explicitly configure one.";boolean enabled=preferences.getBoolean("backup_sync_enabled",false);int initial=enabled&&remoteConfigured?1:0;new AlertDialog.Builder(this).setTitle("Backup & Sync").setMessage(message).setSingleChoiceItems(new String[]{"Local only","Allow configured remote sync"},initial,null).setPositiveButton(remoteConfigured?"SAVE":"CONFIGURE CONNECTION",(dialog,which)->{if(remoteConfigured){AlertDialog d=(AlertDialog)dialog;int selected=d.getListView().getCheckedItemPosition();if(selected<0)selected=initial;preferences.edit().putBoolean("backup_sync_enabled",selected==1).apply();}else{startActivity(new Intent(this,DeveloperSettingsActivity.class));}render();}).setNegativeButton("CANCEL",null).show();}
-    private void showWidgetLockSettings(){boolean lock=preferences.getBoolean("lock_screen_assistant_enabled",true);String[] labels={"Allow assistant access from lock screen","Open Android display / lock-screen settings"};new AlertDialog.Builder(this).setTitle("Widgets & Lock Screen").setMultiChoiceItems(labels,new boolean[]{lock,false},(dialog,which,checked)->{if(which==0)preferences.edit().putBoolean("lock_screen_assistant_enabled",checked).apply();if(which==1&&checked){dialog.dismiss();launch(Settings.ACTION_DISPLAY_SETTINGS);}}).setPositiveButton("DONE",(dialog,which)->render()).show();}
+    private void showWidgetLockSettings(){boolean lock=preferences.getBoolean("lock_screen_assistant_enabled",true);String[] labels={"Allow assistant access from lock screen","Add JARVIS Quick Access widget","Open Android display / lock-screen settings"};new AlertDialog.Builder(this).setTitle("Widgets & Lock Screen").setMultiChoiceItems(labels,new boolean[]{lock,false,false},(dialog,which,checked)->{if(which==0)preferences.edit().putBoolean("lock_screen_assistant_enabled",checked).apply();if(which==1&&checked){dialog.dismiss();requestQuickAccessWidget();}if(which==2&&checked){dialog.dismiss();launch(Settings.ACTION_DISPLAY_SETTINGS);}}).setPositiveButton("DONE",(dialog,which)->render()).show();}
+    private void requestQuickAccessWidget(){AppWidgetManager manager=AppWidgetManager.getInstance(this);if(Build.VERSION.SDK_INT>=Build.VERSION_CODES.O&&manager.isRequestPinAppWidgetSupported()){boolean requested=manager.requestPinAppWidget(new ComponentName(this,QuickActivationWidget.class),null,null);Toast.makeText(this,requested?"Android opened the JARVIS widget request.":"Your launcher did not accept the widget request.",Toast.LENGTH_SHORT).show();}else{Toast.makeText(this,"Long-press your Home screen, choose Widgets, then add JARVIS Quick Access.",Toast.LENGTH_LONG).show();}}
 
     private String providerSummary(){String status=CortexProviderFactory.status(this).toLowerCase(Locale.ROOT);if(status.contains("openai-compatible")&&status.contains("configured"))return "Free/local AI configured";if(status.contains("anthropic"))return "Anthropic connected";if(status.contains("openai"))return "OpenAI provider connected";return "Deterministic local fallback";}
     private void showProviderConnections(){String[] choices={"Free Local AI (Ollama)","CONNECT / CHANGE API provider","DISCONNECT / deterministic local fallback"};new AlertDialog.Builder(this).setTitle("AI Providers").setMessage(providerSummary()+"\n\nFree Local AI uses a model running on a computer you control and has no mandatory per-message token bill.").setItems(choices,(dialog,which)->{if(which==0)showLocalAiSetup();else if(which==1)startActivity(new Intent(this,DeveloperSettingsActivity.class));else disconnectProvider();}).setNegativeButton("CANCEL",null).show();}
