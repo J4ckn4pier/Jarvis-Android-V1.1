@@ -37,8 +37,10 @@ public final class AndroidBrainRuntime {
         ToolRegistry tools = AndroidToolRegistryFactory.create(app, research);
         ConnectionRegistry connections = new ConnectionRegistry(new AndroidConnectionRegistryPersistence(app));
 
-        ReasoningRouter localReasoning = request -> reasonWithConfiguredCortex(app, request, tools);
-        ReasoningRouter reasoning = remoteReasoningOrLocal(app, localReasoning);
+        // Ordinary conversation always uses the configured conversational cortex. The remote
+        // orchestrator remains a separate long-running-goal capability instead of hijacking every
+        // utterance that falls through the deterministic reflex layer.
+        ReasoningRouter reasoning = request -> reasonWithConfiguredCortex(app, request, tools);
 
         LongTermMemoryStore memory = new LongTermMemoryStore(new AndroidLongTermMemoryPersistence(
                 app.getNoBackupFilesDir().toPath().resolve("jarvis").resolve("long-term-memory.bin"),
@@ -271,6 +273,11 @@ public final class AndroidBrainRuntime {
     public SettingsStore settings() { return settings; }
     public JarvisUiBackend uiBackend() { return uiBackend; }
 
+    /**
+     * Preserved for future explicit long-running-goal delegation. It is intentionally not wired
+     * around the conversational cortex because remote project submission is not a substitute for
+     * understanding and answering an ordinary assistant turn.
+     */
     private static ReasoningRouter remoteReasoningOrLocal(Context app, ReasoningRouter localReasoning) {
         RemoteGoalStateStore state = new RemoteGoalStateStore(app);
         RemoteGoalStateStore.Connection connection = state.loadConnection();
