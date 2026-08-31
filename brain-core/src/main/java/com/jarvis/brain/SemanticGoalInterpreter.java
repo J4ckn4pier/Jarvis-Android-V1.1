@@ -169,6 +169,10 @@ public final class SemanticGoalInterpreter {
         boolean agendaConcept = lower.contains("calendar") || lower.contains("schedule") || lower.contains("agenda")
                 || lower.contains("my day") || lower.contains("day look like");
         if (!agendaConcept) return null;
+        boolean explicitRequest = startsAsRequest(lower,
+                "show ", "check ", "read ", "calendar ", "schedule ", "agenda ", "tell me ",
+                "what does my day", "what s on ", "what is on ");
+        if (!explicitRequest) return null;
         if (lower.contains("tomorrow")) return "tomorrow";
         if (lower.contains("today") || lower.contains("my day")) return "today";
         return null;
