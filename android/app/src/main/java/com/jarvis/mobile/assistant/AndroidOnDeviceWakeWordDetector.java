@@ -342,7 +342,10 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     @Override public void onBeginningOfSpeech() { }
     @Override public void onRmsChanged(float rmsdB) { }
     @Override public void onBufferReceived(byte[] buffer) { }
-    @Override public void onEndOfSpeech() { listening = false; }
+    @Override public void onEndOfSpeech() {
+        listening = false;
+        scheduleRestart(RESTART_DELAY_MS);
+    }
 
     @Override public void onError(int error) {
         listening = false;
