@@ -12,6 +12,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 
@@ -38,7 +39,7 @@ public final class AndroidBrainRuntime {
         ConnectionRegistry connections = new ConnectionRegistry(new AndroidConnectionRegistryPersistence(app));
 
         ReasoningRouter localReasoning = request -> reasonWithConfiguredCortex(app, request, tools);
-        ReasoningRouter reasoning = localReasoning;
+        ReasoningRouter reasoning = selectiveReasoning(app, localReasoning);
 
         LongTermMemoryStore memory = new LongTermMemoryStore(new AndroidLongTermMemoryPersistence(
                 app.getNoBackupFilesDir().toPath().resolve("jarvis").resolve("long-term-memory.bin"),
@@ -270,6 +271,44 @@ public final class AndroidBrainRuntime {
     public Optional<ProactiveIntervention> onOutcomeFollowupSignal(OutcomeFollowupSignal signal) { return followups.onSignal(signal); }
     public SettingsStore settings() { return settings; }
     public JarvisUiBackend uiBackend() { return uiBackend; }
+
+    /**
+     * Keeps normal assistant conversation and one-device reasoning local, but hands genuinely complex,
+     * multi-part projects to the provider-neutral background orchestrator when one is configured.
+     */
+    private static ReasoningRouter selectiveReasoning(Context app, ReasoningRouter localReasoning) {
+        ReasoningRouter remoteReasoning = remoteReasoningOrLocal(app, localReasoning);
+        return request -> shouldDelegateComplexGoal(request.utterance())
+                ? remoteReasoning.reason(request)
+                : localReasoning.reason(request);
+    }
+
+    private static boolean shouldDelegateComplexGoal(String utterance) {
+        String lower = utterance == null ? "" : utterance.toLowerCase(Locale.ROOT);
+        boolean projectSignal = lower.contains("multi-step")
+                || lower.contains("multistep")
+                || lower.contains("project")
+                || lower.contains("workflow")
+                || lower.contains("long-running")
+                || lower.contains("long running");
+        boolean synthesisSignal = lower.contains("research")
+                || lower.contains("compare")
+                || lower.contains("approach")
+                || lower.contains("recommendation")
+                || lower.contains("tradeoff")
+                || lower.contains("trade-off")
+                || lower.contains("analyze");
+        boolean coordinationSignal = lower.contains("multiple")
+                || lower.contains("several")
+                || lower.contains("steps")
+                || lower.contains("tasks")
+                || lower.contains("workers")
+                || lower.contains("coordinate")
+                || lower.contains("in the background");
+        return (projectSignal && synthesisSignal)
+                || (projectSignal && coordinationSignal)
+                || (synthesisSignal && coordinationSignal);
+    }
 
     private static ReasoningRouter remoteReasoningOrLocal(Context app, ReasoningRouter localReasoning) {
         RemoteGoalStateStore state = new RemoteGoalStateStore(app);
