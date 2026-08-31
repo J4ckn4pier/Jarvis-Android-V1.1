@@ -37,6 +37,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     private static final String TAG = "JARVIS_PASSIVE_WAKE";
     private static final long RESTART_DELAY_MS = 500L;
     private static final long RECREATE_DELAY_MS = 1200L;
+    private static final long RATE_LIMIT_RECOVERY_DELAY_MS = 5000L;
     private static final Pattern WAKE = Pattern.compile("(?i)(?:^|\\b)(?:hey\\s+)?jarvis(?:\\b|$)");
 
     private final Context context;
@@ -353,6 +354,10 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
             return;
         }
         switch (error) {
+            case SpeechRecognizer.ERROR_TOO_MANY_REQUESTS -> {
+                status = "wake recognizer rate-limited (error " + error + "); backing off";
+                scheduleRecreate(RATE_LIMIT_RECOVERY_DELAY_MS);
+            }
             case SpeechRecognizer.ERROR_RECOGNIZER_BUSY,
                     SpeechRecognizer.ERROR_CLIENT,
                     SpeechRecognizer.ERROR_SERVER_DISCONNECTED -> {
