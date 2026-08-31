@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Use for both mipmap-anydpi-v26/ic_launcher.xml and ic_launcher_round.xml -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apis/res/android">
+    <background android:drawable="@drawable/ic_launcher_background"/>
+    <foreground android:drawable="@drawable/ic_launcher_foreground"/>
+</adaptive-icon>
