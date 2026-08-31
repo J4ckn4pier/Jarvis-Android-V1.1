@@ -129,7 +129,7 @@ public final class BrainEngine {
         if (lower.startsWith("navigate ") || lower.startsWith("directions ") || lower.contains("nearest gas station")) return action("Navigate", "navigate", Map.of("destination", input.replaceFirst("(?i)^(navigate|directions)(?:\\s+to)?\\s+", "")), false, acceptedWithoutWake, context);
         if (lower.startsWith("play ")) return action("Play media", "media_play", Map.of("query", input.substring(5).trim()), false, acceptedWithoutWake, context);
         if (isFlashlightCommand(lower)) return action("Set flashlight", "set_flashlight", Map.of("state", flashlightState(lower)), false, acceptedWithoutWake, context);
-        if (lower.contains("calendar") && (lower.contains("what") || lower.contains("show") || lower.contains("on my"))) return action("Query calendar", "calendar_query", Map.of("when", lower.contains("tomorrow") ? "tomorrow" : "today"), false, acceptedWithoutWake, context);
+        if (isCalendarQueryRequest(lower)) return action("Query calendar", "calendar_query", Map.of("when", lower.contains("tomorrow") ? "tomorrow" : "today"), false, acceptedWithoutWake, context);
         if (isNotificationQueryRequest(lower)) return action("Query notifications", "notification_query", Map.of(), false, acceptedWithoutWake, context);
         if (lower.startsWith("translate ")) return action("Translate", "translate", Map.of("request", input.substring(10).trim()), false, acceptedWithoutWake, context);
         Matcher text = Pattern.compile("(?i)^(?:text|message)\\s+([^,]+?)\\s+(.+)$").matcher(input);
@@ -150,6 +150,17 @@ public final class BrainEngine {
                 || value.startsWith("how's the weather") || value.startsWith("how is the weather")
                 || value.startsWith("check the weather") || value.startsWith("check weather")
                 || value.startsWith("show me the weather") || value.startsWith("tell me the weather");
+    }
+
+    private static boolean isCalendarQueryRequest(String lower) {
+        if (!lower.contains("calendar")) return false;
+        String value = lower.trim();
+        return value.startsWith("what's on my calendar") || value.startsWith("what is on my calendar")
+                || value.startsWith("what do i have on my calendar") || value.startsWith("what's on the calendar")
+                || value.startsWith("what is on the calendar") || value.startsWith("show my calendar")
+                || value.startsWith("show me my calendar") || value.startsWith("check my calendar")
+                || value.startsWith("check the calendar") || value.startsWith("read my calendar")
+                || value.startsWith("calendar today") || value.startsWith("calendar tomorrow");
     }
 
     private static boolean isNotificationQueryRequest(String lower) {
