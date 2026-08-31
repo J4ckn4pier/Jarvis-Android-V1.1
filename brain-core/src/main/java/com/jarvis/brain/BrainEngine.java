@@ -130,7 +130,7 @@ public final class BrainEngine {
         if (lower.startsWith("remind me ")) return action("Create reminder", "create_reminder", Map.of("request", input.substring(10).trim()), false, acceptedWithoutWake, context);
         if (lower.startsWith("navigate ") || lower.startsWith("directions ") || lower.contains("nearest gas station")) return action("Navigate", "navigate", Map.of("destination", input.replaceFirst("(?i)^(navigate|directions)(?:\\s+to)?\\s+", "")), false, acceptedWithoutWake, context);
         if (lower.startsWith("play ")) return action("Play media", "media_play", Map.of("query", input.substring(5).trim()), false, acceptedWithoutWake, context);
-        if (lower.contains("flashlight")) return action("Set flashlight", "set_flashlight", Map.of("state", lower.contains("off") ? "off" : "on"), false, acceptedWithoutWake, context);
+        if (isFlashlightCommand(lower)) return action("Set flashlight", "set_flashlight", Map.of("state", flashlightState(lower)), false, acceptedWithoutWake, context);
         if (lower.contains("calendar") && (lower.contains("what") || lower.contains("show") || lower.contains("on my"))) return action("Query calendar", "calendar_query", Map.of("when", lower.contains("tomorrow") ? "tomorrow" : "today"), false, acceptedWithoutWake, context);
         if (lower.contains("notification")) return action("Query notifications", "notification_query", Map.of(), false, acceptedWithoutWake, context);
         if (lower.startsWith("translate ")) return action("Translate", "translate", Map.of("request", input.substring(10).trim()), false, acceptedWithoutWake, context);
@@ -142,6 +142,30 @@ public final class BrainEngine {
     private static boolean isExplicitWebSearch(String lower) {
         return lower.contains("search the web for ") || lower.contains("search web for ")
                 || lower.contains("search online for ") || lower.contains("look up online ");
+    }
+
+    private static boolean isFlashlightCommand(String lower) {
+        String value = lower.trim();
+        String[] polite = {"please ", "can you ", "could you ", "would you ", "will you ", "jarvis ", "i want you to ", "i need you to "};
+        boolean changed;
+        do {
+            changed = false;
+            for (String prefix : polite) {
+                if (value.startsWith(prefix)) {
+                    value = value.substring(prefix.length()).trim();
+                    changed = true;
+                    break;
+                }
+            }
+        } while (changed && !value.isEmpty());
+        if (!value.contains("flashlight")) return false;
+        return value.startsWith("turn ") || value.startsWith("switch ") || value.startsWith("enable ")
+                || value.startsWith("disable ") || value.startsWith("kill ")
+                || value.equals("flashlight on") || value.equals("flashlight off");
+    }
+
+    private static String flashlightState(String lower) {
+        return lower.contains("off") || lower.contains("disable") || lower.contains("kill") ? "off" : "on";
     }
 
     private static String extractWeatherLocation(String input) {
