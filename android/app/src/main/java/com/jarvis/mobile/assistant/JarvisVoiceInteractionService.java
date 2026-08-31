@@ -14,8 +14,10 @@ public class JarvisVoiceInteractionService extends VoiceInteractionService {
     private static final String TEST_TAG = "JARVIS_ASSISTANT_TEST";
     private static final String WAKE_TAG = "JARVIS_PASSIVE_WAKE";
     private static final String TEST_COMMAND_EXTRA = "jarvis_test_command";
+    private static final long PASSIVE_WAKE_RETRY_DELAY_MS = 2500L;
     private static volatile JarvisVoiceInteractionService activeInstance;
     private final Handler main = new Handler(Looper.getMainLooper());
+    private final Runnable passiveWakeRetry = () -> armPassiveWake("retry after transient startup failure");
     private WakeWordDetectorPort wakeWordDetector;
 
     @Override public void onReady() {
@@ -66,12 +68,14 @@ public class JarvisVoiceInteractionService extends VoiceInteractionService {
     }
 
     private void pausePassiveWake() {
+        main.removeCallbacks(passiveWakeRetry);
         if (wakeWordDetector == null) return;
         wakeWordDetector.stop();
         Log.i(WAKE_TAG, "JARVIS_PASSIVE_WAKE_PAUSED_FOR_SESSION");
     }
 
     private void armPassiveWake(String reason) {
+        main.removeCallbacks(passiveWakeRetry);
         if (!wakeEnabled()) {
             pausePassiveWake();
             Log.i(WAKE_TAG, "JARVIS_PASSIVE_WAKE_DISABLED reason=user setting");
@@ -80,12 +84,25 @@ public class JarvisVoiceInteractionService extends VoiceInteractionService {
         if (wakeWordDetector == null) wakeWordDetector = AndroidWakeWordDetectorFactory.create(this);
         if (wakeWordDetector.isRunning()) return;
         boolean started = wakeWordDetector.start(this::showWakeSession);
+        String detectorStatus = wakeWordDetector.status();
+        if (!started && transientWakeStartupFailure(detectorStatus)) {
+            main.postDelayed(passiveWakeRetry, PASSIVE_WAKE_RETRY_DELAY_MS);
+            Log.w(WAKE_TAG, "JARVIS_PASSIVE_WAKE_RETRY_SCHEDULED reason=" + detectorStatus);
+        }
         Log.i(WAKE_TAG, started
                 ? "JARVIS_PASSIVE_WAKE_READY model=" + wakeWordDetector.modelDescriptor().identifier() + " reason=" + reason
-                : "JARVIS_PASSIVE_WAKE_DISABLED reason=" + wakeWordDetector.status());
+                : "JARVIS_PASSIVE_WAKE_DISABLED reason=" + detectorStatus);
+    }
+
+    private static boolean transientWakeStartupFailure(String status) {
+        if (status == null) return false;
+        return status.startsWith("could not create Android recognizer")
+                || status.startsWith("could not verify Android offline recognizer")
+                || status.startsWith("Android speech recognition unavailable");
     }
 
     @Override public void onShutdown() {
+        main.removeCallbacks(passiveWakeRetry);
         if (wakeWordDetector != null) { wakeWordDetector.stop(); wakeWordDetector = null; }
         if (activeInstance == this) activeInstance = null;
         Log.i(TEST_TAG, "JARVIS_VOICE_SERVICE_SHUTDOWN");
