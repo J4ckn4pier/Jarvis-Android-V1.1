@@ -8,6 +8,8 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.speech.RecognitionListener;
+import android.speech.RecognitionSupport;
+import android.speech.RecognitionSupportCallback;
 import android.speech.RecognizerIntent;
 import android.speech.SpeechRecognizer;
 import android.util.Log;
@@ -15,14 +17,18 @@ import android.util.Log;
 import com.jarvis.brain.WakeWordModelDescriptor;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.regex.Pattern;
 
 /**
- * Passive wake detector backed by Android's speech-recognition service. It prefers the dedicated
- * on-device recognizer when Android exposes one, but falls back to the phone's configured system
- * recognizer so Samsung devices that do not expose createOnDeviceSpeechRecognizer can still use
- * "Jarvis" / "Hey Jarvis" without an API key or token-billed service.
+ * Passive wake detector backed by Android speech recognition.
+ *
+ * The dedicated on-device recognizer is preferred. Some Samsung/OEM builds report that dedicated
+ * API unavailable even when their default recognition service has an offline language installed.
+ * On API 33+, that fallback is allowed only after RecognitionSupport explicitly reports the
+ * requested language in getInstalledOnDeviceLanguages(). We never rely on EXTRA_PREFER_OFFLINE
+ * alone because Android documents the ordinary recognizer as potentially network-backed.
  */
 final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, RecognitionListener {
     private static final String TAG = "JARVIS_PASSIVE_WAKE";
@@ -32,22 +38,25 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
 
     private final Context context;
     private final Handler main = new Handler(Looper.getMainLooper());
+    private final String requestedLanguageTag;
     private final Intent intent;
     private SpeechRecognizer recognizer;
     private Runnable onWake;
     private boolean running;
     private boolean listening;
     private boolean usingDedicatedOnDeviceRecognizer;
+    private boolean systemOfflineVerified;
     private String status = "stopped";
 
     AndroidOnDeviceWakeWordDetector(Context context) {
         this.context = context.getApplicationContext();
+        requestedLanguageTag = Locale.getDefault().toLanguageTag();
         intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 4)
                 .putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
-                .putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault().toLanguageTag());
+                .putExtra(RecognizerIntent.EXTRA_LANGUAGE, requestedLanguageTag);
     }
 
     static boolean isAvailable(Context context) {
@@ -67,7 +76,6 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
                 true);
     }
 
-    @TargetApi(Build.VERSION_CODES.S)
     @Override public boolean start(Runnable wakeCallback) {
         if (wakeCallback == null) {
             status = "wake callback missing";
@@ -81,19 +89,102 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
             status = "wake detector must start on Android main thread";
             return false;
         }
+
         stopInternal();
         onWake = wakeCallback;
         running = true;
-        if (!recreateRecognizer()) {
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                && SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
+            if (!recreateRecognizer()) {
+                running = false;
+                onWake = null;
+                return false;
+            }
+            status = "listening with Android on-device recognition for Jarvis / Hey Jarvis";
+            startListening();
+            return true;
+        }
+
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
             running = false;
             onWake = null;
+            status = "Android cannot prove offline recognition on this device version";
             return false;
         }
-        status = usingDedicatedOnDeviceRecognizer
-                ? "listening with Android on-device recognition for Jarvis / Hey Jarvis"
-                : "listening with Android system recognition for Jarvis / Hey Jarvis (offline preferred)";
-        startListening();
-        return true;
+
+        status = "verifying installed offline speech support";
+        return beginSystemOfflineVerification();
+    }
+
+    @TargetApi(Build.VERSION_CODES.TIRAMISU)
+    private boolean beginSystemOfflineVerification() {
+        try {
+            recognizer = SpeechRecognizer.createSpeechRecognizer(context);
+            recognizer.checkRecognitionSupport(intent, context.getMainExecutor(), new RecognitionSupportCallback() {
+                @Override public void onSupportResult(RecognitionSupport support) {
+                    if (!running) return;
+                    if (!languageInstalledOnDevice(support.getInstalledOnDeviceLanguages(), requestedLanguageTag)) {
+                        boolean downloadable = languageMatches(
+                                support.getSupportedOnDeviceLanguages(), requestedLanguageTag)
+                                || languageMatches(support.getPendingOnDeviceLanguages(), requestedLanguageTag);
+                        status = downloadable
+                                ? "offline speech model is not installed yet for " + requestedLanguageTag
+                                : "default Android recognizer has no installed offline support for " + requestedLanguageTag;
+                        failClosedAfterSupportCheck();
+                        return;
+                    }
+                    systemOfflineVerified = true;
+                    usingDedicatedOnDeviceRecognizer = false;
+                    recognizer.setRecognitionListener(AndroidOnDeviceWakeWordDetector.this);
+                    status = "listening with verified offline Android system recognition for Jarvis / Hey Jarvis";
+                    Log.i(TAG, "JARVIS_WAKE_ENGINE system_recognizer_verified_offline language=" + requestedLanguageTag);
+                    startListening();
+                }
+
+                @Override public void onError(int error) {
+                    if (!running) return;
+                    status = "Android could not prove offline speech support (error " + error + ")";
+                    failClosedAfterSupportCheck();
+                }
+            });
+            return true;
+        } catch (RuntimeException failure) {
+            status = "could not verify Android offline recognizer: " + failure.getClass().getSimpleName();
+            Log.w(TAG, "JARVIS_WAKE_OFFLINE_SUPPORT_CHECK_FAILED", failure);
+            failClosedAfterSupportCheck();
+            return false;
+        }
+    }
+
+    private void failClosedAfterSupportCheck() {
+        listening = false;
+        running = false;
+        systemOfflineVerified = false;
+        if (recognizer != null) {
+            try { recognizer.cancel(); } catch (RuntimeException ignored) { }
+            try { recognizer.destroy(); } catch (RuntimeException ignored) { }
+            recognizer = null;
+        }
+        onWake = null;
+    }
+
+    private static boolean languageInstalledOnDevice(List<String> installed, String requested) {
+        return languageMatches(installed, requested);
+    }
+
+    private static boolean languageMatches(List<String> languages, String requested) {
+        if (languages == null || languages.isEmpty()) return false;
+        String normalized = requested == null ? "" : requested.trim().toLowerCase(Locale.ROOT);
+        String base = normalized.contains("-") ? normalized.substring(0, normalized.indexOf('-')) : normalized;
+        for (String language : languages) {
+            if (language == null) continue;
+            String candidate = language.trim().toLowerCase(Locale.ROOT);
+            if (candidate.equals(normalized) || (!base.isBlank() && (candidate.equals(base) || candidate.startsWith(base + "-")))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override public void stop() {
@@ -119,10 +210,14 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
                     && SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
                 recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(context);
                 usingDedicatedOnDeviceRecognizer = true;
+                systemOfflineVerified = false;
                 Log.i(TAG, "JARVIS_WAKE_ENGINE dedicated_on_device");
-            } else {
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && systemOfflineVerified) {
                 recognizer = SpeechRecognizer.createSpeechRecognizer(context);
-                Log.i(TAG, "JARVIS_WAKE_ENGINE system_recognizer_fallback");
+                Log.i(TAG, "JARVIS_WAKE_ENGINE system_recognizer_verified_offline_recovery");
+            } else {
+                status = "offline recognition is not verified";
+                return false;
             }
             recognizer.setRecognitionListener(this);
             return true;
@@ -135,6 +230,11 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
 
     private void startListening() {
         if (!running || recognizer == null || listening) return;
+        if (!usingDedicatedOnDeviceRecognizer && !systemOfflineVerified) {
+            status = "offline recognition is not verified";
+            failClosedAfterSupportCheck();
+            return;
+        }
         try {
             listening = true;
             recognizer.startListening(intent);
@@ -160,21 +260,19 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         main.postDelayed(recreateAndRestart, delayMs);
     }
 
-    private final Runnable restart = new Runnable() {
-        @Override public void run() { startListening(); }
-    };
+    private final Runnable restart = this::startListening;
 
     private final Runnable recreateAndRestart = new Runnable() {
         @Override public void run() {
             if (!running) return;
             if (!recreateRecognizer()) {
                 status = "Android recognizer unavailable during recovery";
-                scheduleRecreate(2500L);
+                if (systemOfflineVerified) scheduleRecreate(2500L);
                 return;
             }
             status = usingDedicatedOnDeviceRecognizer
                     ? "on-device recognizer recovered; listening for Jarvis / Hey Jarvis"
-                    : "system recognizer recovered; listening for Jarvis / Hey Jarvis (offline preferred)";
+                    : "verified offline system recognizer recovered; listening for Jarvis / Hey Jarvis";
             startListening();
         }
     };
@@ -182,6 +280,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     private void stopInternal() {
         running = false;
         listening = false;
+        systemOfflineVerified = false;
         main.removeCallbacks(restart);
         main.removeCallbacks(recreateAndRestart);
         if (recognizer != null) {
@@ -197,7 +296,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         listening = true;
         status = usingDedicatedOnDeviceRecognizer
                 ? "listening with Android on-device recognition for Jarvis / Hey Jarvis"
-                : "listening with Android system recognition for Jarvis / Hey Jarvis (offline preferred)";
+                : "listening with verified offline Android system recognition for Jarvis / Hey Jarvis";
     }
 
     @Override public void onBeginningOfSpeech() { }
