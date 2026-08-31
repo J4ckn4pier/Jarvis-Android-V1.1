@@ -16,6 +16,8 @@ jobs:
         run: sh .github/scripts/claude-ui-action-bridge-contract.sh
       - name: Verify Claude UI navigation bridge contract
         run: sh .github/scripts/claude-ui-navigation-contract.sh
+      - name: Verify Claude UI truthful capability contract
+        run: sh .github/scripts/claude-ui-capabilities-contract.sh
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
