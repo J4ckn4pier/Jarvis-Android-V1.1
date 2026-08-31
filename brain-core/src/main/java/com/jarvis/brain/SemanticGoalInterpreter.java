@@ -63,7 +63,8 @@ public final class SemanticGoalInterpreter {
         if (!destination.isBlank()) return Optional.of(new Plan("Navigate to destination",
                 List.of(new PlanStep("navigate", Map.of("destination", destination), false))));
 
-        if (lower.contains("torch") || lower.contains("flashlight")) {
+        if ((lower.contains("torch") || lower.contains("flashlight"))
+                && startsAsRequest(lower, "turn ", "switch ", "enable ", "disable ", "kill ", "flashlight ", "torch ")) {
             String state = offLanguage(lower) ? "off" : onLanguage(lower) ? "on" : "";
             if (!state.isBlank()) return Optional.of(new Plan("Set flashlight",
                     List.of(new PlanStep("set_flashlight", Map.of("state", state), false))));
