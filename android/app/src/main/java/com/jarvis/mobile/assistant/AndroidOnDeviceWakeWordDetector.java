@@ -19,9 +19,10 @@ import java.util.Locale;
 import java.util.regex.Pattern;
 
 /**
- * Zero-recurring-cost passive wake detector backed only by Android's explicitly on-device
- * recognizer. It deliberately has no generic SpeechRecognizer fallback because that could route
- * idle microphone audio to a network recognition service.
+ * Passive wake detector backed by Android's speech-recognition service. It prefers the dedicated
+ * on-device recognizer when Android exposes one, but falls back to the phone's configured system
+ * recognizer so Samsung devices that do not expose createOnDeviceSpeechRecognizer can still use
+ * "Jarvis" / "Hey Jarvis" without an API key or token-billed service.
  */
 final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, RecognitionListener {
     private static final String TAG = "JARVIS_PASSIVE_WAKE";
@@ -36,6 +37,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     private Runnable onWake;
     private boolean running;
     private boolean listening;
+    private boolean usingDedicatedOnDeviceRecognizer;
     private String status = "stopped";
 
     AndroidOnDeviceWakeWordDetector(Context context) {
@@ -49,17 +51,21 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     }
 
     static boolean isAvailable(Context context) {
-        return context != null
-                && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-                && SpeechRecognizer.isOnDeviceRecognitionAvailable(context);
+        return context != null && SpeechRecognizer.isRecognitionAvailable(context);
     }
 
     @Override public WakeWordModelDescriptor modelDescriptor() {
+        String identifier = usingDedicatedOnDeviceRecognizer
+                ? "android-on-device-speech-platform"
+                : "android-system-speech-platform";
+        String provenance = usingDedicatedOnDeviceRecognizer
+                ? "Android dedicated on-device recognition service"
+                : "Android configured speech recognition service; offline preference requested";
         return new WakeWordModelDescriptor(
-                "android-on-device-speech-platform",
+                identifier,
                 1L,
                 "platform-managed-not-redistributed",
-                "Android system component; model not redistributed by JARVIS",
+                provenance,
                 true,
                 true);
     }
@@ -71,7 +77,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
             return false;
         }
         if (!isAvailable(context)) {
-            status = "Android on-device recognition unavailable";
+            status = "Android speech recognition unavailable";
             return false;
         }
         if (Looper.myLooper() != Looper.getMainLooper()) {
@@ -86,7 +92,9 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
             onWake = null;
             return false;
         }
-        status = "listening locally for Jarvis / Hey Jarvis";
+        status = usingDedicatedOnDeviceRecognizer
+                ? "listening with Android on-device recognition for Jarvis / Hey Jarvis"
+                : "listening with Android system recognition for Jarvis / Hey Jarvis";
         startListening();
         return true;
     }
@@ -102,6 +110,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     @TargetApi(Build.VERSION_CODES.S)
     private boolean recreateRecognizer() {
         listening = false;
+        usingDedicatedOnDeviceRecognizer = false;
         if (recognizer != null) {
             try { recognizer.cancel(); } catch (RuntimeException ignored) { }
             try { recognizer.destroy(); } catch (RuntimeException ignored) { }
@@ -109,11 +118,19 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         }
         if (!running || !isAvailable(context)) return false;
         try {
-            recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(context);
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                    && SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
+                recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(context);
+                usingDedicatedOnDeviceRecognizer = true;
+                Log.i(TAG, "JARVIS_WAKE_ENGINE dedicated_on_device");
+            } else {
+                recognizer = SpeechRecognizer.createSpeechRecognizer(context);
+                Log.i(TAG, "JARVIS_WAKE_ENGINE system_recognizer_fallback");
+            }
             recognizer.setRecognitionListener(this);
             return true;
         } catch (RuntimeException failure) {
-            status = "could not create on-device recognizer: " + failure.getClass().getSimpleName();
+            status = "could not create Android recognizer: " + failure.getClass().getSimpleName();
             Log.w(TAG, "JARVIS_WAKE_RECOGNIZER_CREATE_FAILED", failure);
             return false;
         }
@@ -126,7 +143,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
             recognizer.startListening(intent);
         } catch (RuntimeException failure) {
             listening = false;
-            status = "on-device listen failed: " + failure.getClass().getSimpleName();
+            status = "Android wake listen failed: " + failure.getClass().getSimpleName();
             Log.w(TAG, "JARVIS_WAKE_LISTEN_FAILED", failure);
             scheduleRecreate(RECREATE_DELAY_MS);
         }
@@ -153,12 +170,14 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     private final Runnable recreateAndRestart = new Runnable() {
         @Override public void run() {
             if (!running) return;
-            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.S || !recreateRecognizer()) {
-                status = "local recognizer unavailable during recovery";
+            if (!recreateRecognizer()) {
+                status = "Android recognizer unavailable during recovery";
                 scheduleRecreate(2500L);
                 return;
             }
-            status = "local recognizer recovered; listening for Jarvis / Hey Jarvis";
+            status = usingDedicatedOnDeviceRecognizer
+                    ? "on-device recognizer recovered; listening for Jarvis / Hey Jarvis"
+                    : "system recognizer recovered; listening for Jarvis / Hey Jarvis";
             Log.i(TAG, "JARVIS_WAKE_RECOGNIZER_RECOVERED");
             startListening();
         }
@@ -169,12 +188,11 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
         if (matches == null) return;
         for (String phrase : matches) {
-            if (phrase != null && (phrase.toLowerCase(Locale.ROOT).contains("hey jarvis")
-                    || WAKE.matcher(phrase).find())) {
+            if (phrase != null && WAKE.matcher(phrase).find()) {
                 Runnable callback = onWake;
                 status = "wake detected";
                 stopInternal();
-                Log.i(TAG, "JARVIS_ON_DEVICE_WAKE_MATCH");
+                Log.i(TAG, "JARVIS_WAKE_MATCH phrase=" + phrase);
                 if (callback != null) callback.run();
                 return;
             }
@@ -204,7 +222,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     @Override public void onError(int error) {
         listening = false;
         if (!running) return;
-        status = "local recognizer recovery after error " + error;
+        status = "recognizer recovery after error " + error;
         Log.w(TAG, "JARVIS_WAKE_RECOGNIZER_ERROR code=" + error);
         if (error == SpeechRecognizer.ERROR_CLIENT || error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) {
             scheduleRecreate(RECREATE_DELAY_MS);
