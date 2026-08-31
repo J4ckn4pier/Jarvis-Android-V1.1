@@ -13,8 +13,9 @@ public final class AndroidSettingsCleanRoomContractTest{
   check(!lower.contains("donor settings roles"),"source documentation must use current JARVIS ownership");
   check(s.contains("Free Local AI (Ollama)"),"normal Settings must expose the zero-token local AI path without Developer Options");
   check(s.contains("CortexProviderFactory.MODE_OPENAI_COMPATIBLE"),"local AI setup must select the provider-neutral OpenAI-compatible transport");
-  check(s.contains("http://127.0.0.1:11434/v1/chat/completions"),"local AI setup must provide the standard Ollama loopback endpoint");
+  check(s.contains("http://jarvis-cortex.local:11434/v1/chat/completions"),"phone-safe local AI setup must default to an editable LAN .local endpoint rather than Android loopback");
   check(s.contains("qwen3:4b"),"local AI setup must provide a concrete lightweight default model instead of requiring model-name knowledge");
+  check(s.contains("Local AI server"),"normal Settings must let the user edit the local server address");
   System.out.println("AndroidSettingsCleanRoomContractTest passed");
  }
  private static void check(boolean v,String m){if(!v)throw new AssertionError(m);}
