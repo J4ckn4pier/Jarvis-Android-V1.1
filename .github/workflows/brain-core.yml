@@ -30,3 +30,4 @@ jobs:
         run: |
           ./run-tests.sh
           java -cp out com.jarvis.brain.GeneralCortexRoutingTest
+          java -cp out com.jarvis.brain.AndroidLocalCortexPriorityContractTest
