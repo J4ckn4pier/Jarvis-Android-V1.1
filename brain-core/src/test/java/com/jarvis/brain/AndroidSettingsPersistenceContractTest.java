@@ -9,6 +9,7 @@ public final class AndroidSettingsPersistenceContractTest {
         Path adapterPath = Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/AndroidSharedPreferencesSettingsPersistence.java");
         Path runtimePath = Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/AndroidBrainRuntime.java");
         Path preferenceContextPath = Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/AndroidUserPreferenceContextSource.java");
+        Path settingsPath = Path.of("../android/app/src/main/java/com/jarvis/mobile/SettingsActivity.java");
         Path stylePath = Path.of("src/main/java/com/jarvis/brain/ResponseStyleContract.java");
         check(Files.exists(adapterPath), "Android must bind a private persistence adapter for non-secret brain settings");
         String adapter = Files.readString(adapterPath);
@@ -50,6 +51,19 @@ public final class AndroidSettingsPersistenceContractTest {
                         && !runtime.contains("Cancelled, sir")
                         && !runtime.contains("Certainly, sir"),
                 "background-project replies must not bypass the user-selected Profile with hardcoded sir text");
+
+        check(Files.exists(settingsPath), "Android must provide the user-facing Settings activity");
+        String settings = Files.readString(settingsPath);
+        int backupStart = settings.indexOf("private void showBackupSyncSettings()");
+        int backupEnd = settings.indexOf("private void showWidgetLockSettings()", backupStart);
+        check(backupStart >= 0 && backupEnd > backupStart, "Backup & Sync settings must remain user-facing");
+        String backupSettings = settings.substring(backupStart, backupEnd);
+        int saveButton = backupSettings.indexOf(".setPositiveButton(");
+        int persistedWrite = backupSettings.indexOf("putBoolean(\"backup_sync_enabled\"");
+        check(saveButton >= 0 && persistedWrite > saveButton,
+                "Backup & Sync selection must not persist until the user confirms; CANCEL must leave the saved setting unchanged");
+        check(backupSettings.contains(".setNegativeButton(\"CANCEL\",null)"),
+                "Backup & Sync must retain a non-destructive CANCEL action");
 
         System.out.println("AndroidSettingsPersistenceContractTest passed");
     }
