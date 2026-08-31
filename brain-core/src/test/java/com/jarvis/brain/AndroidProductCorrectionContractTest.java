@@ -9,6 +9,8 @@ public final class AndroidProductCorrectionContractTest {
         String settings = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/SettingsActivity.java"));
         String service = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/assistant/JarvisVoiceInteractionService.java"));
         String detector = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/assistant/AndroidWakeWordDetectorFactory.java"));
+        String onboarding = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/AssistantRoleOnboardingActivity.java"));
+        String manifest = Files.readString(Path.of("../android/app/src/main/AndroidManifest.xml"));
         String gradle = Files.readString(Path.of("../android/app/build.gradle"));
 
         check(gradle.contains("assets/ui/claude-artifact"),
@@ -24,6 +26,12 @@ public final class AndroidProductCorrectionContractTest {
                 "system-bound voice service must still arm passive wake when Android binds it");
         check(!detector.contains("return null;"),
                 "production wake detector factory must not contain a null custom-detector dead end");
+        check(manifest.contains(".AssistantRoleOnboardingActivity") && manifest.contains("android.intent.category.LAUNCHER"),
+                "normal app launch must pass through explicit assistant-role onboarding");
+        check(onboarding.contains("ROLE_ASSISTANT") && onboarding.contains("Wake word requires JARVIS as your Android assistant"),
+                "onboarding must explain and request the Android assistant role required by passive wake");
+        check(onboarding.contains("new Intent(this, MainActivity.class)"),
+                "onboarding must continue into the real JARVIS app after setup or deferral");
 
         System.out.println("AndroidProductCorrectionContractTest passed");
     }
