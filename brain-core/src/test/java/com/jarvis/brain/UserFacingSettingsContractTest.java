@@ -7,6 +7,7 @@ public final class UserFacingSettingsContractTest {
     public static void main(String[] args) throws Exception {
         Path mobile = Path.of("../android/app/src/main/java/com/jarvis/mobile");
         String settings = Files.readString(mobile.resolve("SettingsActivity.java"));
+        String voiceSession = Files.readString(mobile.resolve("assistant/JarvisVoiceSession.java"));
         String manifest = Files.readString(Path.of("../android/app/src/main/AndroidManifest.xml"));
         for (String title : new String[]{"Voice", "Wake Word", "Voice Model", "Language", "App Permissions", "AI Providers", "Backup & Sync", "Profile", "Default Apps", "Personality", "Widgets & Lock Screen"}) {
             check(settings.contains(title), "user Settings must include canonical group: " + title);
@@ -26,6 +27,14 @@ public final class UserFacingSettingsContractTest {
         check(Files.exists(mobile.resolve("DeveloperSettingsActivity.java")), "raw provider configuration must be preserved behind an advanced screen");
         check(manifest.contains(".DeveloperSettingsActivity"), "developer settings must remain declared rather than deleted");
         check(manifest.contains(".SettingsActivity") && manifest.contains("@style/AppTheme"), "user Settings must use the canonical dark JARVIS theme");
+
+        check(settings.contains("lock_screen_assistant_enabled"),
+                "Widgets & Lock Screen must persist the user-visible lock-screen assistant preference");
+        check(voiceSession.contains("lock_screen_assistant_enabled") && voiceSession.contains("KeyguardManager"),
+                "the real assistant session must enforce the saved lock-screen preference against Android keyguard state");
+        check(voiceSession.contains("lockScreenAssistantAllowed()"),
+                "lock-screen access enforcement must be explicit and reviewable in the production voice session");
+
         System.out.println("UserFacingSettingsContractTest passed");
     }
     private static void check(boolean value, String message) { if (!value) throw new AssertionError(message); }
