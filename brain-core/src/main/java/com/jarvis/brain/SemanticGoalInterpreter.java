@@ -117,6 +117,7 @@ public final class SemanticGoalInterpreter {
 
     private static String webQuery(String raw, String lower) {
         String[] cues = {"search the web for ", "search web for ", "search online for ", "look up online "};
+        if (!startsAsRequest(lower, cues)) return "";
         for (String cue : cues) {
             int idx = lower.indexOf(cue);
             if (idx >= 0) return raw.substring(Math.min(raw.length(), idx + cue.length())).trim().replaceFirst("[.!?]+$", "").trim();
