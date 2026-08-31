@@ -45,6 +45,8 @@ public final class AndroidVoiceConversationContinuityContractTest {
                 "each active listening turn must bind callbacks to a new recognition generation");
         check(session.contains("listeningGeneration != recognitionGeneration || !sessionVisible"),
                 "callbacks from a destroyed/replaced active-session recognizer must be ignored before they change UI, execute commands, or schedule listening");
+        check(session.contains("@Override public void onHide() {\n        sessionGeneration++;\n        recognitionGeneration++;"),
+                "hiding the Assistant session must invalidate the active recognizer generation before late OEM callbacks can arrive");
         check(session.contains("brainExecutor.shutdownNow()"),
                 "voice-session destruction must stop its background brain executor");
         check(approval.contains("runtime.hasPendingApproval()")
