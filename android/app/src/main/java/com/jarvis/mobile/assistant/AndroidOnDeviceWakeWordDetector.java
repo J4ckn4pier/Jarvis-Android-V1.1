@@ -3,6 +3,7 @@ package com.jarvis.mobile.assistant;
 import android.annotation.TargetApi;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -51,13 +52,25 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
 
     AndroidOnDeviceWakeWordDetector(Context context) {
         this.context = context.getApplicationContext();
-        requestedLanguageTag = Locale.getDefault().toLanguageTag();
+        requestedLanguageTag = configuredLanguageTag(this.context);
         intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                 .putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 .putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 4)
                 .putExtra(RecognizerIntent.EXTRA_PREFER_OFFLINE, true)
                 .putExtra(RecognizerIntent.EXTRA_LANGUAGE, requestedLanguageTag);
+    }
+
+    private static String configuredLanguageTag(Context context) {
+        SharedPreferences preferences = context.getSharedPreferences("jarvis_shell", Context.MODE_PRIVATE);
+        String tag = preferences.getString("language", "system");
+        if (tag == null || tag.isBlank() || "system".equalsIgnoreCase(tag)) {
+            return Locale.getDefault().toLanguageTag();
+        }
+        Locale configured = Locale.forLanguageTag(tag);
+        return configured.getLanguage().isBlank()
+                ? Locale.getDefault().toLanguageTag()
+                : configured.toLanguageTag();
     }
 
     static boolean isAvailable(Context context) {
