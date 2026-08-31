@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- JARVIS adaptive icon — foreground layer. Original design, no donor assets.
+     The glowing orb is the same motif as the assistant's idle-state orb in the app UI
+     (radial-gradient circle at 34% 30%, core -> cyan -> deep navy), approximated here
+     with concentric translucent rings since vector drawables have no blur filter.
+     All content sits within the 66dp adaptive-icon safe zone (radius 33 centered at 54,54). -->
+<vector xmlns:android="http://schemas.android.com/apis/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <path android:pathData="M54,54m-33,0a33,33 0 1,1 66,0a33,33 0 1,1 -66,0" android:fillColor="#0D55D6FF"/>
+    <path android:pathData="M54,54m-30,0a30,30 0 1,1 60,0a30,30 0 1,1 -60,0" android:fillColor="#0F55D6FF"/>
+    <path android:pathData="M54,54m-27,0a27,27 0 1,1 54,0a27,27 0 1,1 -54,0" android:fillColor="#1455D6FF"/>
+    <path android:pathData="M54,54m-24,0a24,24 0 1,1 48,0a24,24 0 1,1 -48,0" android:fillColor="#1A55D6FF"/>
+    <path android:pathData="M54,54m-21,0a21,21 0 1,1 42,0a21,21 0 1,1 -42,0" android:fillColor="#2455D6FF"/>
+    <path android:pathData="M54,54m-18,0a18,18 0 1,1 36,0a18,18 0 1,1 -36,0" android:fillColor="#3355D6FF"/>
+    <path android:pathData="M54,54m-15.5,0a15.5,15.5 0 1,1 31,0a15.5,15.5 0 1,1 -31,0" android:fillColor="#4D55D6FF"/>
+
+    <path android:pathData="M54,54m-13,0a13,13 0 1,1 26,0a13,13 0 1,1 -26,0">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="radial"
+                android:centerX="49.5"
+                android:centerY="49.5"
+                android:gradientRadius="14"
+                android:startColor="#FFBDF1FF"
+                android:centerColor="#FF55D6FF"
+                android:endColor="#FF082433" />
+        </aapt:attr>
+    </path>
+</vector>
