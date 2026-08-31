@@ -95,6 +95,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private boolean pulseFrame;
     private boolean destroyed;
     private boolean continuedConversation;
+    private boolean passiveWakePausedForConversation;
     private SharedPreferences preferences;
     private boolean commandTestMode;
 
@@ -361,7 +362,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
     private void runCandidates(ArrayList<String> candidates, float[] scores) {
         if (candidates == null || candidates.isEmpty()) {
-            setActive(false, "I didn’t catch that. Tap the core to try again.");
+            endConversationAndRearmPassiveWake("I didn’t catch that. Tap the core to try again.");
             return;
         }
         double confidence = scores != null && scores.length > 0 && scores[0] >= 0.0f
@@ -467,6 +468,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             status.setText("Android speech recognition is unavailable on this device.");
             return;
         }
+        pausePassiveWakeForConversation();
         continuedConversation = !commandTestMode;
         if (speechRecognizer != null) speechRecognizer.destroy();
         speechRecognizer = Build.VERSION.SDK_INT >= 31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
@@ -483,17 +485,15 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             @Override public void onEndOfSpeech() { setActive(true, "Processing ..."); }
             @Override public void onError(int error) {
                 if (error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT || error == SpeechRecognizer.ERROR_NO_MATCH) {
-                    continuedConversation = false;
-                    setActive(false, "Conversation paused. Say “Jarvis” when you need me again.");
+                    endConversationAndRearmPassiveWake("Conversation paused. Say “Jarvis” when you need me again.");
                 } else {
-                    setActive(false, "Listening stopped: " + speechError(error));
+                    endConversationAndRearmPassiveWake("Listening stopped: " + speechError(error));
                 }
             }
             @Override public void onResults(Bundle results) {
                 ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
                 if (matches == null || matches.isEmpty()) {
-                    continuedConversation = false;
-                    setActive(false, "I didn’t catch that. Say “Jarvis” when you need me again.");
+                    endConversationAndRearmPassiveWake("I didn’t catch that. Say “Jarvis” when you need me again.");
                     return;
                 }
                 float[] scores = results.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES);
@@ -511,6 +511,24 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3);
         intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, configuredLanguage().toLanguageTag());
         speechRecognizer.startListening(intent);
+    }
+
+    private void pausePassiveWakeForConversation() {
+        if (passiveWakePausedForConversation) return;
+        JarvisVoiceInteractionService.pausePassiveWakeForSession();
+        passiveWakePausedForConversation = true;
+    }
+
+    private void rearmPassiveWakeAfterConversation() {
+        if (!passiveWakePausedForConversation) return;
+        passiveWakePausedForConversation = false;
+        JarvisVoiceInteractionService.rearmPassiveWakeAfterSession();
+    }
+
+    private void endConversationAndRearmPassiveWake(String message) {
+        continuedConversation = false;
+        setActive(false, message);
+        rearmPassiveWakeAfterConversation();
     }
 
     private void setActive(boolean value, String message) {
@@ -637,9 +655,14 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     }
 
     private void resumeListeningAfterSpeech() {
-        if (destroyed || commandTestMode || !continuedConversation) return;
+        if (destroyed || commandTestMode) return;
+        if (!continuedConversation) {
+            rearmPassiveWakeAfterConversation();
+            return;
+        }
         ui.postDelayed(() -> {
             if (!destroyed && continuedConversation) listen();
+            else rearmPassiveWakeAfterConversation();
         }, FOLLOW_UP_DELAY_MS);
     }
 
@@ -685,6 +708,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         destroyed = true;
         active = false;
         continuedConversation = false;
+        rearmPassiveWakeAfterConversation();
         ui.removeCallbacksAndMessages(null);
         brainExecutor.shutdownNow();
         if (speechRecognizer != null) speechRecognizer.destroy();
