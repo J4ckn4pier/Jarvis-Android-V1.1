@@ -39,6 +39,8 @@ public final class AndroidOnDeviceWakeDetectorContractTest {
         check(detector.contains("postDelayed") || detector.contains("startListening(intent)"), "wake detector must continue listening after a non-wake utterance");
         check(detector.contains("recreateRecognizer"), "Samsung recovery path must recreate the recognizer after fatal/client/busy errors instead of retrying a poisoned instance forever");
         check(detector.contains("ERROR_CLIENT") && detector.contains("ERROR_RECOGNIZER_BUSY"), "wake recovery must explicitly handle client and busy recognizer failures seen on OEM speech stacks");
+        check(detector.contains("status = \"Android recognizer unavailable during recovery\";\n                scheduleRecreate(2500L);"),
+                "failed recognizer recreation must keep retrying even when Samsung's dedicated on-device recognizer is the selected engine");
 
         check(detector.contains("wakeDispatched"), "wake detector must latch the first matching partial/final result so one phrase cannot trigger duplicate assistant sessions");
         check(detector.contains("stopListeningForWakeHandoff"), "wake detector must have an explicit handoff path that releases passive recognition before showing the assistant");
