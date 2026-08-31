@@ -25,8 +25,6 @@ public final class AndroidOnDeviceWakeDetectorContractTest {
         check(detector.contains("SpeechRecognizer.isOnDeviceRecognitionAvailable(context)"), "wake detector must prefer Android's dedicated on-device recognizer");
         check(detector.contains("SpeechRecognizer.createOnDeviceSpeechRecognizer(context)"), "wake detector must use the dedicated Android on-device recognizer when exposed");
 
-        // Samsung/OEM fallback may use the default recognizer only after API 33+ support metadata proves
-        // the requested language is installed on-device. EXTRA_PREFER_OFFLINE by itself is not proof.
         if (detector.contains("SpeechRecognizer.createSpeechRecognizer(context)")) {
             check(detector.contains("checkRecognitionSupport"), "system recognizer fallback must query RecognitionSupport before passive audio starts");
             check(detector.contains("getInstalledOnDeviceLanguages"), "system recognizer fallback must require an installed on-device language");
@@ -40,19 +38,14 @@ public final class AndroidOnDeviceWakeDetectorContractTest {
         check(detector.contains("recreateRecognizer"), "Samsung recovery path must recreate the recognizer after fatal/client/busy errors instead of retrying a poisoned instance forever");
         check(detector.contains("ERROR_CLIENT") && detector.contains("ERROR_RECOGNIZER_BUSY"), "wake recovery must explicitly handle client and busy recognizer failures seen on OEM speech stacks");
 
-        // Samsung recognition stacks can emit the same phrase as multiple partials and then again as a
-        // final result. One spoken wake phrase must hand off exactly once and release the passive mic
-        // before the active assistant recognizer starts, otherwise duplicate sessions/recognizer-busy
-        // loops are possible on the physical device.
         check(detector.contains("wakeDispatched"), "wake detector must latch the first matching partial/final result so one phrase cannot trigger duplicate assistant sessions");
         check(detector.contains("stopListeningForWakeHandoff"), "wake detector must have an explicit handoff path that releases passive recognition before showing the assistant");
         check(detector.contains("recognizer.cancel()"), "wake handoff must cancel passive recognition immediately to release the microphone for the assistant session");
 
-        // The visible Language setting is part of the real assistant contract. Passive wake cannot keep
-        // using Locale.getDefault() after the user changes JARVIS speech language because that makes the
-        // Samsung offline-support check verify the wrong language/model.
         check(detector.contains("getSharedPreferences(\"jarvis_shell\""), "wake detector must read the same persisted JARVIS language setting as active conversation");
         check(detector.contains("getString(\"language\""), "wake detector must resolve its recognizer language from the visible Language setting");
+        check(settings.contains("putString(\"language\", tags[index]).apply();\n                    JarvisVoiceInteractionService.refreshPassiveWakePreference();"),
+                "saving a new JARVIS language must immediately rebuild/re-arm passive wake so the live recognizer stops using the previous language");
 
         check(service.contains("pausePassiveWakeForSession"), "voice service must expose a session hook that pauses passive wake while the assistant is active");
         check(service.contains("rearmPassiveWakeAfterSession"), "voice service must expose a session hook that re-arms passive wake after the assistant closes");
