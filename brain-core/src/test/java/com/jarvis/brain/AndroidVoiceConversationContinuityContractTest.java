@@ -39,6 +39,12 @@ public final class AndroidVoiceConversationContinuityContractTest {
                         && session.contains("submittedGeneration != sessionGeneration")
                         && session.contains("!sessionVisible"),
                 "slow results from a hidden/previous voice session must not be delivered into a later visible conversation");
+        check(session.contains("recognitionGeneration"),
+                "voice session must version SpeechRecognizer instances so late OEM callbacks cannot leak into a newer listening turn");
+        check(session.contains("long listeningGeneration = ++recognitionGeneration;"),
+                "each active listening turn must bind callbacks to a new recognition generation");
+        check(session.contains("listeningGeneration != recognitionGeneration || !sessionVisible"),
+                "callbacks from a destroyed/replaced active-session recognizer must be ignored before they change UI, execute commands, or schedule listening");
         check(session.contains("brainExecutor.shutdownNow()"),
                 "voice-session destruction must stop its background brain executor");
         check(approval.contains("runtime.hasPendingApproval()")
