@@ -20,6 +20,7 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import com.jarvis.brain.EndpointTransportPolicy;
 import com.jarvis.mobile.assistant.JarvisVoiceInteractionService;
 import com.jarvis.mobile.brain.providers.CortexProviderFactory;
 import com.jarvis.mobile.brain.providers.SecureSecretStore;
@@ -27,8 +28,10 @@ import com.jarvis.mobile.remote.RemoteGoalStateStore;
 
 import java.util.Locale;
 
-/** Canonical user-facing JARVIS Settings. Raw endpoint/provider fields live in DeveloperSettingsActivity. */
+/** Canonical user-facing JARVIS Settings. Raw expert provider fields remain available in DeveloperSettingsActivity. */
 public class SettingsActivity extends Activity {
+    private static final String DEFAULT_LOCAL_AI_ENDPOINT = "http://jarvis-cortex.local:11434/v1/chat/completions";
+    private static final String DEFAULT_LOCAL_AI_MODEL = "qwen3:4b";
     private SharedPreferences preferences;
 
     @Override protected void onCreate(Bundle state) {
@@ -79,7 +82,7 @@ public class SettingsActivity extends Activity {
         body.addView(row("Screen Controls", "Accessibility-powered screen reading and navigation", () -> launch(Settings.ACTION_ACCESSIBILITY_SETTINGS)));
 
         body.addView(section("ADVANCED"));
-        body.addView(row("Developer Options", "Provider endpoints, models and diagnostics", () -> startActivity(new Intent(this, DeveloperSettingsActivity.class))));
+        body.addView(row("Developer Options", "Expert endpoints, credentials and diagnostics", () -> startActivity(new Intent(this, DeveloperSettingsActivity.class))));
 
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
@@ -148,7 +151,7 @@ public class SettingsActivity extends Activity {
 
     private void showPersonalityPicker() {
         String[] labels = {"Humble Butler", "Concise Executive", "Warm Companion", "Dry & Witty"};
-        String current = preferences.getString("personality_label", labels[0]); int selected = 0; for (int i=0;i<labels.length;i++) if (labels[i].equals(current)) selected=i; final int initial=selected;
+        String current = preferences.getString("personality_label", labels[0]); int selected = 0; for (int i=0;i<labels.length;i++) if(labels[i].equals(current)) selected=i; final int initial=selected;
         new AlertDialog.Builder(this).setTitle("JARVIS Personality").setSingleChoiceItems(labels, selected, null)
                 .setPositiveButton("SAVE", (dialog, which) -> { AlertDialog d=(AlertDialog)dialog; int index=d.getListView().getCheckedItemPosition(); if(index<0) index=initial; preferences.edit().putString("personality_label", labels[index]).apply(); render(); })
                 .setNegativeButton("CANCEL", null).show();
@@ -171,15 +174,10 @@ public class SettingsActivity extends Activity {
         final int initial = selected;
         new AlertDialog.Builder(this).setTitle("Language").setSingleChoiceItems(labels, selected, null)
                 .setPositiveButton("SAVE", (dialog, which) -> {
-                    AlertDialog d = (AlertDialog) dialog;
-                    int index = d.getListView().getCheckedItemPosition();
-                    if (index < 0) index = initial;
-                    preferences.edit().putString("language", tags[index]).apply();
-                    JarvisVoiceInteractionService.refreshPassiveWakePreference();
-                    render();
+                    AlertDialog d = (AlertDialog) dialog; int index = d.getListView().getCheckedItemPosition(); if (index < 0) index = initial;
+                    preferences.edit().putString("language", tags[index]).apply(); JarvisVoiceInteractionService.refreshPassiveWakePreference(); render();
                 })
-                .setNeutralButton("ANDROID LANGUAGE SETTINGS", (dialog, which) -> launch(Settings.ACTION_LOCALE_SETTINGS))
-                .setNegativeButton("CANCEL", null).show();
+                .setNeutralButton("ANDROID LANGUAGE SETTINGS", (dialog, which) -> launch(Settings.ACTION_LOCALE_SETTINGS)).setNegativeButton("CANCEL", null).show();
     }
 
     private void showPermissionChoices() {
@@ -202,9 +200,42 @@ public class SettingsActivity extends Activity {
         new AlertDialog.Builder(this).setTitle("Widgets & Lock Screen").setMultiChoiceItems(labels,new boolean[]{lock,false},(dialog,which,checked)->{if(which==0)preferences.edit().putBoolean("lock_screen_assistant_enabled",checked).apply();if(which==1&&checked){dialog.dismiss();launch(Settings.ACTION_DISPLAY_SETTINGS);}}).setPositiveButton("DONE",(dialog,which)->render()).show();
     }
 
-    private String providerSummary(){String status=CortexProviderFactory.status(this).toLowerCase(Locale.ROOT);if(status.contains("anthropic"))return "Anthropic connected";if(status.contains("openai"))return "OpenAI-compatible provider connected";return "Private local mode";}
-    private void showProviderConnections(){new AlertDialog.Builder(this).setTitle("AI Providers").setMessage(providerSummary()+"\n\nJARVIS stays usable in private local mode. Connection credentials are stored outside normal settings.").setPositiveButton("CONNECT / CHANGE",(dialog,which)->startActivity(new Intent(this,DeveloperSettingsActivity.class))).setNegativeButton("DISCONNECT",(dialog,which)->disconnectProvider()).setNeutralButton("CANCEL",null).show();}
-    private void disconnectProvider(){getSharedPreferences("jarvis_cortex",MODE_PRIVATE).edit().putString("mode",CortexProviderFactory.MODE_LOCAL).apply();new SecureSecretStore(this).remove("provider_api_key");Toast.makeText(this,"External AI provider disconnected. JARVIS is using private local mode.",Toast.LENGTH_SHORT).show();render();}
+    private String providerSummary() {
+        String status=CortexProviderFactory.status(this).toLowerCase(Locale.ROOT);
+        if(status.contains("openai-compatible") && status.contains("configured")) return "Free/local AI configured";
+        if(status.contains("anthropic")) return "Anthropic connected";
+        if(status.contains("openai")) return "OpenAI provider connected";
+        return "Deterministic local fallback";
+    }
+
+    private void showProviderConnections() {
+        String[] choices={"Free Local AI (Ollama)","Advanced / API provider","Deterministic local fallback"};
+        new AlertDialog.Builder(this).setTitle("AI Providers")
+                .setMessage(providerSummary()+"\n\nFree Local AI uses a model running on a computer you control and has no mandatory per-message token bill.")
+                .setItems(choices,(dialog,which)->{if(which==0)showLocalAiSetup();else if(which==1)startActivity(new Intent(this,DeveloperSettingsActivity.class));else disconnectProvider();})
+                .setNegativeButton("CANCEL",null).show();
+    }
+
+    private void showLocalAiSetup() {
+        SharedPreferences cortex=getSharedPreferences("jarvis_cortex",MODE_PRIVATE);
+        LinearLayout form=new LinearLayout(this); form.setOrientation(LinearLayout.VERTICAL); form.setPadding(dp(20),dp(4),dp(20),0);
+        EditText endpoint=new EditText(this); endpoint.setHint("Local AI server"); endpoint.setSingleLine(true); endpoint.setText(cortex.getString("endpoint",DEFAULT_LOCAL_AI_ENDPOINT)); endpoint.setContentDescription("Local AI server");
+        EditText model=new EditText(this); model.setHint("Model"); model.setSingleLine(true); model.setText(cortex.getString("model",DEFAULT_LOCAL_AI_MODEL)); model.setContentDescription("Local AI model");
+        form.addView(endpoint); form.addView(model);
+        new AlertDialog.Builder(this).setTitle("Free Local AI (Ollama)")
+                .setMessage("Run Ollama on a computer you control, keep the phone and computer on the same network, and use that computer's .local hostname. No OpenAI or Google API key is required.")
+                .setView(form)
+                .setPositiveButton("SAVE",(dialog,which)->{
+                    String endpointValue=endpoint.getText().toString().trim(); String modelValue=model.getText().toString().trim();
+                    if(endpointValue.isEmpty()) endpointValue=DEFAULT_LOCAL_AI_ENDPOINT; if(modelValue.isEmpty()) modelValue=DEFAULT_LOCAL_AI_MODEL;
+                    if(!EndpointTransportPolicy.allows(endpointValue)){Toast.makeText(this,"Use HTTPS or a local .local JARVIS/Ollama endpoint.",Toast.LENGTH_LONG).show();return;}
+                    cortex.edit().putString("mode",CortexProviderFactory.MODE_OPENAI_COMPATIBLE).putString("endpoint",endpointValue).putString("model",modelValue).apply();
+                    new SecureSecretStore(this).remove("provider_api_key");
+                    Toast.makeText(this,"Free local AI selected. JARVIS will use it when that computer is reachable.",Toast.LENGTH_LONG).show(); render();
+                }).setNegativeButton("CANCEL",null).show();
+    }
+
+    private void disconnectProvider(){getSharedPreferences("jarvis_cortex",MODE_PRIVATE).edit().putString("mode",CortexProviderFactory.MODE_LOCAL).apply();new SecureSecretStore(this).remove("provider_api_key");Toast.makeText(this,"AI provider disconnected. JARVIS is using its deterministic local fallback.",Toast.LENGTH_SHORT).show();render();}
     private boolean isAssistantRoleHeld(){RoleManager manager=getSystemService(RoleManager.class);return manager!=null&&manager.isRoleAvailable(RoleManager.ROLE_ASSISTANT)&&manager.isRoleHeld(RoleManager.ROLE_ASSISTANT);}
     private String assistantSummary(){return isAssistantRoleHeld()?"JARVIS is the default assistant":"Required for passive wake — tap to enable";}
     private String wakeSummary(){if(!preferences.getBoolean("wake_enabled",true))return "Disabled";return isAssistantRoleHeld()?"Listen locally for “Jarvis” or “Hey Jarvis”":"Requires JARVIS as your default assistant — tap to finish setup";}
