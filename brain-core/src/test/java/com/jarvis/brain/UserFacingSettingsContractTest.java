@@ -92,6 +92,11 @@ public final class UserFacingSettingsContractTest {
         check(anthropic.contains("ProviderSharedPlanSchema.systemPrompt()"),
                 "Anthropic cortex must use the provider-neutral Personality-aware system prompt");
 
+        check(providerFactory.contains("profile_name") && providerFactory.contains("ProviderSharedPlanSchema.setProfileName"),
+                "the saved Profile name must be hydrated into the production provider-neutral prompt boundary instead of remaining display-only");
+        check(providerSchema.contains("setProfileName") && providerSchema.contains("USER ADDRESS"),
+                "provider system prompts must carry the saved Profile name as bounded address context");
+
         System.out.println("UserFacingSettingsContractTest passed");
     }
     private static void check(boolean value, String message) { if (!value) throw new AssertionError(message); }
