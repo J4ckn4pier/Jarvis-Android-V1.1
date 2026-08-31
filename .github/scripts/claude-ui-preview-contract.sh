@@ -2,6 +2,7 @@
 set -eu
 
 PREVIEW="android/app/src/main/java/com/jarvis/mobile/ui/ClaudeUiPreviewActivity.java"
+MAIN="android/app/src/main/java/com/jarvis/mobile/MainActivity.java"
 MANIFEST="android/app/src/main/AndroidManifest.xml"
 
 # The preview lane must never recreate Claude's UI from memory. It may only render the exact
@@ -29,5 +30,10 @@ for activity in root.findall('.//activity'):
 else:
     raise SystemExit('Claude UI preview activity missing from manifest')
 PY
+
+# The existing native shell must expose the preview explicitly without making it the live UI.
+# This lets Charles inspect the exact export on-device before approving replacement.
+grep -q 'Preview Claude UI' "$MAIN"
+grep -q 'ClaudeUiPreviewActivity.class' "$MAIN"
 
 echo 'CLAUDE_UI_PREVIEW_CONTRACT_GREEN'
