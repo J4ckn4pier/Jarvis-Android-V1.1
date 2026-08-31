@@ -10,7 +10,7 @@ import java.util.regex.Pattern;
 
 public final class BrainEngine {
     private static final Pattern WAKE = Pattern.compile("(?i)^\\s*(?:hey\\s+)?jarvis[,:]?\\s*");
-    private static final Pattern CALL_RESERVATION = Pattern.compile("(?i)call\\s+(.+?)(?:\\s+in\\s+(.+?))?\\s+and\\s+tell\\s+them\\s+i\\s+would\\s+like\\s+a\\s+reservation\\s+for\\s+(\\d{1,2})(?::(\\d{2}))?\\s*(am|pm)?");
+    private static final Pattern CALL_RESERVATION = Pattern.compile("(?i)call\\s+(.+?)(?:\\s+in\\s+(.+?))?\\s+and\\s+tell\\s+them\\s+i\\s+would\\s+like\\s+a\\s+reservation\\s+for\\s+(\\d{1,2})(?:(?::| )(\\d{2}))?\\s*(am|pm)?");
 
     private final ConversationSession session;
     private final java.util.Map<String, String> workingMemory = new java.util.HashMap<>();
@@ -79,7 +79,8 @@ public final class BrainEngine {
             return BrainResponse.of(BrainResponse.Kind.ACTION_PLAN, "I'll look for dinner options and rank the best matches.", plan, true, acceptedWithoutWake, context);
         }
 
-        if (isConversationalFollowup(lower)) return BrainResponse.of(BrainResponse.Kind.CONVERSATION, "I'm with you. Tell me more.", null, true, acceptedWithoutWake, context);
+        // Everything outside high-confidence reflexes belongs to the general cortex. This includes
+        // conversational follow-ups such as "tell me more" so the provider receives full dialogue context.
         return BrainResponse.of(BrainResponse.Kind.REASONING_REQUIRED, "I'll reason through that and work out the best next step.", null, true, acceptedWithoutWake, context);
     }
 
@@ -158,6 +159,5 @@ public final class BrainEngine {
     }
     private static boolean isDialerAlias(String lower) { return lower.matches("(?:open\\s+)?(?:the\\s+)?(?:phone(?:\\s+app)?|dialer|calls?|telephone)"); }
     private static boolean isDinnerDiscovery(String lower, String context) { if (lower.contains("find me a place to eat") || lower.contains("find me somewhere good") || lower.contains("where should i eat") || lower.contains("dinner tonight")) return true; return lower.contains("find me somewhere") && (context.contains("food") || context.contains("italian") || context.contains("dinner")); }
-    private static boolean isConversationalFollowup(String lower) { return lower.startsWith("what have you") || lower.startsWith("how about you") || lower.startsWith("why do you") || lower.startsWith("tell me more") || lower.startsWith("and what") || lower.startsWith("what do you think"); }
     private static String normalizeTime(String hourRaw, String minuteRaw, String meridiemRaw) { int hour = Integer.parseInt(hourRaw); int minute = minuteRaw == null ? 0 : Integer.parseInt(minuteRaw); String meridiem = meridiemRaw == null ? (hour <= 7 ? "PM" : "AM") : meridiemRaw.toUpperCase(Locale.ROOT); return String.format(Locale.ROOT, "%d:%02d %s", hour, minute, meridiem); }
 }
