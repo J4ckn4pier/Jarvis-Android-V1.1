@@ -5,8 +5,10 @@ import android.graphics.Color;
 import android.os.Bundle;
 import android.view.Gravity;
 import android.view.ViewGroup;
+import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
+import android.webkit.WebViewClient;
 import android.widget.TextView;
 
 import java.io.IOException;
@@ -40,6 +42,16 @@ public final class ClaudeUiPreviewActivity extends Activity {
         settings.setAllowFileAccess(true);
         settings.setAllowFileAccessFromFileURLs(false);
         settings.setAllowUniversalAccessFromFileURLs(false);
+        preview.setWebViewClient(new WebViewClient() {
+            @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) {
+                String target = request == null || request.getUrl() == null ? "" : request.getUrl().toString();
+                return !CANONICAL_URL.equals(target);
+            }
+
+            @Override public boolean shouldOverrideUrlLoading(WebView view, String url) {
+                return !CANONICAL_URL.equals(url);
+            }
+        });
         preview.addJavascriptInterface(new ClaudeUiActionRouter(this), ANDROID_BRIDGE);
         setContentView(preview, new ViewGroup.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
