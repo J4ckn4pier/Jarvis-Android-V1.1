@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- JARVIS status-bar / notification icon. Original design, no donor assets.
+     Per Android notification icon guidelines: flat, single-color silhouette only
+     (the system tints it white/gray depending on theme) — no gradients, no glow.
+     Simplified version of the same orb motif: a filled core with one thin ring,
+     echoing the assistant orb without needing color to read at 24dp. -->
+<vector xmlns:android="http://schemas.android.com/apis/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:tint="#FFFFFF">
+    <!-- outer ring (echoes the orb-wrap listening/responding rings), centered at 12,12 -->
+    <path
+        android:pathData="M12,12 m-10,0 a10,10 0 1,1 20,0 a10,10 0 1,1 -20,0 M12,12 m-7.4,0 a7.4,7.4 0 1,0 14.8,0 a7.4,7.4 0 1,0 -14.8,0"
+        android:fillColor="#FFFFFF"
+        android:fillType="evenOdd" />
+    <!-- core orb, centered at 12,12 -->
+    <path
+        android:pathData="M12,12 m-3.6,0 a3.6,3.6 0 1,1 7.2,0 a3.6,3.6 0 1,1 -7.2,0"
+        android:fillColor="#FFFFFF" />
+</vector>
