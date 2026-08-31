@@ -126,7 +126,7 @@ public final class BrainEngine {
         Matcher timer = Pattern.compile("(?i)set (?:a )?timer for (\\d+)\\s*(seconds?|minutes?|hours?)").matcher(input);
         if (startsAsRequest(lower, "set ", "start ") && timer.find()) return action("Set timer", "set_timer", Map.of("amount", timer.group(1), "unit", timer.group(2)), false, acceptedWithoutWake, context);
         if (lower.startsWith("remind me ")) return action("Create reminder", "create_reminder", Map.of("request", input.substring(10).trim()), false, acceptedWithoutWake, context);
-        if (lower.startsWith("navigate ") || lower.startsWith("directions ") || lower.contains("nearest gas station")) return action("Navigate", "navigate", Map.of("destination", input.replaceFirst("(?i)^(navigate|directions)(?:\\s+to)?\\s+", "")), false, acceptedWithoutWake, context);
+        if (lower.startsWith("navigate ") || lower.startsWith("directions ")) return action("Navigate", "navigate", Map.of("destination", input.replaceFirst("(?i)^(navigate|directions)(?:\\s+to)?\\s+", "")), false, acceptedWithoutWake, context);
         if (lower.startsWith("play ")) return action("Play media", "media_play", Map.of("query", input.substring(5).trim()), false, acceptedWithoutWake, context);
         if (isFlashlightCommand(lower)) return action("Set flashlight", "set_flashlight", Map.of("state", flashlightState(lower)), false, acceptedWithoutWake, context);
         if (isCalendarQueryRequest(lower)) return action("Query calendar", "calendar_query", Map.of("when", lower.contains("tomorrow") ? "tomorrow" : "today"), false, acceptedWithoutWake, context);
