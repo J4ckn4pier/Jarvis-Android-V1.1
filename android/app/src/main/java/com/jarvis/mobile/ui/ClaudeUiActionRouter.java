@@ -35,6 +35,7 @@ public final class ClaudeUiActionRouter {
     public static final String ACTION_NOTIFICATION_ACCESS = "notification_access";
     public static final String ACTION_ACCESSIBILITY = "accessibility";
 
+    private static final String SUPPORTED_ACTIONS_JSON = "[\"listen\",\"settings\",\"developer_options\",\"help\",\"notes\",\"memory\",\"routines\",\"skills\",\"overlays\",\"activity_feed\",\"browser\",\"hub\",\"default_assistant\",\"notification_access\",\"accessibility\"]";
     private static final int ASSISTANT_ROLE_REQUEST = 8101;
 
     private final Activity activity;
@@ -49,8 +50,40 @@ public final class ClaudeUiActionRouter {
         activity.runOnUiThread(() -> dispatch(action));
     }
 
+    /** Allows the canonical HTML to hide/disable controls that are not wired in this APK. */
+    @JavascriptInterface
+    public boolean isSupported(String action) {
+        if (action == null) return false;
+        switch (action) {
+            case ACTION_LISTEN:
+            case ACTION_SETTINGS:
+            case ACTION_DEVELOPER_OPTIONS:
+            case ACTION_HELP:
+            case ACTION_NOTES:
+            case ACTION_MEMORY:
+            case ACTION_ROUTINES:
+            case ACTION_SKILLS:
+            case ACTION_OVERLAYS:
+            case ACTION_ACTIVITY_FEED:
+            case ACTION_BROWSER:
+            case ACTION_HUB:
+            case ACTION_DEFAULT_ASSISTANT:
+            case ACTION_NOTIFICATION_ACCESS:
+            case ACTION_ACCESSIBILITY:
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /** Stable JSON capability list for Claude's packaged UI; contains presentation actions only. */
+    @JavascriptInterface
+    public String supportedActions() {
+        return SUPPORTED_ACTIONS_JSON;
+    }
+
     void dispatch(String action) {
-        if (action == null) return;
+        if (!isSupported(action)) return;
         switch (action) {
             case ACTION_LISTEN:
                 Intent assist = new Intent(activity, MainActivity.class);
@@ -100,7 +133,6 @@ public final class ClaudeUiActionRouter {
                 activity.startActivity(new Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS));
                 break;
             default:
-                // Unknown actions are intentionally ignored rather than interpreted dynamically.
                 break;
         }
     }
