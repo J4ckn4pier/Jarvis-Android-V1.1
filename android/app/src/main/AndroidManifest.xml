@@ -49,6 +49,14 @@
         <activity android:name=".SettingsActivity" android:exported="false" android:theme="@style/AppTheme" />
         <activity android:name=".DeveloperSettingsActivity" android:exported="false" android:theme="@style/AppTheme" />
         <activity android:name=".DiagnosticsActivity" android:exported="false" android:theme="@style/JarvisPanelTheme" />
+        <activity android:name=".ui.JarvisHubActivity" android:exported="false" android:theme="@style/AppTheme" />
+        <activity android:name=".ui.MemoryActivity" android:exported="false" android:theme="@style/AppTheme" />
+        <activity android:name=".ui.TasksProjectsActivity" android:exported="false" android:theme="@style/AppTheme" />
+        <activity android:name=".ui.RoutinesActivity" android:exported="false" android:theme="@style/AppTheme" />
+        <activity android:name=".ui.ActivityFeedActivity" android:exported="false" android:theme="@style/AppTheme" />
+        <activity android:name=".ui.BrowserActivity" android:exported="false" android:theme="@style/AppTheme" />
+        <activity android:name=".ui.SkillsActivity" android:exported="false" android:theme="@style/AppTheme" />
+        <activity android:name=".ui.OverlaysActivity" android:exported="false" android:theme="@style/AppTheme" />
 
         <service android:name=".assistant.JarvisVoiceInteractionService" android:exported="true" android:permission="android.permission.BIND_VOICE_INTERACTION">
             <intent-filter><action android:name="android.service.voice.VoiceInteractionService" /></intent-filter>
