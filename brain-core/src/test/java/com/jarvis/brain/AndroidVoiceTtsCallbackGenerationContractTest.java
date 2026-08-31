@@ -38,6 +38,14 @@ public final class AndroidVoiceTtsCallbackGenerationContractTest {
         check(session.contains("destroyed = true;")
                         && session.contains("releaseTextToSpeechSafely();"),
                 "session destruction must mark TTS callbacks stale before safely releasing the engine");
+        check(session.contains("private boolean speakResponseSafely(String text, String utteranceId)")
+                        && session.contains("catch (RuntimeException speechFailure)")
+                        && session.contains("TextToSpeech.QUEUE_FLUSH"),
+                "Samsung/OEM synchronous TTS speak failures must be contained behind a voice-session recovery boundary");
+        check(session.contains("if (speakResponseSafely(text, utteranceId)) bargeInMonitor.start(this::handleHandsFreeBargeIn);")
+                        && session.contains("invalidateSpeechCallback();")
+                        && session.contains("scheduleNextListen();"),
+                "failed TTS playback must skip barge-in, invalidate the utterance callback, and reopen listening while the conversation remains active");
 
         System.out.println("AndroidVoiceTtsCallbackGenerationContractTest: PASS");
     }
