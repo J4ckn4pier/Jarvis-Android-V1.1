@@ -8,6 +8,7 @@ public final class UserFacingSettingsContractTest {
         Path mobile = Path.of("../android/app/src/main/java/com/jarvis/mobile");
         Path providers = mobile.resolve("brain/providers");
         String settings = Files.readString(mobile.resolve("SettingsActivity.java"));
+        String developerSettings = Files.readString(mobile.resolve("DeveloperSettingsActivity.java"));
         String voiceSession = Files.readString(mobile.resolve("assistant/JarvisVoiceSession.java"));
         String quickWidget = Files.readString(mobile.resolve("widgets/QuickActivationWidget.java"));
         String webSearch = Files.readString(mobile.resolve("actions/AndroidWebSearchActions.java"));
@@ -29,6 +30,10 @@ public final class UserFacingSettingsContractTest {
                 "disconnect must return JARVIS to private local mode and remove the saved external credential");
         check(settings.contains("DeveloperSettingsActivity.class"),
                 "connect/change may enter the explicitly advanced provider setup surface without exposing raw fields inline");
+        check(settings.contains("provider_source") && settings.contains("local_ai"),
+                "normal Settings must mark configurations created by the Free Local AI flow so they can be identified truthfully");
+        check(developerSettings.contains("remove(\"provider_source\")"),
+                "Developer Options must clear the Free Local AI source marker when saving a generic provider configuration");
         check(!settings.contains("PREFRONTAL CORTEX"), "normal Settings must not expose internal cortex jargon");
         check(!settings.contains("API key"), "normal Settings must not expose a raw API-key field");
         check(!settings.contains("RESEARCH ENDPOINT"), "normal Settings must not expose raw research endpoint controls");
