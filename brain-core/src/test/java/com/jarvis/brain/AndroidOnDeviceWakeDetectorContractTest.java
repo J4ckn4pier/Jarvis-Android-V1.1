@@ -48,6 +48,12 @@ public final class AndroidOnDeviceWakeDetectorContractTest {
         check(detector.contains("stopListeningForWakeHandoff"), "wake detector must have an explicit handoff path that releases passive recognition before showing the assistant");
         check(detector.contains("recognizer.cancel()"), "wake handoff must cancel passive recognition immediately to release the microphone for the assistant session");
 
+        // The visible Language setting is part of the real assistant contract. Passive wake cannot keep
+        // using Locale.getDefault() after the user changes JARVIS speech language because that makes the
+        // Samsung offline-support check verify the wrong language/model.
+        check(detector.contains("getSharedPreferences(\"jarvis_shell\""), "wake detector must read the same persisted JARVIS language setting as active conversation");
+        check(detector.contains("getString(\"language\""), "wake detector must resolve its recognizer language from the visible Language setting");
+
         check(service.contains("pausePassiveWakeForSession"), "voice service must expose a session hook that pauses passive wake while the assistant is active");
         check(service.contains("rearmPassiveWakeAfterSession"), "voice service must expose a session hook that re-arms passive wake after the assistant closes");
         check(managedSession.contains("JarvisVoiceInteractionService.pausePassiveWakeForSession()"), "assistant session must pause passive wake when shown to avoid microphone contention");
