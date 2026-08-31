@@ -213,7 +213,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         conversationDeadlineElapsedRealtime = 0L;
         invalidateScheduledListen();
         bargeInMonitor.stop();
-        if (speechRecognizer != null) speechRecognizer.cancel();
+        releaseSpeechRecognizerSafely();
         invalidateSpeechCallback();
         if (textToSpeech != null) textToSpeech.stop();
         setActive(false);
@@ -375,6 +375,18 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
             speechRecognizer.startListening(intent);
         } catch (RuntimeException recognitionFailure) {
             recoverRecognitionStartFailure(recognitionFailure);
+        }
+    }
+
+    private void releaseSpeechRecognizerSafely() {
+        SpeechRecognizer recognizer = speechRecognizer;
+        speechRecognizer = null;
+        if (recognizer == null) return;
+        try { recognizer.cancel(); } catch (RuntimeException cleanupFailure) {
+            Log.w(VOICE_RECOGNIZER_TAG, "Active recognizer cancel failed during lifecycle cleanup", cleanupFailure);
+        }
+        try { recognizer.destroy(); } catch (RuntimeException cleanupFailure) {
+            Log.w(VOICE_RECOGNIZER_TAG, "Active recognizer destroy failed during lifecycle cleanup", cleanupFailure);
         }
     }
 
@@ -561,7 +573,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         invalidateScheduledListen();
         bargeInMonitor.stop();
         brainExecutor.shutdownNow();
-        if (speechRecognizer != null) { speechRecognizer.cancel(); speechRecognizer.destroy(); }
+        releaseSpeechRecognizerSafely();
         invalidateSpeechCallback();
         if (textToSpeech != null) { textToSpeech.stop(); textToSpeech.shutdown(); }
         super.onDestroy();
