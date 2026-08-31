@@ -5,7 +5,7 @@ import android.widget.LinearLayout;
 
 /**
  * Entry point for the supplied Claude prototype screens that are backed by production state today.
- * Unsupported mock surfaces are intentionally not exposed until they have real handlers.
+ * Unsupported or storage-only mock surfaces are intentionally not exposed until they have real handlers.
  */
 public final class JarvisHubActivity extends JarvisChromeActivity {
     @Override protected String screenTitle() { return "JARVIS"; }
@@ -17,7 +17,6 @@ public final class JarvisHubActivity extends JarvisChromeActivity {
 
         body.addView(section("PLANNING"));
         body.addView(row("Tasks & Projects", "Saved tasks and project state", open(TasksProjectsActivity.class)));
-        body.addView(row("Routines", "Saved when/then routines", open(RoutinesActivity.class)));
 
         body.addView(section("TOOLS"));
         body.addView(row("Browser", "Saved bookmarks", open(BrowserActivity.class)));
