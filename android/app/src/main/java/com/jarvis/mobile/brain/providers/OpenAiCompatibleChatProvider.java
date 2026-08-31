@@ -45,7 +45,7 @@ public final class OpenAiCompatibleChatProvider implements CortexProvider {
         JSONArray messages = new JSONArray()
                 .put(new JSONObject()
                         .put("role", "system")
-                        .put("content", ProviderSharedPlanSchema.systemPrompt()))
+                        .put("content", ProviderSharedPlanSchema.systemPrompt(tools)))
                 .put(new JSONObject()
                         .put("role", "user")
                         .put("content", ProviderReasoningEnvelope.userContent(request)));
