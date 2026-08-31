@@ -46,6 +46,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     private boolean listening;
     private boolean usingDedicatedOnDeviceRecognizer;
     private boolean systemOfflineVerified;
+    private boolean wakeDispatched;
     private String status = "stopped";
 
     AndroidOnDeviceWakeWordDetector(Context context) {
@@ -93,6 +94,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         stopInternal();
         onWake = wakeCallback;
         running = true;
+        wakeDispatched = false;
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
                 && SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
@@ -229,7 +231,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     }
 
     private void startListening() {
-        if (!running || recognizer == null || listening) return;
+        if (!running || wakeDispatched || recognizer == null || listening) return;
         if (!usingDedicatedOnDeviceRecognizer && !systemOfflineVerified) {
             status = "offline recognition is not verified";
             failClosedAfterSupportCheck();
@@ -247,14 +249,14 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     }
 
     private void scheduleRestart(long delayMs) {
-        if (!running) return;
+        if (!running || wakeDispatched) return;
         main.removeCallbacks(restart);
         main.removeCallbacks(recreateAndRestart);
         main.postDelayed(restart, delayMs);
     }
 
     private void scheduleRecreate(long delayMs) {
-        if (!running) return;
+        if (!running || wakeDispatched) return;
         main.removeCallbacks(restart);
         main.removeCallbacks(recreateAndRestart);
         main.postDelayed(recreateAndRestart, delayMs);
@@ -264,7 +266,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
 
     private final Runnable recreateAndRestart = new Runnable() {
         @Override public void run() {
-            if (!running) return;
+            if (!running || wakeDispatched) return;
             if (!recreateRecognizer()) {
                 status = "Android recognizer unavailable during recovery";
                 if (systemOfflineVerified) scheduleRecreate(2500L);
@@ -277,9 +279,22 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         }
     };
 
+    private void stopListeningForWakeHandoff() {
+        wakeDispatched = true;
+        listening = false;
+        running = false;
+        main.removeCallbacks(restart);
+        main.removeCallbacks(recreateAndRestart);
+        if (recognizer != null) {
+            try { recognizer.cancel(); } catch (RuntimeException ignored) { }
+        }
+        status = "wake detected; microphone handed to assistant session";
+    }
+
     private void stopInternal() {
         running = false;
         listening = false;
+        wakeDispatched = false;
         systemOfflineVerified = false;
         main.removeCallbacks(restart);
         main.removeCallbacks(recreateAndRestart);
@@ -306,7 +321,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
 
     @Override public void onError(int error) {
         listening = false;
-        if (!running) return;
+        if (!running || wakeDispatched) return;
         switch (error) {
             case SpeechRecognizer.ERROR_RECOGNIZER_BUSY,
                     SpeechRecognizer.ERROR_CLIENT,
@@ -332,7 +347,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     @Override public void onEvent(int eventType, Bundle params) { }
 
     private void inspect(Bundle bundle) {
-        if (!running || bundle == null) return;
+        if (!running || wakeDispatched || bundle == null) return;
         ArrayList<String> candidates = bundle.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
         if (candidates == null) return;
         for (String candidate : candidates) {
@@ -340,6 +355,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
                 Runnable callback = onWake;
                 if (callback != null) {
                     Log.i(TAG, "JARVIS_WAKE_MATCH phrase=" + candidate);
+                    stopListeningForWakeHandoff();
                     callback.run();
                 }
                 return;
