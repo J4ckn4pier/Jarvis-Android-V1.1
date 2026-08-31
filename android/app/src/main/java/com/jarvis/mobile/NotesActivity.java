@@ -2,6 +2,7 @@ package com.jarvis.mobile;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
 import android.view.Gravity;
@@ -13,6 +14,7 @@ import android.widget.ScrollView;
 import android.widget.TextView;
 
 import com.jarvis.mobile.memory.JarvisDatabase;
+import com.jarvis.mobile.ui.JarvisHubActivity;
 
 /** Working Notes & Memory surface backed by JARVIS local memory. */
 public class NotesActivity extends Activity {
@@ -29,13 +31,23 @@ public class NotesActivity extends Activity {
         root.setPadding(dp(14), dp(14), dp(14), dp(14));
         root.setBackgroundColor(getColor(R.color.jarvis_bg));
 
+        Button screens = new Button(this);
+        screens.setText("OPEN JARVIS SCREENS");
+        screens.setTextColor(Color.WHITE);
+        screens.setBackgroundColor(getColor(R.color.jarvis_cyan_dim));
+        screens.setOnClickListener(v -> startActivity(new Intent(this, JarvisHubActivity.class)));
+        root.addView(screens, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
         Button add = new Button(this);
         add.setText("ADD NOTE");
         add.setTextColor(Color.WHITE);
         add.setBackgroundColor(getColor(R.color.jarvis_cyan_dim));
         add.setOnClickListener(v -> addNoteDialog());
-        root.addView(add, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        LinearLayout.LayoutParams addParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        addParams.topMargin = dp(8);
+        root.addView(add, addParams);
 
         ScrollView scroll = new ScrollView(this);
         scroll.setBackgroundColor(getColor(R.color.jarvis_bg));
