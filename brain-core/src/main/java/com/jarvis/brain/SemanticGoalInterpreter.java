@@ -180,7 +180,8 @@ public final class SemanticGoalInterpreter {
     }
 
     private static String navigationDestination(String raw, String lower) {
-        String[] cues = {"get me to ", "take me to ", "navigate to ", "directions to ", "route me to "};
+        String[] cues = {"get me to ", "take me to ", "navigate to ", "directions to ", "route me to ", "give me directions to "};
+        if (!startsAsRequest(lower, cues)) return "";
         for (String cue : cues) {
             int idx = lower.indexOf(cue);
             if (idx < 0) continue;
