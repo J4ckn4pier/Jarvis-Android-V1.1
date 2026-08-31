@@ -44,10 +44,26 @@ public final class ClaudeUiActionRouter {
         this.activity = activity;
     }
 
-    /** Entry point exposed to the trusted, packaged canonical UI only. */
+    /** Backward-compatible fire-and-forget entry point for the trusted packaged UI. */
     @JavascriptInterface
     public void action(String action) {
         activity.runOnUiThread(() -> dispatch(action));
+    }
+
+    /**
+     * Structured entry point for the canonical UI.
+     *
+     * This reports whether Android accepted the presentation request for dispatch; it deliberately
+     * does not pretend that a downstream activity or system panel completed successfully.
+     */
+    @JavascriptInterface
+    public String actionWithResult(String action) {
+        String safeAction = jsonEscape(action == null ? "" : action);
+        if (!isSupported(action)) {
+            return "{\"accepted\":false,\"action\":\"" + safeAction + "\",\"reason\":\"unsupported\"}";
+        }
+        activity.runOnUiThread(() -> dispatch(action));
+        return "{\"accepted\":true,\"action\":\"" + safeAction + "\",\"reason\":\"queued\"}";
     }
 
     /** Allows the canonical HTML to hide/disable controls that are not wired in this APK. */
@@ -146,5 +162,14 @@ public final class ClaudeUiActionRouter {
         activity.startActivityForResult(
                 roles.createRequestRoleIntent(RoleManager.ROLE_ASSISTANT),
                 ASSISTANT_ROLE_REQUEST);
+    }
+
+    private static String jsonEscape(String value) {
+        return value
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\n", "\\n")
+                .replace("\r", "\\r")
+                .replace("\t", "\\t");
     }
 }
