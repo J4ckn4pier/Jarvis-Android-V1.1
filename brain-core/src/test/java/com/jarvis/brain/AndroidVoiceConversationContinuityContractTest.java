@@ -62,6 +62,12 @@ public final class AndroidVoiceConversationContinuityContractTest {
                 "each active listening turn must latch its first terminal callback");
         check(occurrences(session, "if (!claimTerminal()) return;") >= 2,
                 "both recognition error and final-result paths must reject duplicate terminal callbacks from the same Samsung/OEM listening turn");
+        check(session.contains("private void releaseSpeechRecognizerSafely()")
+                        && session.contains("try { recognizer.cancel(); } catch (RuntimeException cleanupFailure)")
+                        && session.contains("try { recognizer.destroy(); } catch (RuntimeException cleanupFailure)"),
+                "Samsung/OEM recognizer cleanup exceptions must be contained so hide/destroy lifecycle can finish normally");
+        check(occurrences(session, "releaseSpeechRecognizerSafely();") >= 2,
+                "both hide and destroy lifecycle paths must use guarded recognizer cleanup");
         check(session.contains("brainExecutor.shutdownNow()"),
                 "voice-session destruction must stop its background brain executor");
         check(approval.contains("runtime.hasPendingApproval()")
@@ -73,7 +79,7 @@ public final class AndroidVoiceConversationContinuityContractTest {
                 "voice approval vocabulary must remain explicit and narrow");
         check(approval.contains("if(isDeferral(n))return cancel"), "spoken deferral/cancel must remain available while an approval is pending");
         check(session.contains("@Override public void onHide()"), "hiding the assistant must stop continuous listening");
-        check(session.contains("speechRecognizer.cancel()"), "hide/destroy lifecycle must cancel active recognition");
+        check(session.contains("speechRecognizer.cancel()") || session.contains("recognizer.cancel()"), "hide/destroy lifecycle must cancel active recognition");
 
         System.out.println("AndroidVoiceConversationContinuityContractTest: PASS");
     }
