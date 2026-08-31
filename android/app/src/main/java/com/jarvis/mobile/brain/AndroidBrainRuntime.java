@@ -51,6 +51,7 @@ public final class AndroidBrainRuntime {
                 new AndroidRecentNotificationContextSource(app),
                 Set.of("notification", "notifications", "what did i miss"));
         AssistantContextSource runtimeContext = new CompositeAssistantContextSource(List.of(
+                new AndroidUserPreferenceContextSource(app),
                 memoryContext,
                 new RuntimeEnvironmentContextSource(clock, devices),
                 notificationContext));
@@ -177,13 +178,8 @@ public final class AndroidBrainRuntime {
         }
     }
 
-    public RuntimeSurfacePresentation approveRemoteGoalPresentation() {
-        return respondToRemoteApproval(true);
-    }
-
-    public RuntimeSurfacePresentation declineRemoteGoalPresentation() {
-        return respondToRemoteApproval(false);
-    }
+    public RuntimeSurfacePresentation approveRemoteGoalPresentation() { return respondToRemoteApproval(true); }
+    public RuntimeSurfacePresentation declineRemoteGoalPresentation() { return respondToRemoteApproval(false); }
 
     public RuntimeSurfacePresentation cancelRemoteGoalPresentation() {
         RemoteGoalCoordinator coordinator = remoteCoordinator();
