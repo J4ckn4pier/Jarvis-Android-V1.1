@@ -26,6 +26,8 @@ public final class AndroidOnDeviceWakeDetectorContractTest {
         check(detector.contains("hey jarvis") && detector.contains("jarvis"), "wake detector must recognize both requested invocation forms");
         check(detector.contains("startListening") && detector.contains("RecognitionListener"), "wake detector must actually listen instead of reporting a ready stub");
         check(detector.contains("postDelayed") || detector.contains("startListening(intent)"), "wake detector must continue listening after a non-wake utterance");
+        check(detector.contains("recreateRecognizer"), "Samsung recovery path must recreate the recognizer after fatal/client/busy errors instead of retrying a poisoned instance forever");
+        check(detector.contains("ERROR_CLIENT") && detector.contains("ERROR_RECOGNIZER_BUSY"), "wake recovery must explicitly handle client and busy recognizer failures seen on OEM speech stacks");
 
         check(service.contains("pausePassiveWakeForSession"), "voice service must expose a session hook that pauses passive wake while the assistant is active");
         check(service.contains("rearmPassiveWakeAfterSession"), "voice service must expose a session hook that re-arms passive wake after the assistant closes");
