@@ -122,7 +122,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             return;
         }
         if ((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
-            Log.i(UI_TEST_TAG, "JARVIS_HOME_READY Original HUD Welcome Sir");
+            Log.i(UI_TEST_TAG, "JARVIS_HOME_READY Original HUD " + profileGreeting());
         }
 
         requestRuntimePermissions();
@@ -194,7 +194,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                 dp(220), dp(220), Gravity.CENTER);
         root.addView(core, coreParams);
 
-        status = hudText("Welcome Sir!", 16, Color.WHITE);
+        status = hudText(profileGreeting(), 16, Color.WHITE);
         status.setGravity(Gravity.CENTER);
         status.setMaxLines(8);
         status.setPadding(dp(20), dp(14), dp(20), dp(14));
@@ -566,6 +566,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     @Override protected void onResume() {
         super.onResume();
         applyThemeFrame(false);
+        refreshProfileGreetingIfIdle();
         String mode = preferences.getString("operating_mode", "normal");
         if ("normal".equals(mode)) {
             modeStatus.setVisibility(View.GONE);
@@ -605,6 +606,18 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         if (tag == null || tag.isBlank() || "system".equalsIgnoreCase(tag)) return Locale.getDefault();
         Locale configured = Locale.forLanguageTag(tag);
         return configured.getLanguage().isBlank() ? Locale.getDefault() : configured;
+    }
+
+    private String profileGreeting() {
+        String profile = preferences == null ? "Sir" : preferences.getString("profile_name", "Sir");
+        if (profile == null || profile.isBlank()) profile = "Sir";
+        return "Welcome " + profile.trim() + "!";
+    }
+
+    private void refreshProfileGreetingIfIdle() {
+        if (status == null || active || decisionPanel == null || decisionPanel.getVisibility() == View.VISIBLE) return;
+        CharSequence current = status.getText();
+        if (current == null || current.toString().startsWith("Welcome ")) status.setText(profileGreeting());
     }
 
     private void speak(String text) {
