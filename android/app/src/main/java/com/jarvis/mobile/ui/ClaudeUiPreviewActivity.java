@@ -26,6 +26,8 @@ public final class ClaudeUiPreviewActivity extends Activity {
     private static final String CANONICAL_URL = "file:///android_asset/jarvis-live.html";
     static final String ANDROID_BRIDGE = "JarvisAndroid";
 
+    private WebView preview;
+
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         if (!canonicalAssetExists()) {
@@ -33,7 +35,7 @@ public final class ClaudeUiPreviewActivity extends Activity {
             return;
         }
 
-        WebView preview = new WebView(this);
+        preview = new WebView(this);
         preview.setBackgroundColor(Color.BLACK);
         WebSettings settings = preview.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -57,6 +59,19 @@ public final class ClaudeUiPreviewActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT));
         preview.loadUrl(CANONICAL_URL);
+    }
+
+    @Override protected void onDestroy() {
+        if (preview != null) {
+            preview.removeJavascriptInterface(ANDROID_BRIDGE);
+            preview.stopLoading();
+            preview.loadUrl("about:blank");
+            preview.clearHistory();
+            preview.removeAllViews();
+            preview.destroy();
+            preview = null;
+        }
+        super.onDestroy();
     }
 
     private boolean canonicalAssetExists() {
