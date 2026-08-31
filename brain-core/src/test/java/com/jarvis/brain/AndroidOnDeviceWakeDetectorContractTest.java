@@ -39,8 +39,19 @@ public final class AndroidOnDeviceWakeDetectorContractTest {
         check(detector.contains("postDelayed") || detector.contains("startListening(intent)"), "wake detector must continue listening after a non-wake utterance");
         check(detector.contains("recreateRecognizer"), "Samsung recovery path must recreate the recognizer after fatal/client/busy errors instead of retrying a poisoned instance forever");
         check(detector.contains("ERROR_CLIENT") && detector.contains("ERROR_RECOGNIZER_BUSY"), "wake recovery must explicitly handle client and busy recognizer failures seen on OEM speech stacks");
+        check(detector.contains("ERROR_TOO_MANY_REQUESTS") && detector.contains("RATE_LIMIT_RECOVERY_DELAY_MS"),
+                "Android speech-service throttling must use an explicit slower recovery path instead of a 500 ms retry loop that can keep Samsung wake rate-limited");
+        check(detector.contains("status = \"wake recognizer rate-limited (error \" + error + \"); backing off\";")
+                        && detector.contains("scheduleRecreate(RATE_LIMIT_RECOVERY_DELAY_MS);"),
+                "rate-limit recovery must recreate the recognizer after a bounded backoff rather than repeatedly calling startListening on the throttled instance");
         check(detector.contains("status = \"Android recognizer unavailable during recovery\";\n                scheduleRecreate(2500L);"),
                 "failed recognizer recreation must keep retrying even when Samsung's dedicated on-device recognizer is the selected engine");
+        check(detector.contains("END_OF_SPEECH_RECOVERY_DELAY_MS")
+                        && detector.contains("endOfSpeechRecovery")
+                        && detector.contains("main.postDelayed(endOfSpeechRecovery, END_OF_SPEECH_RECOVERY_DELAY_MS)"),
+                "Samsung/OEM onEndOfSpeech without results/error must arm a bounded watchdog so passive wake cannot remain silently idle");
+        check(detector.contains("end-of-speech timeout") && detector.contains("scheduleRecreate(RECREATE_DELAY_MS)"),
+                "end-of-speech watchdog expiry must recreate the recognizer rather than trusting a speech session that stopped delivering callbacks");
 
         check(detector.contains("wakeDispatched"), "wake detector must latch the first matching partial/final result so one phrase cannot trigger duplicate assistant sessions");
         check(detector.contains("stopListeningForWakeHandoff"), "wake detector must have an explicit handoff path that releases passive recognition before showing the assistant");
