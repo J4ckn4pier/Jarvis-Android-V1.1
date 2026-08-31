@@ -9,9 +9,11 @@ import android.graphics.Color;
 import android.net.Uri;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.text.InputType;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
+import android.widget.EditText;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.Switch;
@@ -21,6 +23,9 @@ import android.widget.Toast;
 import com.jarvis.mobile.assistant.JarvisVoiceInteractionService;
 import com.jarvis.mobile.brain.providers.CortexProviderFactory;
 import com.jarvis.mobile.brain.providers.SecureSecretStore;
+import com.jarvis.mobile.remote.RemoteGoalStateStore;
+
+import java.util.Locale;
 
 /** Canonical user-facing JARVIS Settings. Raw endpoint/provider fields live in DeveloperSettingsActivity. */
 public class SettingsActivity extends Activity {
@@ -32,7 +37,15 @@ public class SettingsActivity extends Activity {
         preferences = getSharedPreferences("jarvis_shell", MODE_PRIVATE);
         getWindow().setStatusBarColor(getColor(R.color.jarvis_bg));
         getWindow().setNavigationBarColor(getColor(R.color.jarvis_bg));
+        render();
+    }
 
+    @Override protected void onResume() {
+        super.onResume();
+        if (preferences != null) render();
+    }
+
+    private void render() {
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
         page.setBackgroundColor(getColor(R.color.jarvis_bg));
@@ -44,19 +57,22 @@ public class SettingsActivity extends Activity {
         body.setBackgroundColor(getColor(R.color.jarvis_bg));
 
         body.addView(section("VOICE & INVOCATION"));
-        body.addView(toggleRow("Voice", "Speak responses aloud", "voice_enabled", true));
-        body.addView(toggleRow("Wake Word", "Listen for “Jarvis” or “Hey Jarvis”", "wake_enabled", true));
-        body.addView(row("Voice Model", "Android system voice", () -> launch(ACTION_TTS_SETTINGS)));
-        body.addView(row("Language", getResources().getConfiguration().getLocales().get(0).getDisplayLanguage(), () -> launch(Settings.ACTION_LOCALE_SETTINGS)));
+        body.addView(toggleRow("Voice", "Speak responses aloud", "voice_enabled", true, null));
+        body.addView(toggleRow("Wake Word", wakeSummary(), "wake_enabled", true, checked -> {
+            if (checked && !isAssistantRoleHeld()) requestAssistant();
+            JarvisVoiceInteractionService.refreshPassiveWakePreference();
+        }));
+        body.addView(row("Voice Model", voiceModelSummary(), this::showVoiceModelPicker));
+        body.addView(row("Language", languageSummary(), this::showLanguageSettings));
 
         body.addView(section("JARVIS & APPS"));
-        body.addView(row("App Permissions", "Microphone, contacts, calendar and device access", () -> launchAppDetails()));
+        body.addView(row("App Permissions", permissionSummary(), this::showPermissionChoices));
         body.addView(row("AI Providers", providerSummary(), this::showProviderConnections));
-        body.addView(row("Backup & Sync", "Local-first memory backup", () -> Toast.makeText(this, "JARVIS currently keeps memory local on this device.", Toast.LENGTH_SHORT).show()));
-        body.addView(row("Profile", preferences.getString("profile_name", "Sir"), () -> Toast.makeText(this, "Profile personalization is active.", Toast.LENGTH_SHORT).show()));
-        body.addView(row("Default Apps", "Choose Android defaults", () -> launch(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)));
-        body.addView(row("Personality", preferences.getString("personality_label", "Humble Butler"), () -> Toast.makeText(this, "JARVIS personality: " + preferences.getString("personality_label", "Humble Butler"), Toast.LENGTH_SHORT).show()));
-        body.addView(row("Widgets & Lock Screen", "Assistant access and display options", () -> launch(Settings.ACTION_DISPLAY_SETTINGS)));
+        body.addView(row("Backup & Sync", backupSummary(), this::showBackupSyncSettings));
+        body.addView(row("Profile", preferences.getString("profile_name", "Sir"), this::showProfileEditor));
+        body.addView(row("Default Apps", "Choose Android defaults used by JARVIS", () -> launch(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)));
+        body.addView(row("Personality", preferences.getString("personality_label", "Humble Butler"), this::showPersonalityPicker));
+        body.addView(row("Widgets & Lock Screen", widgetLockSummary(), this::showWidgetLockSettings));
 
         body.addView(section("ANDROID INTEGRATION"));
         body.addView(row("Default Assistant", assistantSummary(), this::requestAssistant));
@@ -80,139 +96,112 @@ public class SettingsActivity extends Activity {
         bar.setGravity(Gravity.CENTER_VERTICAL);
         bar.setPadding(dp(8), 0, dp(18), 0);
         bar.setBackgroundColor(getColor(R.color.jarvis_bg));
-
         TextView back = new TextView(this);
-        back.setText("‹");
-        back.setTextColor(getColor(R.color.jarvis_cyan));
-        back.setTextSize(38);
-        back.setGravity(Gravity.CENTER);
-        back.setContentDescription("Back");
-        back.setOnClickListener(v -> finish());
+        back.setText("‹"); back.setTextColor(getColor(R.color.jarvis_cyan)); back.setTextSize(38); back.setGravity(Gravity.CENTER);
+        back.setContentDescription("Back"); back.setOnClickListener(v -> finish());
         bar.addView(back, new LinearLayout.LayoutParams(dp(48), ViewGroup.LayoutParams.MATCH_PARENT));
-
         TextView title = new TextView(this);
-        title.setText("SETTINGS");
-        title.setTextColor(Color.WHITE);
-        title.setTextSize(20);
-        title.setLetterSpacing(0.16f);
-        title.setGravity(Gravity.CENTER_VERTICAL);
+        title.setText("SETTINGS"); title.setTextColor(Color.WHITE); title.setTextSize(20); title.setLetterSpacing(0.16f); title.setGravity(Gravity.CENTER_VERTICAL);
         bar.addView(title, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.MATCH_PARENT, 1f));
         return bar;
     }
 
     private TextView section(String title) {
-        TextView v = new TextView(this);
-        v.setText(title);
-        v.setTextColor(getColor(R.color.jarvis_cyan));
-        v.setTextSize(12);
-        v.setLetterSpacing(0.12f);
-        v.setPadding(dp(6), dp(22), dp(6), dp(8));
-        return v;
+        TextView v = new TextView(this); v.setText(title); v.setTextColor(getColor(R.color.jarvis_cyan)); v.setTextSize(12); v.setLetterSpacing(0.12f); v.setPadding(dp(6), dp(22), dp(6), dp(8)); return v;
     }
 
     private View row(String title, String subtitle, Runnable action) {
         LinearLayout card = card();
-        LinearLayout copy = new LinearLayout(this);
-        copy.setOrientation(LinearLayout.VERTICAL);
-        TextView name = new TextView(this);
-        name.setText(title);
-        name.setTextColor(Color.WHITE);
-        name.setTextSize(17);
-        TextView detail = new TextView(this);
-        detail.setText(subtitle);
-        detail.setTextColor(getColor(R.color.jarvis_text_dim));
-        detail.setTextSize(13);
-        detail.setPadding(0, dp(3), 0, 0);
-        copy.addView(name);
-        copy.addView(detail);
-        card.addView(copy, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        TextView arrow = new TextView(this);
-        arrow.setText("›");
-        arrow.setTextColor(getColor(R.color.jarvis_cyan));
-        arrow.setTextSize(28);
-        arrow.setGravity(Gravity.CENTER);
+        LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL);
+        TextView name = new TextView(this); name.setText(title); name.setTextColor(Color.WHITE); name.setTextSize(17);
+        TextView detail = new TextView(this); detail.setText(subtitle); detail.setTextColor(getColor(R.color.jarvis_text_dim)); detail.setTextSize(13); detail.setPadding(0, dp(3), 0, 0);
+        copy.addView(name); copy.addView(detail); card.addView(copy, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        TextView arrow = new TextView(this); arrow.setText("›"); arrow.setTextColor(getColor(R.color.jarvis_cyan)); arrow.setTextSize(28); arrow.setGravity(Gravity.CENTER);
         card.addView(arrow, new LinearLayout.LayoutParams(dp(32), ViewGroup.LayoutParams.MATCH_PARENT));
-        card.setContentDescription(title + ". " + subtitle);
-        card.setOnClickListener(v -> action.run());
-        return card;
+        card.setContentDescription(title + ". " + subtitle); card.setOnClickListener(v -> action.run()); return card;
     }
 
-    private View toggleRow(String title, String subtitle, String key, boolean defaultValue) {
+    private interface ToggleAction { void changed(boolean checked); }
+
+    private View toggleRow(String title, String subtitle, String key, boolean defaultValue, ToggleAction action) {
         LinearLayout card = card();
-        LinearLayout copy = new LinearLayout(this);
-        copy.setOrientation(LinearLayout.VERTICAL);
+        LinearLayout copy = new LinearLayout(this); copy.setOrientation(LinearLayout.VERTICAL);
         TextView name = new TextView(this); name.setText(title); name.setTextColor(Color.WHITE); name.setTextSize(17);
         TextView detail = new TextView(this); detail.setText(subtitle); detail.setTextColor(getColor(R.color.jarvis_text_dim)); detail.setTextSize(13); detail.setPadding(0,dp(3),0,0);
-        copy.addView(name); copy.addView(detail);
-        card.addView(copy, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
-        Switch toggle = new Switch(this);
-        toggle.setChecked(preferences.getBoolean(key, defaultValue));
-        toggle.setContentDescription(title + " toggle");
-        toggle.setOnCheckedChangeListener((button, checked) -> {
-            preferences.edit().putBoolean(key, checked).apply();
-            if ("wake_enabled".equals(key)) JarvisVoiceInteractionService.refreshPassiveWakePreference();
-        });
-        card.addView(toggle, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT));
-        return card;
+        copy.addView(name); copy.addView(detail); card.addView(copy, new LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f));
+        Switch toggle = new Switch(this); toggle.setChecked(preferences.getBoolean(key, defaultValue)); toggle.setContentDescription(title + " toggle");
+        toggle.setOnCheckedChangeListener((button, checked) -> { preferences.edit().putBoolean(key, checked).apply(); if (action != null) action.changed(checked); });
+        card.setOnClickListener(v -> toggle.setChecked(!toggle.isChecked()));
+        card.addView(toggle, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT)); return card;
     }
 
     private LinearLayout card() {
-        LinearLayout card = new LinearLayout(this);
-        card.setOrientation(LinearLayout.HORIZONTAL);
-        card.setGravity(Gravity.CENTER_VERTICAL);
-        card.setPadding(dp(16), dp(13), dp(12), dp(13));
-        card.setBackgroundColor(getColor(R.color.jarvis_bg_panel));
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
-        p.setMargins(0, 0, 0, dp(2));
-        card.setLayoutParams(p);
-        card.setMinimumHeight(dp(68));
-        return card;
+        LinearLayout card = new LinearLayout(this); card.setOrientation(LinearLayout.HORIZONTAL); card.setGravity(Gravity.CENTER_VERTICAL); card.setPadding(dp(16), dp(13), dp(12), dp(13)); card.setBackgroundColor(getColor(R.color.jarvis_bg_panel));
+        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT); p.setMargins(0,0,0,dp(2)); card.setLayoutParams(p); card.setMinimumHeight(dp(68)); return card;
     }
 
-    private String providerSummary() {
-        String status = CortexProviderFactory.status(this).toLowerCase(java.util.Locale.ROOT);
-        if (status.contains("anthropic")) return "Anthropic connected";
-        if (status.contains("openai")) return "OpenAI-compatible provider connected";
-        return "Private local mode";
+    private void showProfileEditor() {
+        EditText input = new EditText(this); input.setSingleLine(true); input.setText(preferences.getString("profile_name", "Sir")); input.setSelectAllOnFocus(true); input.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_FLAG_CAP_WORDS);
+        new AlertDialog.Builder(this).setTitle("Profile name").setMessage("What should JARVIS call you?").setView(input)
+                .setPositiveButton("SAVE", (dialog, which) -> { String value = input.getText().toString().trim(); if (value.isEmpty()) value = "Sir"; preferences.edit().putString("profile_name", value).apply(); render(); })
+                .setNegativeButton("CANCEL", null).show();
     }
 
-    private void showProviderConnections() {
-        new AlertDialog.Builder(this)
-                .setTitle("AI Providers")
-                .setMessage(providerSummary() + "\n\nJARVIS stays usable in private local mode. Advanced connection details are kept out of normal Settings.")
-                .setPositiveButton("CONNECT / CHANGE", (dialog, which) -> startActivity(new Intent(this, DeveloperSettingsActivity.class)))
-                .setNegativeButton("DISCONNECT", (dialog, which) -> disconnectProvider())
-                .setNeutralButton("CANCEL", null)
-                .show();
+    private void showPersonalityPicker() {
+        String[] labels = {"Humble Butler", "Concise Executive", "Warm Companion", "Dry & Witty"};
+        String current = preferences.getString("personality_label", labels[0]); int selected = 0; for (int i=0;i<labels.length;i++) if (labels[i].equals(current)) selected=i; final int initial=selected;
+        new AlertDialog.Builder(this).setTitle("JARVIS Personality").setSingleChoiceItems(labels, selected, null)
+                .setPositiveButton("SAVE", (dialog, which) -> { AlertDialog d=(AlertDialog)dialog; int index=d.getListView().getCheckedItemPosition(); if(index<0) index=initial; preferences.edit().putString("personality_label", labels[index]).apply(); render(); })
+                .setNegativeButton("CANCEL", null).show();
     }
 
-    private void disconnectProvider() {
-        getSharedPreferences("jarvis_cortex", MODE_PRIVATE).edit()
-                .putString("mode", CortexProviderFactory.MODE_LOCAL)
-                .apply();
-        new SecureSecretStore(this).remove("provider_api_key");
-        Toast.makeText(this, "External AI provider disconnected. JARVIS is using private local mode.", Toast.LENGTH_SHORT).show();
-        recreate();
+    private void showVoiceModelPicker() {
+        String[] labels={"System voice","Measured","Natural","Quick"}; float[] rates={1.0f,0.88f,0.96f,1.08f};
+        String current=preferences.getString("voice_model_label",labels[0]); int selected=0; for(int i=0;i<labels.length;i++) if(labels[i].equals(current)) selected=i; final int initial=selected;
+        new AlertDialog.Builder(this).setTitle("Voice Model").setSingleChoiceItems(labels, selected, null)
+                .setPositiveButton("SAVE",(dialog,which)->{AlertDialog d=(AlertDialog)dialog;int index=d.getListView().getCheckedItemPosition();if(index<0)index=initial;preferences.edit().putString("voice_model_label",labels[index]).putFloat("voice_rate",rates[index]).apply();render();})
+                .setNeutralButton("ANDROID VOICE SETTINGS",(dialog,which)->launch(ACTION_TTS_SETTINGS)).setNegativeButton("CANCEL",null).show();
     }
 
-    private String assistantSummary() {
-        RoleManager manager = getSystemService(RoleManager.class);
-        return manager != null && manager.isRoleHeld(RoleManager.ROLE_ASSISTANT) ? "JARVIS is the default assistant" : "Set JARVIS as the default assistant";
+    private void showLanguageSettings() {
+        new AlertDialog.Builder(this).setTitle("Language").setMessage("JARVIS currently follows your Android language for recognition and speech.")
+                .setPositiveButton("OPEN ANDROID LANGUAGE",(dialog,which)->launch(Settings.ACTION_LOCALE_SETTINGS)).setNegativeButton("CANCEL",null).show();
     }
 
-    private void requestAssistant() {
-        RoleManager manager = getSystemService(RoleManager.class);
-        if (manager != null && manager.isRoleAvailable(RoleManager.ROLE_ASSISTANT) && !manager.isRoleHeld(RoleManager.ROLE_ASSISTANT)) {
-            startActivity(manager.createRequestRoleIntent(RoleManager.ROLE_ASSISTANT));
-        }
+    private void showPermissionChoices() {
+        String[] items={"App permissions","Notification access","Screen controls (Accessibility)"};
+        new AlertDialog.Builder(this).setTitle("JARVIS Permissions").setItems(items,(dialog,which)->{if(which==0)launchAppDetails();else if(which==1)launch(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS);else launch(Settings.ACTION_ACCESSIBILITY_SETTINGS);}).setNegativeButton("CANCEL",null).show();
     }
 
-    private void launchAppDetails() {
-        startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:" + getPackageName())));
+    private void showBackupSyncSettings() {
+        boolean remoteConfigured=new RemoteGoalStateStore(this).loadConnection()!=null;
+        String message=remoteConfigured?"Remote JARVIS is configured. Choose whether this phone may use that connection for synchronization-capable features.":"No remote JARVIS connection is configured. Local memory remains on this phone until you explicitly configure one.";
+        boolean enabled=preferences.getBoolean("backup_sync_enabled",false);
+        new AlertDialog.Builder(this).setTitle("Backup & Sync").setMessage(message)
+                .setSingleChoiceItems(new String[]{"Local only","Allow configured remote sync"},enabled&&remoteConfigured?1:0,(dialog,which)->preferences.edit().putBoolean("backup_sync_enabled",which==1&&remoteConfigured).apply())
+                .setPositiveButton(remoteConfigured?"DONE":"CONFIGURE CONNECTION",(dialog,which)->{if(!remoteConfigured)startActivity(new Intent(this,DeveloperSettingsActivity.class));render();}).setNegativeButton("CANCEL",null).show();
     }
-    private void launch(String action) {
-        try { startActivity(new Intent(action)); }
-        catch (Exception ignored) { Toast.makeText(this, "That Android settings page is not available on this device.", Toast.LENGTH_SHORT).show(); }
+
+    private void showWidgetLockSettings() {
+        boolean lock=preferences.getBoolean("lock_screen_assistant_enabled",true);
+        String[] labels={"Allow assistant access from lock screen","Open Android display / lock-screen settings"};
+        new AlertDialog.Builder(this).setTitle("Widgets & Lock Screen").setMultiChoiceItems(labels,new boolean[]{lock,false},(dialog,which,checked)->{if(which==0)preferences.edit().putBoolean("lock_screen_assistant_enabled",checked).apply();if(which==1&&checked){dialog.dismiss();launch(Settings.ACTION_DISPLAY_SETTINGS);}}).setPositiveButton("DONE",(dialog,which)->render()).show();
     }
-    private int dp(int value) { return Math.round(value * getResources().getDisplayMetrics().density); }
+
+    private String providerSummary(){String status=CortexProviderFactory.status(this).toLowerCase(Locale.ROOT);if(status.contains("anthropic"))return "Anthropic connected";if(status.contains("openai"))return "OpenAI-compatible provider connected";return "Private local mode";}
+    private void showProviderConnections(){new AlertDialog.Builder(this).setTitle("AI Providers").setMessage(providerSummary()+"\n\nJARVIS stays usable in private local mode. Connection credentials are stored outside normal settings.").setPositiveButton("CONNECT / CHANGE",(dialog,which)->startActivity(new Intent(this,DeveloperSettingsActivity.class))).setNegativeButton("DISCONNECT",(dialog,which)->disconnectProvider()).setNeutralButton("CANCEL",null).show();}
+    private void disconnectProvider(){getSharedPreferences("jarvis_cortex",MODE_PRIVATE).edit().putString("mode",CortexProviderFactory.MODE_LOCAL).apply();new SecureSecretStore(this).remove("provider_api_key");Toast.makeText(this,"External AI provider disconnected. JARVIS is using private local mode.",Toast.LENGTH_SHORT).show();render();}
+    private boolean isAssistantRoleHeld(){RoleManager manager=getSystemService(RoleManager.class);return manager!=null&&manager.isRoleAvailable(RoleManager.ROLE_ASSISTANT)&&manager.isRoleHeld(RoleManager.ROLE_ASSISTANT);}
+    private String assistantSummary(){return isAssistantRoleHeld()?"JARVIS is the default assistant":"Required for passive wake — tap to enable";}
+    private String wakeSummary(){if(!preferences.getBoolean("wake_enabled",true))return "Disabled";return isAssistantRoleHeld()?"Listen locally for “Jarvis” or “Hey Jarvis”":"Requires JARVIS as your default assistant — tap to finish setup";}
+    private String voiceModelSummary(){return preferences.getString("voice_model_label","System voice");}
+    private String languageSummary(){return getResources().getConfiguration().getLocales().get(0).getDisplayLanguage();}
+    private String permissionSummary(){return "Microphone, contacts, calendar, notifications and screen control";}
+    private String backupSummary(){if(!preferences.getBoolean("backup_sync_enabled",false))return "Local only";return new RemoteGoalStateStore(this).loadConnection()==null?"Local only — remote connection not configured":"Configured remote sync allowed";}
+    private String widgetLockSummary(){return preferences.getBoolean("lock_screen_assistant_enabled",true)?"Lock-screen assistant enabled":"Lock-screen assistant disabled";}
+
+    private void requestAssistant(){RoleManager manager=getSystemService(RoleManager.class);if(manager==null||!manager.isRoleAvailable(RoleManager.ROLE_ASSISTANT)){Toast.makeText(this,"Android did not expose the Assistant role on this device.",Toast.LENGTH_LONG).show();return;}if(manager.isRoleHeld(RoleManager.ROLE_ASSISTANT)){JarvisVoiceInteractionService.refreshPassiveWakePreference();Toast.makeText(this,"JARVIS is already your default assistant.",Toast.LENGTH_SHORT).show();return;}startActivity(manager.createRequestRoleIntent(RoleManager.ROLE_ASSISTANT));}
+    private void launchAppDetails(){startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName())));}
+    private void launch(String action){try{startActivity(new Intent(action));}catch(Exception ignored){Toast.makeText(this,"That Android settings page is not available on this device.",Toast.LENGTH_SHORT).show();}}
+    private int dp(int value){return Math.round(value*getResources().getDisplayMetrics().density);}
 }
