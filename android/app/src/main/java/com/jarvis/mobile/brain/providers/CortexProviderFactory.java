@@ -6,6 +6,9 @@ import com.jarvis.brain.ReasoningRequest;
 import com.jarvis.brain.ReasoningResult;
 import com.jarvis.brain.ToolRegistry;
 
+import java.net.URI;
+import java.util.Locale;
+
 public final class CortexProviderFactory {
     public static final String MODE_LOCAL = "local";
     public static final String MODE_OPENAI_COMPATIBLE = "openai_compatible";
@@ -35,13 +38,32 @@ public final class CortexProviderFactory {
     }
 
     public static String status(Context context) {
+        SharedPreferences p = context.getSharedPreferences("jarvis_cortex", Context.MODE_PRIVATE);
+        String endpoint = p.getString("endpoint", "");
         CortexProvider provider = create(context);
         if ("local".equals(provider.id())) return "Deterministic brain active; no general local cortex configured";
         if (MODE_OPENAI_COMPATIBLE.equals(provider.id())) {
-            return provider.isConfigured() ? "OpenAI-compatible local cortex configured"
-                    : "OpenAI-compatible local cortex needs a model and allowed endpoint";
+            if (!provider.isConfigured()) return "OpenAI-compatible cortex needs a model and allowed endpoint";
+            return isLocalCompatibleEndpoint(endpoint)
+                    ? "OpenAI-compatible local cortex configured"
+                    : "OpenAI provider compatible endpoint configured";
         }
         return provider.isConfigured() ? provider.id() + " configured"
                 : provider.id() + " needs a model and API key";
+    }
+
+    private static boolean isLocalCompatibleEndpoint(String endpoint) {
+        if (endpoint == null || endpoint.isBlank()) return false;
+        try {
+            String host = URI.create(endpoint.trim()).getHost();
+            if (host == null) return false;
+            host = host.toLowerCase(Locale.ROOT);
+            return "localhost".equals(host)
+                    || "127.0.0.1".equals(host)
+                    || "::1".equals(host)
+                    || host.endsWith(".local");
+        } catch (RuntimeException invalid) {
+            return false;
+        }
     }
 }
