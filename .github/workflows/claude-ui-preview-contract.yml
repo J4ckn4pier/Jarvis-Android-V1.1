@@ -1,0 +1,45 @@
+name: Claude UI Preview Contract
+
+on:
+  push:
+    branches: [feature/claude-ui-integration]
+  workflow_dispatch:
+
+jobs:
+  preview-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify exact-source Claude preview boundary
+        run: sh .github/scripts/claude-ui-preview-contract.sh
+      - name: Verify Claude UI action bridge contract
+        run: sh .github/scripts/claude-ui-action-bridge-contract.sh
+      - name: Verify Claude UI navigation bridge contract
+        run: sh .github/scripts/claude-ui-navigation-contract.sh
+      - name: Verify Claude UI tasks/projects navigation contract
+        run: sh .github/scripts/claude-ui-tasks-navigation-contract.sh
+      - name: Verify Claude UI media control contract
+        run: sh .github/scripts/claude-ui-media-contract.sh
+      - name: Verify Claude UI truthful capability contract
+        run: sh .github/scripts/claude-ui-capabilities-contract.sh
+      - name: Verify Claude UI action result contract
+        run: sh .github/scripts/claude-ui-action-result-contract.sh
+      - name: Verify Claude UI trusted navigation contract
+        run: sh .github/scripts/claude-ui-trusted-navigation-contract.sh
+      - name: Verify Claude UI preview lifecycle contract
+        run: sh .github/scripts/claude-ui-preview-lifecycle-contract.sh
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android 16 SDK
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Compile preview surface in real Android app
+        working-directory: android
+        run: gradle --rerun-tasks :app:assembleDebug --stacktrace
