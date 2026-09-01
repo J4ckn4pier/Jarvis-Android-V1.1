@@ -13,6 +13,8 @@ public final class AndroidAssistantInvocationContractTest {
         String receiver = Files.readString(Path.of("../android/app/src/debug/java/com/jarvis/mobile/assistant/JarvisAssistantTestReceiver.java"));
         String debugManifest = Files.readString(Path.of("../android/app/src/debug/AndroidManifest.xml"));
         String service = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/assistant/JarvisVoiceInteractionService.java"));
+        String session = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/assistant/JarvisVoiceSession.java"));
+        String managedSession = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/assistant/ManagedJarvisVoiceSession.java"));
 
         check(smoke.contains("cmd role add-role-holder android.app.role.ASSISTANT"),
                 "assistant smoke must still install JARVIS as Android's assistant role holder");
@@ -36,6 +38,12 @@ public final class AndroidAssistantInvocationContractTest {
                 "assistant smoke must prove Android requested a JARVIS VoiceInteractionSession");
         check(smoke.contains("JARVIS_ASSISTANT_READY"),
                 "assistant smoke must prove the JARVIS session content became ready");
+        check(session.contains("catch (RuntimeException lockStateFailure)")
+                        && session.contains("Lock-screen state probe failed; blocking Assistant session")
+                        && session.contains("JARVIS_LOCK_SCREEN_BLOCKED"),
+                "Samsung/OEM Keyguard Binder failures must fail closed through the normal blocked lock-screen Assistant path instead of escaping onShow");
+        check(managedSession.contains("try {\n            super.onHide();\n        } finally {\n            JarvisVoiceInteractionService.rearmPassiveWakeAfterSession();"),
+                "a lock-screen-blocked Assistant hide must still re-arm passive Jarvis wake even if session cleanup encounters an OEM lifecycle failure");
 
         System.out.println("AndroidAssistantInvocationContractTest passed");
     }
