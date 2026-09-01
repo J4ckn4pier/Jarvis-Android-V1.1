@@ -91,6 +91,9 @@ public final class AndroidVoiceTtsCallbackGenerationContractTest {
                 "TTS start-watchdog expiry must be observable as a Samsung/OEM voice-session recovery event");
         check(session.contains("@Override public void onStart(String utteranceId) {\n                    if (!isCurrentSpeechCallback(utteranceId)) return;\n                    invalidateTtsStartWatchdog();"),
                 "a real onStart callback must cancel the short start watchdog while preserving the terminal watchdog for completion");
+        check(session.contains("@Override public void onStop(String utteranceId, boolean interrupted)")
+                        && occurrences(session, "output.post(() -> finishSpeechCallback(utteranceId))") >= 3,
+                "Samsung/OEM onStop must be treated as a terminal TTS event so an internally stopped utterance cannot strand conversational listening");
         check(!session.contains("recognognitionAvailable"),
                 "voice-session source must keep the recognizer availability guard compilable while TTS recovery is hardened");
 
