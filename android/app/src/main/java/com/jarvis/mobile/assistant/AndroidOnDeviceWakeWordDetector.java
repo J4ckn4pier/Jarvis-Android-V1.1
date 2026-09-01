@@ -38,6 +38,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     private static final long RESTART_DELAY_MS = 500L;
     private static final long RECREATE_DELAY_MS = 1200L;
     private static final long END_OF_SPEECH_WATCHDOG_MS = 3000L;
+    private static final long READY_WATCHDOG_MS = 4000L;
     private static final Pattern WAKE = Pattern.compile("(?i)(?:^|\\b)(?:hey\\s+)?jarvis(?:\\b|$)");
 
     private final Context context;
@@ -183,6 +184,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
 
     private void failClosedAfterSupportCheck() {
         cancelEndOfSpeechWatchdog();
+        cancelReadyWatchdog();
         listening = false;
         running = false;
         systemOfflineVerified = false;
@@ -273,6 +275,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     @TargetApi(Build.VERSION_CODES.S)
     private boolean recreateRecognizer() {
         cancelEndOfSpeechWatchdog();
+        cancelReadyWatchdog();
         listening = false;
         usingDedicatedOnDeviceRecognizer = false;
         recognizerGeneration++;
@@ -313,6 +316,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
 
     private void startListening() {
         cancelEndOfSpeechWatchdog();
+        cancelReadyWatchdog();
         if (!running || wakeDispatched || recognizer == null || listening) return;
         if (!usingDedicatedOnDeviceRecognizer && !systemOfflineVerified) {
             status = "offline recognition is not verified";
@@ -322,6 +326,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         try {
             listening = true;
             recognizer.startListening(intent);
+            main.postDelayed(readyWatchdog, READY_WATCHDOG_MS);
         } catch (RuntimeException failure) {
             listening = false;
             status = "Android wake listen failed: " + failure.getClass().getSimpleName();
@@ -333,6 +338,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     private void scheduleRestart(long delayMs) {
         if (!running || wakeDispatched) return;
         cancelEndOfSpeechWatchdog();
+        cancelReadyWatchdog();
         main.removeCallbacks(restart);
         main.removeCallbacks(recreateAndRestart);
         main.postDelayed(restart, delayMs);
@@ -341,6 +347,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     private void scheduleRecreate(long delayMs) {
         if (!running || wakeDispatched) return;
         cancelEndOfSpeechWatchdog();
+        cancelReadyWatchdog();
         main.removeCallbacks(restart);
         main.removeCallbacks(recreateAndRestart);
         main.postDelayed(recreateAndRestart, delayMs);
@@ -350,10 +357,22 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         main.removeCallbacks(endOfSpeechWatchdog);
     }
 
+    private void cancelReadyWatchdog() {
+        main.removeCallbacks(readyWatchdog);
+    }
+
     private final Runnable endOfSpeechWatchdog = () -> {
         if (!running || wakeDispatched || listening) return;
         status = "wake recognizer stalled after end of speech; recovering";
         Log.w(TAG, "JARVIS_WAKE_END_OF_SPEECH_STALL");
+        scheduleRecreate(RECREATE_DELAY_MS);
+    };
+
+    private final Runnable readyWatchdog = () -> {
+        if (!running || wakeDispatched || !listening) return;
+        listening = false;
+        status = "wake recognizer stalled before ready; recovering";
+        Log.w(TAG, "JARVIS_WAKE_READY_STALL");
         scheduleRecreate(RECREATE_DELAY_MS);
     };
 
@@ -381,6 +400,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         running = false;
         recognizerGeneration++;
         cancelEndOfSpeechWatchdog();
+        cancelReadyWatchdog();
         main.removeCallbacks(restart);
         main.removeCallbacks(recreateAndRestart);
         if (recognizer != null) {
@@ -396,6 +416,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         systemOfflineVerified = false;
         recognizerGeneration++;
         cancelEndOfSpeechWatchdog();
+        cancelReadyWatchdog();
         main.removeCallbacks(restart);
         main.removeCallbacks(recreateAndRestart);
         if (recognizer != null) {
@@ -408,6 +429,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     }
 
     @Override public void onReadyForSpeech(Bundle params) {
+        cancelReadyWatchdog();
         cancelEndOfSpeechWatchdog();
         listening = true;
         status = usingDedicatedOnDeviceRecognizer
@@ -415,17 +437,19 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
                 : "listening with verified offline Android system recognition for Jarvis / Hey Jarvis";
     }
 
-    @Override public void onBeginningOfSpeech() { }
-    @Override public void onRmsChanged(float rmsdB) { }
-    @Override public void onBufferReceived(byte[] buffer) { }
+    @Override public void onBeginningOfSpeech() { cancelReadyWatchdog(); }
+    @Override public void onRmsChanged(float rmsdB) { cancelReadyWatchdog(); }
+    @Override public void onBufferReceived(byte[] buffer) { cancelReadyWatchdog(); }
     @Override public void onEndOfSpeech() {
         if (!running || wakeDispatched) return;
+        cancelReadyWatchdog();
         listening = false;
         cancelEndOfSpeechWatchdog();
         main.postDelayed(endOfSpeechWatchdog, END_OF_SPEECH_WATCHDOG_MS);
     }
 
     @Override public void onError(int error) {
+        cancelReadyWatchdog();
         cancelEndOfSpeechWatchdog();
         listening = false;
         if (!running || wakeDispatched) return;
@@ -449,14 +473,18 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     }
 
     @Override public void onResults(Bundle results) {
+        cancelReadyWatchdog();
         cancelEndOfSpeechWatchdog();
         listening = false;
         inspect(results);
         scheduleRestart(RESTART_DELAY_MS);
     }
 
-    @Override public void onPartialResults(Bundle partialResults) { inspect(partialResults); }
-    @Override public void onEvent(int eventType, Bundle params) { }
+    @Override public void onPartialResults(Bundle partialResults) {
+        cancelReadyWatchdog();
+        inspect(partialResults);
+    }
+    @Override public void onEvent(int eventType, Bundle params) { cancelReadyWatchdog(); }
 
     private void inspect(Bundle bundle) {
         if (!running || wakeDispatched || bundle == null) return;
