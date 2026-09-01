@@ -59,6 +59,13 @@ public final class AndroidOnDeviceWakeDetectorContractTest {
                 "Samsung/OEM onEndOfSpeech without a terminal result/error must have a bounded watchdog so passive wake cannot remain silently deaf");
         check(detector.contains("main.removeCallbacks(endOfSpeechWatchdog)"),
                 "every terminal, restart, stop, and wake-handoff path must be able to cancel the passive end-of-speech watchdog");
+        check(detector.contains("READY_WATCHDOG_MS")
+                        && detector.contains("readyWatchdog")
+                        && detector.contains("main.postDelayed(readyWatchdog, READY_WATCHDOG_MS)"),
+                "passive wake must recover when Samsung/OEM accepts startListening but never reports recognizer readiness or another callback");
+        check(detector.contains("main.removeCallbacks(readyWatchdog)")
+                        && detector.contains("wake recognizer stalled before ready; recovering"),
+                "passive pre-ready recovery must be cancelable by healthy callbacks and rebuild the wedged recognizer instead of leaving wake silently deaf");
 
         check(detector.contains("getSharedPreferences(\"jarvis_shell\""), "wake detector must read the same persisted JARVIS language setting as active conversation");
         check(detector.contains("getString(\"language\""), "wake detector must resolve its recognizer language from the visible Language setting");
