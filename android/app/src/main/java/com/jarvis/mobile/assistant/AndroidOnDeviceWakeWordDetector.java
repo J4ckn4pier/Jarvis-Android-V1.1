@@ -155,8 +155,9 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
 
                 @Override public void onError(int error) {
                     if (!running || generation != recognizerGeneration) return;
-                    status = "Android could not prove offline speech support (error " + error + ")";
-                    failClosedAfterSupportCheck();
+                    status = "Android offline support verification error " + error + "; retrying";
+                    Log.w(TAG, "JARVIS_WAKE_OFFLINE_SUPPORT_ERROR error=" + error);
+                    scheduleOfflineSupportRetry();
                 }
             });
             return true;
