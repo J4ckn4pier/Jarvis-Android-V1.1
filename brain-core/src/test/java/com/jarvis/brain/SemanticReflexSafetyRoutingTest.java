@@ -17,6 +17,7 @@ public final class SemanticReflexSafetyRoutingTest {
         descriptiveAlarmPhraseFallsThroughToCortex();
         descriptiveNearestGasStationPhraseFallsThroughToCortex();
         descriptiveDirectionsPhraseFallsThroughToCortex();
+        descriptiveDirectionsOpeningPhraseFallsThroughToCortex();
         descriptivePhoneCallPhraseFallsThroughToCortex();
         descriptiveOpenPhoneDiscussionFallsThroughToCortex();
         descriptivePlayPhraseFallsThroughToCortex();
@@ -97,6 +98,12 @@ public final class SemanticReflexSafetyRoutingTest {
         BrainResponse response = core.handle("I was reading directions to Denver before the meeting.");
         check(calls.get() == 1, "descriptive directions language must reach cortex");
         check(response.kind() == BrainResponse.Kind.CONVERSATION, "descriptive directions language must not start navigation");
+    }
+    private static void descriptiveDirectionsOpeningPhraseFallsThroughToCortex() {
+        AtomicInteger calls = new AtomicInteger(); AssistantCore core = coreWithRouter(calls);
+        BrainResponse response = core.handle("Directions are useful when road signs are unclear.");
+        check(calls.get() == 1, "descriptive directions-opening language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION, "descriptive directions-opening language must not start navigation");
     }
     private static void descriptivePhoneCallPhraseFallsThroughToCortex() {
         AtomicInteger calls = new AtomicInteger(); AssistantCore core = coreWithRouter(calls);
