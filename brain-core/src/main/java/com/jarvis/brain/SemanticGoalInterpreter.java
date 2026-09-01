@@ -128,7 +128,11 @@ public final class SemanticGoalInterpreter {
         if (!startsAsRequest(lower, cues)) return "";
         for (String cue : cues) {
             int idx = lower.indexOf(cue);
-            if (idx >= 0) return raw.substring(Math.min(raw.length(), idx + cue.length())).trim().replaceFirst("[.!?]+$", "").trim();
+            if (idx >= 0) {
+                String candidate = raw.substring(Math.min(raw.length(), idx + cue.length())).trim().replaceFirst("[.!?]+$", "").trim();
+                if (candidate.isBlank() || looksLikeDescriptiveClause(normalize(candidate))) return "";
+                return candidate;
+            }
         }
         return "";
     }
