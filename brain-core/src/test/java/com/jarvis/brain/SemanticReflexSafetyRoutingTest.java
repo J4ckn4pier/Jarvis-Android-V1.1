@@ -21,6 +21,7 @@ public final class SemanticReflexSafetyRoutingTest {
         descriptivePlayPhraseFallsThroughToCortex();
         descriptiveWebSearchPhraseFallsThroughToCortex();
         descriptiveSettingsPhraseFallsThroughToCortex();
+        explanatoryRemindMePhraseFallsThroughToCortex();
         directImperativeStillUsesSafeLocalReflex();
         System.out.println("SemanticReflexSafetyRoutingTest passed");
     }
@@ -115,6 +116,12 @@ public final class SemanticReflexSafetyRoutingTest {
         BrainResponse response = core.handle("Why does the phrase open settings confuse some voice assistants?");
         check(calls.get() == 1, "descriptive settings language must reach cortex");
         check(response.kind() == BrainResponse.Kind.CONVERSATION, "descriptive settings language must not open JARVIS settings");
+    }
+    private static void explanatoryRemindMePhraseFallsThroughToCortex() {
+        AtomicInteger calls = new AtomicInteger(); AssistantCore core = coreWithRouter(calls);
+        BrainResponse response = core.handle("Remind me why we decided to use local AI.");
+        check(calls.get() == 1, "explanatory remind-me language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION, "explanatory remind-me language must not create a reminder");
     }
     private static void directImperativeStillUsesSafeLocalReflex() {
         AtomicInteger calls = new AtomicInteger(); AssistantCore core = coreWithRouter(calls);
