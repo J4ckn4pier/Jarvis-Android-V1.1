@@ -19,6 +19,8 @@ public final class AndroidVoiceAecBargeInContractTest {
                 "Samsung/OEM exceptions while reading AudioRecord initialization state must be contained before microphone ownership");
         check(monitor.contains("private void releaseAudioRecordSafely(AudioRecord recorder)"),
                 "Samsung/OEM exceptions while releasing a rejected AudioRecord must not escape the TTS-to-microphone handoff boundary");
+        check(monitor.contains("private void releaseEchoCancelerSafely(AcousticEchoCanceler aec)"),
+                "Samsung/OEM AEC setup failures must release partially-created echo cancellers before a later voice turn");
         check(monitor.contains("private boolean hasRecordAudioPermissionSafely()"),
                 "Samsung/OEM exceptions while probing runtime microphone permission must be contained at the AEC handoff boundary");
         check(monitor.contains("context.checkSelfPermission(Manifest.permission.RECORD_AUDIO)"),
