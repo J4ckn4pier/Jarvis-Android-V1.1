@@ -602,10 +602,8 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         if (!text.isBlank() && textToSpeech != null && voiceEnabled()) {
             applyVoicePreferences();
             String utteranceId = beginSpeechCallback();
-            if (speakResponseSafely(text, utteranceId)) {
-                scheduleTtsTerminalWatchdog(utteranceId);
-                bargeInMonitor.start(this::handleHandsFreeBargeIn);
-            } else {
+            if (speakResponseSafely(text, utteranceId)) bargeInMonitor.start(this::handleHandsFreeBargeIn);
+            else {
                 invalidateSpeechCallback();
                 if (resumeAfterSpeech) { resumeAfterSpeech = false; scheduleNextListen(); }
             }
@@ -620,7 +618,9 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         TextToSpeech engine = textToSpeech;
         if (engine == null) return false;
         try {
-            return engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId) == TextToSpeech.SUCCESS;
+            boolean accepted = engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId) == TextToSpeech.SUCCESS;
+            if (accepted) scheduleTtsTerminalWatchdog(utteranceId);
+            return accepted;
         } catch (RuntimeException speechFailure) {
             Log.w(VOICE_RECOGNIZER_TAG, "TTS playback failed; continuing without spoken output", speechFailure);
             return false;
