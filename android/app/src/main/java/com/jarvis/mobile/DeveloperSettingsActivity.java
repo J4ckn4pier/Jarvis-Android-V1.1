@@ -116,6 +116,7 @@ public final class DeveloperSettingsActivity extends Activity {
         }));
         body.addView(button("CLEAR REMOTE CONNECTION", () -> {
             remote.clearConnection();
+            remoteEndpoint.setText("");
             remoteToken.setText("");
             Toast.makeText(this, "Remote JARVIS connection removed.", Toast.LENGTH_SHORT).show();
         }));
