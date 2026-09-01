@@ -24,6 +24,8 @@ jobs:
         run: sh .github/scripts/remote-goal-client-contract.sh
       - name: Verify remote connection developer settings contract
         run: sh .github/scripts/remote-goal-developer-settings-contract.sh
+      - name: Verify Settings lock-screen SAVE/CANCEL contract
+        run: sh .github/scripts/settings-lock-screen-save-cancel-contract.sh
       - name: Verify remote project continuity contract
         run: sh .github/scripts/remote-goal-continuity-contract.sh
       - name: Verify remote progress UI continuity contract
