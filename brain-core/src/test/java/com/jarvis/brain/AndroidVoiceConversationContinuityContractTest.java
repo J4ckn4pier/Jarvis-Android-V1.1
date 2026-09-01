@@ -57,6 +57,14 @@ public final class AndroidVoiceConversationContinuityContractTest {
                         && session.contains("speechRecognizer = null;")
                         && session.contains("scheduleNextListen();"),
                 "recognizer-start recovery must invalidate callbacks, discard the failed recognizer, and reopen listening while the conversation remains active");
+        check(session.contains("private Boolean recognitionAvailableSafely()")
+                        && session.contains("Active recognizer availability probe failed; retrying")
+                        && session.contains("catch (RuntimeException availabilityFailure)"),
+                "Samsung/OEM exceptions from the active SpeechRecognizer availability Binder probe must be contained instead of escaping startListening");
+        check(session.contains("Boolean recognitionAvailable = recognitionAvailableSafely();")
+                        && session.contains("if (recognitionAvailable == null)")
+                        && session.contains("scheduleNextListen();"),
+                "a failed active recognizer availability probe must re-enter bounded conversational listening rather than strand the visible Assistant session");
         check(session.contains("private boolean terminalDelivered;")
                         && session.contains("private boolean claimTerminal()"),
                 "each active listening turn must latch its first terminal callback");
