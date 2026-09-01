@@ -41,6 +41,12 @@ public final class AndroidOnDeviceWakeDetectorContractTest {
         check(detector.contains("ERROR_CLIENT") && detector.contains("ERROR_RECOGNIZER_BUSY"), "wake recovery must explicitly handle client and busy recognizer failures seen on OEM speech stacks");
         check(detector.contains("status = \"Android recognizer unavailable during recovery\";\n                scheduleRecreate(2500L);"),
                 "failed recognizer recreation must keep retrying even when Samsung's dedicated on-device recognizer is the selected engine");
+        check(detector.contains("private boolean recognitionAvailableSafely()")
+                        && detector.contains("JARVIS_WAKE_AVAILABILITY_CHECK_FAILED")
+                        && detector.contains("catch (RuntimeException availabilityFailure)"),
+                "Samsung/OEM exceptions from SpeechRecognizer availability probes during internal recovery must be contained rather than escaping the main-thread recovery runnable");
+        check(detector.contains("if (!running || !recognitionAvailableSafely()) return false;"),
+                "recognizer recreation must use the protected availability probe so an OEM Binder failure returns to the bounded recreate loop");
 
         check(detector.contains("recognizerGeneration"),
                 "passive wake must generation-tag recognizers so callbacks from a destroyed Samsung/OEM recognizer cannot affect its replacement");
