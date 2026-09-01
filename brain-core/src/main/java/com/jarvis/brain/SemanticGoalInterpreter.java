@@ -63,7 +63,8 @@ public final class SemanticGoalInterpreter {
 
         if ((lower.contains("torch") || lower.contains("flashlight"))
                 && startsAsRequest(lower, "turn ", "switch ", "enable ", "disable ", "kill ", "flashlight ", "torch ")) {
-            boolean descriptive = lower.matches("(?:flashlight|torch)(?:\\s+technology)?\\s+(?:is|are|was|were|can|could|should|would|means|refers)\\b.*");
+            boolean descriptive = lower.matches("(?:flashlight|torch)(?:\\s+technology)?\\s+(?:is|are|was|were|can|could|should|would|means|refers)\\b.*")
+                    || lower.matches("(?:(?:turn|switch)\\s+(?:on|off)\\s+(?:the\\s+)?(?:flashlight|torch)|(?:enable|disable)\\s+(?:the\\s+)?(?:flashlight|torch)|kill\\s+(?:the\\s+)?(?:flashlight|torch)|(?:flashlight|torch)\\s+(?:on|off))\\s+(?:is|are|was|were|can|could|should|would|means|refers)\\b.*");
             if (!descriptive) {
                 String state = offLanguage(lower) ? "off" : onLanguage(lower) ? "on" : "";
                 if (!state.isBlank()) return Optional.of(new Plan("Set flashlight",
