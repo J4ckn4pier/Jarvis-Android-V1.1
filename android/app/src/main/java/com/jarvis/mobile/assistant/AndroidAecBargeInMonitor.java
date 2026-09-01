@@ -60,8 +60,8 @@ final class AndroidAecBargeInMonitor {
             } catch (RuntimeException unavailable) {
                 return false;
             }
-            if (candidate.getState() != AudioRecord.STATE_INITIALIZED) {
-                candidate.release();
+            if (!isInitializedSafely(candidate)) {
+                releaseAudioRecordSafely(candidate);
                 return false;
             }
 
@@ -69,17 +69,17 @@ final class AndroidAecBargeInMonitor {
             try {
                 candidateAec = AcousticEchoCanceler.create(candidate.getAudioSessionId());
                 if (candidateAec == null) {
-                    candidate.release();
+                    releaseAudioRecordSafely(candidate);
                     return false;
                 }
                 candidateAec.setEnabled(true);
                 if (!candidateAec.getEnabled()) {
                     candidateAec.release();
-                    candidate.release();
+                    releaseAudioRecordSafely(candidate);
                     return false;
                 }
             } catch (RuntimeException unavailable) {
-                candidate.release();
+                releaseAudioRecordSafely(candidate);
                 return false;
             }
 
@@ -125,6 +125,21 @@ final class AndroidAecBargeInMonitor {
         } catch (RuntimeException unavailable) {
             return AudioRecord.ERROR;
         }
+    }
+
+    private boolean isInitializedSafely(AudioRecord recorder) {
+        try {
+            return recorder.getState() == AudioRecord.STATE_INITIALIZED;
+        } catch (RuntimeException unavailable) {
+            return false;
+        }
+    }
+
+    private void releaseAudioRecordSafely(AudioRecord recorder) {
+        if (recorder == null) return;
+        try {
+            recorder.release();
+        } catch (RuntimeException ignored) { }
     }
 
     private void monitorLoop(Runnable onBargeIn) {
@@ -186,8 +201,6 @@ final class AndroidAecBargeInMonitor {
         }
         AudioRecord recorder = audioRecord;
         audioRecord = null;
-        if (recorder != null) {
-            try { recorder.release(); } catch (RuntimeException ignored) { }
-        }
+        releaseAudioRecordSafely(recorder);
     }
 }
