@@ -30,17 +30,14 @@ final class AndroidAecBargeInMonitor {
     }
 
     boolean isSupported() {
-        return context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-                && isAecAvailableSafely();
+        return hasRecordAudioPermissionSafely() && isAecAvailableSafely();
     }
 
     boolean start(Runnable onBargeIn) {
         if (onBargeIn == null || !isSupported()) return false;
         synchronized (lock) {
             stopLocked();
-            if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                return false;
-            }
+            if (!hasRecordAudioPermissionSafely()) return false;
             int minimum = minimumBufferSizeSafely();
             if (minimum <= 0) return false;
             int bufferBytes = Math.max(minimum, SAMPLE_RATE_HZ / 5 * 2);
@@ -65,7 +62,7 @@ final class AndroidAecBargeInMonitor {
                 return false;
             }
 
-            AcousticEchoCanceler candidateAec;
+            AcousticEchoCanceler candidateAec = null;
             try {
                 candidateAec = AcousticEchoCanceler.create(candidate.getAudioSessionId());
                 if (candidateAec == null) {
@@ -74,11 +71,12 @@ final class AndroidAecBargeInMonitor {
                 }
                 candidateAec.setEnabled(true);
                 if (!candidateAec.getEnabled()) {
-                    candidateAec.release();
+                    releaseEchoCancelerSafely(candidateAec);
                     releaseAudioRecordSafely(candidate);
                     return false;
                 }
             } catch (RuntimeException unavailable) {
+                releaseEchoCancelerSafely(candidateAec);
                 releaseAudioRecordSafely(candidate);
                 return false;
             }
@@ -105,6 +103,14 @@ final class AndroidAecBargeInMonitor {
     void stop() {
         synchronized (lock) {
             stopLocked();
+        }
+    }
+
+    private boolean hasRecordAudioPermissionSafely() {
+        try {
+            return context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+        } catch (RuntimeException unavailable) {
+            return false;
         }
     }
 
@@ -142,6 +148,13 @@ final class AndroidAecBargeInMonitor {
         } catch (RuntimeException ignored) { }
     }
 
+    private void releaseEchoCancelerSafely(AcousticEchoCanceler aec) {
+        if (aec == null) return;
+        try {
+            aec.release();
+        } catch (RuntimeException ignored) { }
+    }
+
     private void monitorLoop(Runnable onBargeIn) {
         short[] buffer = new short[Math.max(320, SAMPLE_RATE_HZ / 20)];
         int hotFrames = 0;
@@ -151,7 +164,8 @@ final class AndroidAecBargeInMonitor {
                 AudioRecord recorder = audioRecord;
                 if (recorder == null) break;
                 int read = recorder.read(buffer, 0, buffer.length, AudioRecord.READ_BLOCKING);
-                if (read <= 0) continue;
+                if (read < 0) break;
+                if (read == 0) continue;
                 if (averageAbsoluteAmplitude(buffer, read) >= ENERGY_THRESHOLD) {
                     hotFrames++;
                     if (hotFrames >= REQUIRED_HOT_FRAMES) {
@@ -196,9 +210,7 @@ final class AndroidAecBargeInMonitor {
     private void releaseCaptureLocked() {
         AcousticEchoCanceler aec = echoCanceler;
         echoCanceler = null;
-        if (aec != null) {
-            try { aec.release(); } catch (RuntimeException ignored) { }
-        }
+        releaseEchoCancelerSafely(aec);
         AudioRecord recorder = audioRecord;
         audioRecord = null;
         releaseAudioRecordSafely(recorder);
