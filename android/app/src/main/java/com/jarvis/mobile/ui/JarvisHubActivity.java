@@ -17,8 +17,14 @@ public final class JarvisHubActivity extends JarvisChromeActivity {
 
         body.addView(section("PLANNING"));
         body.addView(row("Tasks & Projects", "Saved tasks and project state", open(TasksProjectsActivity.class)));
+        body.addView(row("Routines", "Saved automation routines and their current state", open(RoutinesActivity.class)));
+        body.addView(row("Calendar", "Calendar items exposed by the production UI backend", open(CalendarActivity.class)));
+
+        body.addView(section("COMMUNICATION"));
+        body.addView(row("Messages", "Messages exposed by the production UI backend", open(MessagesActivity.class)));
 
         body.addView(section("TOOLS"));
+        body.addView(row("Devices", "Known device state exposed by the production UI backend", open(DevicesActivity.class)));
         body.addView(row("Music", "Now playing and persisted queue state", open(MusicActivity.class)));
         body.addView(row("Connect", "Registered integrations; OAuth is not yet implemented", open(ConnectActivity.class)));
         body.addView(row("Browser", "Saved bookmarks", open(BrowserActivity.class)));
