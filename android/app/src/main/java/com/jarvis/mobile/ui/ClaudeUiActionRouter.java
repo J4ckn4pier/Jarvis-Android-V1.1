@@ -31,11 +31,12 @@ public final class ClaudeUiActionRouter {
     public static final String ACTION_ACTIVITY_FEED = "activity_feed";
     public static final String ACTION_BROWSER = "browser";
     public static final String ACTION_HUB = "hub";
+    public static final String ACTION_TASKS_PROJECTS = "tasks_projects";
     public static final String ACTION_DEFAULT_ASSISTANT = "default_assistant";
     public static final String ACTION_NOTIFICATION_ACCESS = "notification_access";
     public static final String ACTION_ACCESSIBILITY = "accessibility";
 
-    private static final String SUPPORTED_ACTIONS_JSON = "[\"listen\",\"settings\",\"developer_options\",\"help\",\"notes\",\"memory\",\"routines\",\"skills\",\"overlays\",\"activity_feed\",\"browser\",\"hub\",\"default_assistant\",\"notification_access\",\"accessibility\"]";
+    private static final String SUPPORTED_ACTIONS_JSON = "[\"listen\",\"settings\",\"developer_options\",\"help\",\"notes\",\"memory\",\"routines\",\"skills\",\"overlays\",\"activity_feed\",\"browser\",\"hub\",\"tasks_projects\",\"default_assistant\",\"notification_access\",\"accessibility\"]";
     private static final int ASSISTANT_ROLE_REQUEST = 8101;
 
     private final Activity activity;
@@ -83,6 +84,7 @@ public final class ClaudeUiActionRouter {
             case ACTION_ACTIVITY_FEED:
             case ACTION_BROWSER:
             case ACTION_HUB:
+            case ACTION_TASKS_PROJECTS:
             case ACTION_DEFAULT_ASSISTANT:
             case ACTION_NOTIFICATION_ACCESS:
             case ACTION_ACCESSIBILITY:
@@ -138,6 +140,9 @@ public final class ClaudeUiActionRouter {
                 break;
             case ACTION_HUB:
                 activity.startActivity(new Intent(activity, JarvisHubActivity.class));
+                break;
+            case ACTION_TASKS_PROJECTS:
+                activity.startActivity(new Intent(activity, TasksProjectsActivity.class));
                 break;
             case ACTION_DEFAULT_ASSISTANT:
                 requestAssistantRole();
