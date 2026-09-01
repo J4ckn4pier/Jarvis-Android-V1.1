@@ -213,7 +213,7 @@ public class SettingsActivity extends Activity {
             if(endpointValue.isEmpty())endpointValue=DEFAULT_LOCAL_AI_ENDPOINT;
             if(modelValue.isEmpty())modelValue=DEFAULT_LOCAL_AI_MODEL;
             if(!LocalAiEndpointPolicy.allows(endpointValue)){
-                Toast.makeText(this,"Use a local .local hostname, localhost, or loopback address for Free Local AI.",Toast.LENGTH_LONG).show();
+                Toast.makeText(this,"Use a local .local hostname, localhost, loopback, or Android emulator host 10.0.2.2 for Free Local AI.",Toast.LENGTH_LONG).show();
                 return;
             }
             cortex.edit().putString("mode",CortexProviderFactory.MODE_OPENAI_COMPATIBLE).putString("endpoint",endpointValue).putString("model",modelValue).apply();
