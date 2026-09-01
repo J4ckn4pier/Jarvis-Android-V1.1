@@ -131,7 +131,7 @@ public final class BrainEngine {
         if (isFlashlightCommand(lower)) return action("Set flashlight", "set_flashlight", Map.of("state", flashlightState(lower)), false, acceptedWithoutWake, context);
         if (isCalendarQueryRequest(lower)) return action("Query calendar", "calendar_query", Map.of("when", lower.contains("tomorrow") ? "tomorrow" : "today"), false, acceptedWithoutWake, context);
         if (isNotificationQueryRequest(lower)) return action("Query notifications", "notification_query", Map.of(), false, acceptedWithoutWake, context);
-        if (lower.startsWith("translate ")) return action("Translate", "translate", Map.of("request", input.substring(10).trim()), false, acceptedWithoutWake, context);
+        if (isDirectTranslateRequest(lower)) return action("Translate", "translate", Map.of("request", input.substring(10).trim()), false, acceptedWithoutWake, context);
         Matcher text = Pattern.compile("(?i)^(?:text|message)\\s+([^,]+?)\\s+(.+)$").matcher(input);
         if (text.matches() && isHighConfidenceMessageRecipient(text.group(1))) return action("Send message", "send_message", Map.of("recipient", text.group(1).trim(), "message", text.group(2).trim()), true, acceptedWithoutWake, context);
         return null;
@@ -157,6 +157,11 @@ public final class BrainEngine {
     private static boolean isDirectMediaPlayRequest(String lower) {
         if (!lower.startsWith("play ")) return false;
         return !lower.matches("play\\s+(?:is|was|were|has|had|can|could|should|would|means|refers)\\b.*");
+    }
+
+    private static boolean isDirectTranslateRequest(String lower) {
+        if (!lower.startsWith("translate ")) return false;
+        return !lower.matches("translate\\s+(?:is|was|were|has|had|can|could|should|would|means|refers)\\b.*");
     }
 
     private static boolean isExplicitWebSearch(String lower) {
