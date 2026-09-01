@@ -135,7 +135,10 @@ public final class BrainEngine {
         if (isNotificationQueryRequest(lower)) return action("Query notifications", "notification_query", Map.of(), false, acceptedWithoutWake, context);
         if (isDirectTranslateRequest(lower)) return action("Translate", "translate", Map.of("request", input.substring(10).trim()), false, acceptedWithoutWake, context);
         Matcher text = Pattern.compile("(?i)^(?:text|message)\\s+([^,]+?)\\s+(.+)$").matcher(input);
-        if (text.matches() && isHighConfidenceMessageRecipient(text.group(1))) return action("Send message", "send_message", Map.of("recipient", text.group(1).trim(), "message", text.group(2).trim()), true, acceptedWithoutWake, context);
+        if (text.matches() && isHighConfidenceMessageRecipient(text.group(1))
+                && !looksLikeDescriptiveContinuation(text.group(2).trim().toLowerCase(Locale.ROOT))) {
+            return action("Send message", "send_message", Map.of("recipient", text.group(1).trim(), "message", text.group(2).trim()), true, acceptedWithoutWake, context);
+        }
         return null;
     }
 
