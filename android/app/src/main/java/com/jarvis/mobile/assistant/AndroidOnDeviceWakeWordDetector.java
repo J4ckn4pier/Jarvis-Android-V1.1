@@ -120,7 +120,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         wakeDispatched = false;
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-                && SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
+                && dedicatedOnDeviceRecognitionAvailableSafely()) {
             if (!recreateRecognizer()) {
                 running = false;
                 onWake = null;
@@ -325,6 +325,17 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     }
 
     @TargetApi(Build.VERSION_CODES.S)
+    private boolean dedicatedOnDeviceRecognitionAvailableSafely() {
+        try {
+            return SpeechRecognizer.isOnDeviceRecognitionAvailable(context);
+        } catch (RuntimeException availabilityFailure) {
+            status = "Android dedicated on-device recognizer probe failed: " + availabilityFailure.getClass().getSimpleName();
+            Log.w(TAG, "JARVIS_WAKE_ON_DEVICE_AVAILABILITY_CHECK_FAILED", availabilityFailure);
+            return false;
+        }
+    }
+
+    @TargetApi(Build.VERSION_CODES.S)
     private boolean recreateRecognizer() {
         cancelEndOfSpeechWatchdog();
         cancelReadyWatchdog();
@@ -344,7 +355,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         }
         try {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-                    && SpeechRecognizer.isOnDeviceRecognitionAvailable(context)) {
+                    && dedicatedOnDeviceRecognitionAvailableSafely()) {
                 recognizer = SpeechRecognizer.createOnDeviceSpeechRecognizer(context);
                 usingDedicatedOnDeviceRecognizer = true;
                 systemOfflineVerified = false;
