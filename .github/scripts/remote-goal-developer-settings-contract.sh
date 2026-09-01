@@ -22,6 +22,10 @@ require 'saveConnection' "$DEV"
 require 'clearConnection' "$DEV"
 require 'TYPE_TEXT_VARIATION_PASSWORD' "$DEV"
 
+# Clearing the persisted connection must immediately clear the visible endpoint too.
+# Otherwise Developer Options claims a remote endpoint is still configured after disconnect.
+require 'remoteEndpoint.setText("");' "$DEV"
+
 # Normal user settings stays product-facing and must not expose raw remote URLs/tokens.
 if grep -Eiq 'remote jarvis endpoint|connection token|bearer token|save remote connection' "$USER"; then
   echo "Remote developer connection controls leaked into normal Settings" >&2
