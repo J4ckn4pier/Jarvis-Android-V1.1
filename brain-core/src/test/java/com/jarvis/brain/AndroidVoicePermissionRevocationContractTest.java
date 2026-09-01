@@ -20,6 +20,13 @@ public final class AndroidVoicePermissionRevocationContractTest {
                 "permission-loss recovery must invalidate callbacks, cancel pending relistens, and release the recognizer");
         check(session.contains("Microphone permission"),
                 "permission loss must surface a truthful microphone-permission message");
+        check(session.contains("private Boolean microphonePermissionGrantedSafely()"),
+                "active listening must protect the runtime microphone-permission probe from Samsung/OEM package-service failures");
+        check(session.contains("MICROPHONE_PERMISSION_PROBE_FAILED"),
+                "permission-probe failures must leave explicit runtime evidence");
+        check(session.contains("Boolean microphonePermissionGranted = microphonePermissionGrantedSafely();")
+                        && session.contains("if (microphonePermissionGranted == null)"),
+                "an indeterminate microphone-permission probe must recover without crashing or pretending permission was denied");
         check(session.contains("handleRecognitionResultsSafely(results)"),
                 "active Assistant final-result Bundles must cross a Samsung/OEM exception boundary before command execution");
         check(session.contains("handleRecognitionPartialSafely(partialResults)"),

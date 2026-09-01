@@ -346,6 +346,15 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         scheduleNextListen();
     }
 
+    private Boolean microphonePermissionGrantedSafely() {
+        try {
+            return getContext().checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+        } catch (RuntimeException permissionProbeFailure) {
+            Log.w(VOICE_RECOGNIZER_TAG, "MICROPHONE_PERMISSION_PROBE_FAILED", permissionProbeFailure);
+            return null;
+        }
+    }
+
     private Boolean recognitionAvailableSafely() {
         try {
             return SpeechRecognizer.isRecognitionAvailable(getContext());
@@ -386,8 +395,15 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
             setActive(false);
             return;
         }
-        if (getContext().checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            output.setText("Open JARVIS once and grant Microphone permission.");
+        Boolean microphonePermissionGranted = microphonePermissionGrantedSafely();
+        if (microphonePermissionGranted == null) {
+            if (output != null) output.setText("Listening paused briefly; I’ll reopen it.");
+            setActive(false);
+            scheduleNextListen();
+            return;
+        }
+        if (!microphonePermissionGranted) {
+            if (output != null) output.setText("Open JARVIS once and grant Microphone permission.");
             setActive(false);
             return;
         }
@@ -399,7 +415,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
             return;
         }
         if (!recognitionAvailable) {
-            output.setText("Android speech recognition is unavailable.");
+            if (output != null) output.setText("Android speech recognition is unavailable.");
             setActive(false);
             return;
         }
