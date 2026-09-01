@@ -59,6 +59,7 @@ public final class ClaudeUiActionRouter {
 
     @JavascriptInterface
     public void action(String action) {
+        if (!isActionAvailable(action)) return;
         activity.runOnUiThread(() -> dispatch(action));
     }
 
@@ -233,6 +234,10 @@ public final class ClaudeUiActionRouter {
             default:
                 break;
         }
+    }
+
+    private boolean isActionAvailable(String action) {
+        return actionAvailability(action).contains("\"enabled\":true");
     }
 
     private void dispatchMediaKey(int keyCode) {
