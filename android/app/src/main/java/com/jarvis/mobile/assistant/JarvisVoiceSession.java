@@ -817,6 +817,9 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
                 @Override public void onError(String utteranceId) {
                     if (output != null) output.post(() -> finishSpeechCallback(utteranceId));
                 }
+                @Override public void onStop(String utteranceId, boolean interrupted) {
+                    if (output != null) output.post(() -> finishSpeechCallback(utteranceId));
+                }
             });
         } catch (RuntimeException listenerFailure) {
             Log.w(VOICE_RECOGNIZER_TAG, "TTS progress-listener attachment failed; retiring speech engine", listenerFailure);
