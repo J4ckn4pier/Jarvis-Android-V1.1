@@ -5,10 +5,10 @@ ROUTER="android/app/src/main/java/com/jarvis/mobile/ui/ClaudeUiActionRouter.java
 SETTINGS="android/app/src/main/java/com/jarvis/mobile/SettingsActivity.java"
 DEV="android/app/src/main/java/com/jarvis/mobile/DeveloperSettingsActivity.java"
 
-# Canonical presentation must be able to open the real provider surface directly.
+# Canonical presentation must expose the production Settings-hosted provider surface.
 grep -q 'ACTION_AI_PROVIDERS = "ai_providers"' "$ROUTER"
-grep -q 'ACTION_AI_PROVIDERS' "$ROUTER"
-grep -q 'EXTRA_OPEN_AI_PROVIDERS' "$SETTINGS"
+grep -q 'case ACTION_AI_PROVIDERS:' "$ROUTER"
+grep -q 'SettingsActivity.class' "$ROUTER"
 grep -q 'showProviderConnections' "$SETTINGS"
 
 # User-facing provider choices must preserve the free/local Ollama path.
