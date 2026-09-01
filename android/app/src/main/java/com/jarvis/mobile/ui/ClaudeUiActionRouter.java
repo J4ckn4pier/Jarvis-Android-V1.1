@@ -35,6 +35,7 @@ public final class ClaudeUiActionRouter {
     public static final String ACTION_CALENDAR = "calendar";
     public static final String ACTION_MESSAGES = "messages";
     public static final String ACTION_DEVICES = "devices";
+    public static final String ACTION_MUSIC = "music";
     public static final String ACTION_BROWSER = "browser";
     public static final String ACTION_HUB = "hub";
     public static final String ACTION_TASKS_PROJECTS = "tasks_projects";
@@ -45,7 +46,7 @@ public final class ClaudeUiActionRouter {
     public static final String ACTION_NOTIFICATION_ACCESS = "notification_access";
     public static final String ACTION_ACCESSIBILITY = "accessibility";
 
-    private static final String SUPPORTED_ACTIONS_JSON = "[\"listen\",\"settings\",\"developer_options\",\"help\",\"notes\",\"memory\",\"routines\",\"skills\",\"overlays\",\"activity_feed\",\"calendar\",\"messages\",\"devices\",\"browser\",\"hub\",\"tasks_projects\",\"media_previous\",\"media_play_pause\",\"media_next\",\"default_assistant\",\"notification_access\",\"accessibility\"]";
+    private static final String SUPPORTED_ACTIONS_JSON = "[\"listen\",\"settings\",\"developer_options\",\"help\",\"notes\",\"memory\",\"routines\",\"skills\",\"overlays\",\"activity_feed\",\"calendar\",\"messages\",\"devices\",\"music\",\"browser\",\"hub\",\"tasks_projects\",\"media_previous\",\"media_play_pause\",\"media_next\",\"default_assistant\",\"notification_access\",\"accessibility\"]";
     private static final int ASSISTANT_ROLE_REQUEST = 8101;
 
     private final Activity activity;
@@ -54,18 +55,11 @@ public final class ClaudeUiActionRouter {
         this.activity = activity;
     }
 
-    /** Backward-compatible fire-and-forget entry point for the trusted packaged UI. */
     @JavascriptInterface
     public void action(String action) {
         activity.runOnUiThread(() -> dispatch(action));
     }
 
-    /**
-     * Structured entry point for the canonical UI.
-     *
-     * This reports whether Android accepted the presentation request for dispatch; it deliberately
-     * does not pretend that a downstream activity or system panel completed successfully.
-     */
     @JavascriptInterface
     public String actionWithResult(String action) {
         String safeAction = jsonEscape(action == null ? "" : action);
@@ -76,7 +70,6 @@ public final class ClaudeUiActionRouter {
         return "{\"accepted\":true,\"action\":\"" + safeAction + "\",\"reason\":\"queued\"}";
     }
 
-    /** Allows the canonical HTML to hide/disable controls that are not wired in this APK. */
     @JavascriptInterface
     public boolean isSupported(String action) {
         if (action == null) return false;
@@ -94,6 +87,7 @@ public final class ClaudeUiActionRouter {
             case ACTION_CALENDAR:
             case ACTION_MESSAGES:
             case ACTION_DEVICES:
+            case ACTION_MUSIC:
             case ACTION_BROWSER:
             case ACTION_HUB:
             case ACTION_TASKS_PROJECTS:
@@ -109,7 +103,6 @@ public final class ClaudeUiActionRouter {
         }
     }
 
-    /** Stable JSON capability list for Claude's packaged UI; contains presentation actions only. */
     @JavascriptInterface
     public String supportedActions() {
         return SUPPORTED_ACTIONS_JSON;
@@ -158,6 +151,9 @@ public final class ClaudeUiActionRouter {
                 break;
             case ACTION_DEVICES:
                 activity.startActivity(new Intent(activity, DevicesActivity.class));
+                break;
+            case ACTION_MUSIC:
+                activity.startActivity(new Intent(activity, MusicActivity.class));
                 break;
             case ACTION_BROWSER:
                 activity.startActivity(new Intent(activity, BrowserActivity.class));
