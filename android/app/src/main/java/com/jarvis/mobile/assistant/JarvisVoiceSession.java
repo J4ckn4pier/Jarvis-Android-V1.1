@@ -200,8 +200,13 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private boolean lockScreenAssistantAllowed() {
         boolean enabled = preferences == null || preferences.getBoolean("lock_screen_assistant_enabled", true);
         if (enabled) return true;
-        KeyguardManager keyguard = (KeyguardManager) getContext().getSystemService(Context.KEYGUARD_SERVICE);
-        return keyguard == null || !keyguard.isDeviceLocked();
+        try {
+            KeyguardManager keyguard = (KeyguardManager) getContext().getSystemService(Context.KEYGUARD_SERVICE);
+            return keyguard == null || !keyguard.isDeviceLocked();
+        } catch (RuntimeException lockStateFailure) {
+            Log.w(VOICE_RECOGNIZER_TAG, "Lock-screen state probe failed; blocking Assistant session", lockStateFailure);
+            return false;
+        }
     }
 
     private String debugTestCommand(Bundle args) {
