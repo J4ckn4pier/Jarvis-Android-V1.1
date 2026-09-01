@@ -18,6 +18,7 @@ import com.jarvis.mobile.R;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.stream.Collectors;
 
 /**
  * "Music" screen: Now Playing transport plus queue, matching the canonical prototype's Music
@@ -39,7 +40,7 @@ public final class MusicActivity extends JarvisChromeActivity {
         List<MusicTrack> queue = ui.music().queue();
         List<MusicTrack> visible = query.isBlank() ? queue : queue.stream()
                 .filter(t -> (t.title() + " " + t.artist()).toLowerCase(Locale.ROOT).contains(query.toLowerCase(Locale.ROOT)))
-                .toList();
+                .collect(Collectors.toList());
         if (visible.isEmpty()) {
             body.addView(emptyState(queue.isEmpty() ? "Queue is empty." : "No matches."));
             return;
