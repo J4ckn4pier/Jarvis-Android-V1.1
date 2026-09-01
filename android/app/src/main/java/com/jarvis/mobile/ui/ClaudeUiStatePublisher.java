@@ -14,13 +14,18 @@ import org.json.JSONObject;
  */
 public final class ClaudeUiStatePublisher {
     static final String STATE_EVENT = "jarvis:state";
+    static final String IDLE = "idle";
+    static final String LISTENING = "listening";
+    static final String THINKING = "thinking";
+    static final String RESPONDING = "responding";
+    static final String ACTING = "acting";
 
     public enum State {
-        IDLE("idle"),
-        LISTENING("listening"),
-        THINKING("thinking"),
-        RESPONDING("responding"),
-        ACTING("acting");
+        IDLE(ClaudeUiStatePublisher.IDLE),
+        LISTENING(ClaudeUiStatePublisher.LISTENING),
+        THINKING(ClaudeUiStatePublisher.THINKING),
+        RESPONDING(ClaudeUiStatePublisher.RESPONDING),
+        ACTING(ClaudeUiStatePublisher.ACTING);
 
         private final String wireValue;
 
