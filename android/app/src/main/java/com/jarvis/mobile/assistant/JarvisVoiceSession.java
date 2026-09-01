@@ -442,26 +442,12 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
                 }
                 @Override public void onResults(Bundle results) {
                     if (!claimTerminal()) return;
-                    ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-                    if (matches == null || matches.isEmpty()) {
-                        output.setText("I didn’t catch that.");
-                        setActive(false);
-                        scheduleNextListen();
-                        return;
-                    }
-                    float[] scores = results.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES);
-                    double confidence = scores != null && scores.length > 0 && scores[0] >= 0.0f ? Math.min(1.0, scores[0]) : 0.0;
-                    execute(matches.get(0), confidence);
+                    handleRecognitionResultsSafely(results);
                 }
                 @Override public void onPartialResults(Bundle partialResults) {
                     if (stale()) return;
                     invalidateRecognitionReadyWatchdog();
-                    ArrayList<String> partial = partialResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-                    if (partial != null && !partial.isEmpty()) {
-                        lastPartial = partial.get(0);
-                        output.setText(lastPartial);
-                        Log.d("JARVIS_ENDPOINTING", "partial completeSilenceHintMs=" + endpointing.completeSilenceMillis(lastPartial));
-                    }
+                    handleRecognitionPartialSafely(partialResults);
                 }
                 @Override public void onEvent(int eventType, Bundle params) {
                     if (stale()) return;
@@ -480,6 +466,47 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         } catch (RuntimeException recognitionFailure) {
             recoverRecognitionStartFailure(recognitionFailure);
         }
+    }
+
+    private void handleRecognitionResultsSafely(Bundle results) {
+        try {
+            ArrayList<String> matches = results == null ? null : results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+            if (matches == null || matches.isEmpty()) {
+                output.setText("I didn’t catch that.");
+                setActive(false);
+                scheduleNextListen();
+                return;
+            }
+            float[] scores = results.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES);
+            double confidence = scores != null && scores.length > 0 && scores[0] >= 0.0f ? Math.min(1.0, scores[0]) : 0.0;
+            execute(matches.get(0), confidence);
+        } catch (RuntimeException resultFailure) {
+            recoverRecognitionResultCallback(resultFailure);
+        }
+    }
+
+    private void handleRecognitionPartialSafely(Bundle partialResults) {
+        try {
+            ArrayList<String> partial = partialResults == null ? null : partialResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+            if (partial != null && !partial.isEmpty()) {
+                lastPartial = partial.get(0);
+                output.setText(lastPartial);
+                Log.d("JARVIS_ENDPOINTING", "partial completeSilenceHintMs=" + endpointing.completeSilenceMillis(lastPartial));
+            }
+        } catch (RuntimeException resultFailure) {
+            recoverRecognitionResultCallback(resultFailure);
+        }
+    }
+
+    private void recoverRecognitionResultCallback(RuntimeException resultFailure) {
+        Log.w(VOICE_RECOGNIZER_TAG, "ACTIVE_RECOGNITION_RESULTS_CALLBACK_FAILED", resultFailure);
+        recognitionGeneration++;
+        invalidateRecognitionTerminalWatchdog();
+        invalidateRecognitionReadyWatchdog();
+        releaseSpeechRecognizerSafely();
+        setActive(false);
+        if (output != null) output.setText("Listening paused briefly; I’ll reopen it.");
+        scheduleNextListen();
     }
 
     private void handleRecognitionPermissionLoss() {
