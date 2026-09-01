@@ -337,6 +337,15 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         scheduleNextListen();
     }
 
+    private Boolean recognitionAvailableSafely() {
+        try {
+            return SpeechRecognizer.isRecognitionAvailable(getContext());
+        } catch (RuntimeException availabilityFailure) {
+            Log.w(VOICE_RECOGNIZER_TAG, "Active recognizer availability probe failed; retrying", availabilityFailure);
+            return null;
+        }
+    }
+
     private void startListening() {
         invalidateScheduledListen();
         invalidateRecognitionTerminalWatchdog();
@@ -352,7 +361,14 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
             setActive(false);
             return;
         }
-        if (!SpeechRecognizer.isRecognitionAvailable(getContext())) {
+        Boolean recognitionAvailable = recognitionAvailableSafely();
+        if (recognitionAvailable == null) {
+            if (output != null) output.setText("Listening paused briefly; I’ll reopen it.");
+            setActive(false);
+            scheduleNextListen();
+            return;
+        }
+        if (!recognitionAvailable) {
             output.setText("Android speech recognition is unavailable.");
             setActive(false);
             return;
