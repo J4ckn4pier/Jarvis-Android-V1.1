@@ -124,7 +124,10 @@ public final class BrainEngine {
             return action("Check follow-up weather", "weather_lookup", Map.of("location", lastWeatherLocation, "when", when), false, acceptedWithoutWake, context);
         }
         Matcher timer = Pattern.compile("(?i)set (?:a )?timer for (\\d+)\\s*(seconds?|minutes?|hours?)").matcher(input);
-        if (startsAsRequest(lower, "set ", "start ") && timer.find()) return action("Set timer", "set_timer", Map.of("amount", timer.group(1), "unit", timer.group(2)), false, acceptedWithoutWake, context);
+        if (startsAsRequest(lower, "set ", "start ") && timer.find()
+                && !looksLikeDescriptiveContinuation(lower.substring(timer.end()).trim())) {
+            return action("Set timer", "set_timer", Map.of("amount", timer.group(1), "unit", timer.group(2)), false, acceptedWithoutWake, context);
+        }
         if (isReminderCreationRequest(lower)) return action("Create reminder", "create_reminder", Map.of("request", input.substring(10).trim()), false, acceptedWithoutWake, context);
         if (isDirectNavigationRequest(lower)) return action("Navigate", "navigate", Map.of("destination", input.replaceFirst("(?i)^(navigate|directions)(?:\\s+to)?\\s+", "")), false, acceptedWithoutWake, context);
         if (isDirectMediaPlayRequest(lower)) return action("Play media", "media_play", Map.of("query", input.substring(5).trim()), false, acceptedWithoutWake, context);
@@ -135,6 +138,10 @@ public final class BrainEngine {
         Matcher text = Pattern.compile("(?i)^(?:text|message)\\s+([^,]+?)\\s+(.+)$").matcher(input);
         if (text.matches() && isHighConfidenceMessageRecipient(text.group(1))) return action("Send message", "send_message", Map.of("recipient", text.group(1).trim(), "message", text.group(2).trim()), true, acceptedWithoutWake, context);
         return null;
+    }
+
+    private static boolean looksLikeDescriptiveContinuation(String suffix) {
+        return suffix.matches("(?:is|are|was|were|can|could|should|would|means|mean|refers|refer)\\b.*");
     }
 
     private static boolean isHighConfidenceMessageRecipient(String recipient) {
