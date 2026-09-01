@@ -68,6 +68,17 @@ public final class AndroidVoiceTtsCallbackGenerationContractTest {
         check(session.contains("brain = new AndroidBrainRuntime(getContext());\n        initializeTextToSpeechSafely();"),
                 "onCreate must route OEM TTS construction through the safe boundary rather than constructing it inline");
 
+        check(session.contains("TTS_TERMINAL_CALLBACK_TIMEOUT_MILLIS"),
+                "accepted Samsung/OEM TTS playback must have a bounded terminal-callback watchdog");
+        check(session.contains("scheduleTtsTerminalWatchdog(utteranceId)"),
+                "successful TTS submission must arm a watchdog in case Samsung never sends onDone/onError");
+        check(session.contains("handleTtsTerminalTimeout(utteranceId)"),
+                "a missing Samsung TTS terminal callback must enter an explicit recovery path");
+        check(session.contains("invalidateTtsTerminalWatchdog()"),
+                "normal TTS completion, interruption, hide, and destroy must be able to cancel a stale TTS watchdog");
+        check(session.contains("TTS terminal callback timed out; reopening listening"),
+                "watchdog expiry must be observable as a Samsung/OEM voice-session recovery event");
+
         System.out.println("AndroidVoiceTtsCallbackGenerationContractTest: PASS");
     }
 
