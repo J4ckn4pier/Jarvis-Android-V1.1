@@ -56,6 +56,13 @@ public final class UserFacingSettingsContractTest {
         check(manifest.contains(".DeveloperSettingsActivity"), "developer settings must remain declared rather than deleted");
         check(manifest.contains(".SettingsActivity") && manifest.contains("@style/AppTheme"), "user Settings must use the canonical dark JARVIS theme");
 
+        check(settings.contains("Backup & Sync is not available in this prototype yet."),
+                "Backup & Sync must truthfully say when no production backup/sync runtime exists");
+        check(!settings.contains("backup_sync_enabled") && !settings.contains("Allow configured remote sync"),
+                "Backup & Sync must not persist or advertise a non-consumed remote-sync preference");
+        check(settings.contains("Remote goal continuity") && settings.contains("separate from Backup & Sync"),
+                "Backup & Sync must distinguish the existing remote-goal continuity connection from actual data backup/synchronization");
+
         check(settings.contains("lock_screen_assistant_enabled"),
                 "Widgets & Lock Screen must persist the user-visible lock-screen assistant preference");
         check(settings.contains("boolean[] pendingLockScreen")
