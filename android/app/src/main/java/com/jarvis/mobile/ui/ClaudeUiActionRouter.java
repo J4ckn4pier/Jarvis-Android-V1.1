@@ -2,8 +2,11 @@ package com.jarvis.mobile.ui;
 
 import android.app.Activity;
 import android.app.role.RoleManager;
+import android.content.Context;
 import android.content.Intent;
+import android.media.AudioManager;
 import android.provider.Settings;
+import android.view.KeyEvent;
 import android.webkit.JavascriptInterface;
 
 import com.jarvis.mobile.CommandsActivity;
@@ -32,11 +35,14 @@ public final class ClaudeUiActionRouter {
     public static final String ACTION_BROWSER = "browser";
     public static final String ACTION_HUB = "hub";
     public static final String ACTION_TASKS_PROJECTS = "tasks_projects";
+    public static final String ACTION_MEDIA_PREVIOUS = "media_previous";
+    public static final String ACTION_MEDIA_PLAY_PAUSE = "media_play_pause";
+    public static final String ACTION_MEDIA_NEXT = "media_next";
     public static final String ACTION_DEFAULT_ASSISTANT = "default_assistant";
     public static final String ACTION_NOTIFICATION_ACCESS = "notification_access";
     public static final String ACTION_ACCESSIBILITY = "accessibility";
 
-    private static final String SUPPORTED_ACTIONS_JSON = "[\"listen\",\"settings\",\"developer_options\",\"help\",\"notes\",\"memory\",\"routines\",\"skills\",\"overlays\",\"activity_feed\",\"browser\",\"hub\",\"tasks_projects\",\"default_assistant\",\"notification_access\",\"accessibility\"]";
+    private static final String SUPPORTED_ACTIONS_JSON = "[\"listen\",\"settings\",\"developer_options\",\"help\",\"notes\",\"memory\",\"routines\",\"skills\",\"overlays\",\"activity_feed\",\"browser\",\"hub\",\"tasks_projects\",\"media_previous\",\"media_play_pause\",\"media_next\",\"default_assistant\",\"notification_access\",\"accessibility\"]";
     private static final int ASSISTANT_ROLE_REQUEST = 8101;
 
     private final Activity activity;
@@ -85,6 +91,9 @@ public final class ClaudeUiActionRouter {
             case ACTION_BROWSER:
             case ACTION_HUB:
             case ACTION_TASKS_PROJECTS:
+            case ACTION_MEDIA_PREVIOUS:
+            case ACTION_MEDIA_PLAY_PAUSE:
+            case ACTION_MEDIA_NEXT:
             case ACTION_DEFAULT_ASSISTANT:
             case ACTION_NOTIFICATION_ACCESS:
             case ACTION_ACCESSIBILITY:
@@ -144,6 +153,15 @@ public final class ClaudeUiActionRouter {
             case ACTION_TASKS_PROJECTS:
                 activity.startActivity(new Intent(activity, TasksProjectsActivity.class));
                 break;
+            case ACTION_MEDIA_PREVIOUS:
+                dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_PREVIOUS);
+                break;
+            case ACTION_MEDIA_PLAY_PAUSE:
+                dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE);
+                break;
+            case ACTION_MEDIA_NEXT:
+                dispatchMediaKey(KeyEvent.KEYCODE_MEDIA_NEXT);
+                break;
             case ACTION_DEFAULT_ASSISTANT:
                 requestAssistantRole();
                 break;
@@ -156,6 +174,13 @@ public final class ClaudeUiActionRouter {
             default:
                 break;
         }
+    }
+
+    private void dispatchMediaKey(int keyCode) {
+        AudioManager audio = (AudioManager) activity.getSystemService(Context.AUDIO_SERVICE);
+        if (audio == null) return;
+        audio.dispatchMediaKeyEvent(new KeyEvent(KeyEvent.ACTION_DOWN, keyCode));
+        audio.dispatchMediaKeyEvent(new KeyEvent(KeyEvent.ACTION_UP, keyCode));
     }
 
     private void requestAssistantRole() {
