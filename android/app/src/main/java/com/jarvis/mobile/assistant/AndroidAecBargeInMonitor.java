@@ -30,17 +30,14 @@ final class AndroidAecBargeInMonitor {
     }
 
     boolean isSupported() {
-        return context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-                && isAecAvailableSafely();
+        return hasRecordAudioPermissionSafely() && isAecAvailableSafely();
     }
 
     boolean start(Runnable onBargeIn) {
         if (onBargeIn == null || !isSupported()) return false;
         synchronized (lock) {
             stopLocked();
-            if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-                return false;
-            }
+            if (!hasRecordAudioPermissionSafely()) return false;
             int minimum = minimumBufferSizeSafely();
             if (minimum <= 0) return false;
             int bufferBytes = Math.max(minimum, SAMPLE_RATE_HZ / 5 * 2);
@@ -105,6 +102,14 @@ final class AndroidAecBargeInMonitor {
     void stop() {
         synchronized (lock) {
             stopLocked();
+        }
+    }
+
+    private boolean hasRecordAudioPermissionSafely() {
+        try {
+            return context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+        } catch (RuntimeException unavailable) {
+            return false;
         }
     }
 
