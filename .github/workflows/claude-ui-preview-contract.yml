@@ -28,6 +28,8 @@ jobs:
         run: sh .github/scripts/claude-ui-trusted-navigation-contract.sh
       - name: Verify Claude UI preview lifecycle contract
         run: sh .github/scripts/claude-ui-preview-lifecycle-contract.sh
+      - name: Verify Android-to-Claude presentation state channel
+        run: sh .github/scripts/claude-ui-state-channel-contract.sh
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
