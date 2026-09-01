@@ -200,8 +200,13 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private boolean lockScreenAssistantAllowed() {
         boolean enabled = preferences == null || preferences.getBoolean("lock_screen_assistant_enabled", true);
         if (enabled) return true;
-        KeyguardManager keyguard = (KeyguardManager) getContext().getSystemService(Context.KEYGUARD_SERVICE);
-        return keyguard == null || !keyguard.isDeviceLocked();
+        try {
+            KeyguardManager keyguard = (KeyguardManager) getContext().getSystemService(Context.KEYGUARD_SERVICE);
+            return keyguard == null || !keyguard.isDeviceLocked();
+        } catch (RuntimeException lockStateFailure) {
+            Log.w(VOICE_RECOGNIZER_TAG, "Lock-screen state probe failed; blocking Assistant session", lockStateFailure);
+            return false;
+        }
     }
 
     private String debugTestCommand(Bundle args) {
@@ -337,6 +342,15 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         scheduleNextListen();
     }
 
+    private Boolean recognitionAvailableSafely() {
+        try {
+            return SpeechRecognizer.isRecognitionAvailable(getContext());
+        } catch (RuntimeException availabilityFailure) {
+            Log.w(VOICE_RECOGNIZER_TAG, "Active recognizer availability probe failed; retrying", availabilityFailure);
+            return null;
+        }
+    }
+
     private void startListening() {
         invalidateScheduledListen();
         invalidateRecognitionTerminalWatchdog();
@@ -352,7 +366,14 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
             setActive(false);
             return;
         }
-        if (!SpeechRecognizer.isRecognitionAvailable(getContext())) {
+        Boolean recognitionAvailable = recognitionAvailableSafely();
+        if (recognitionAvailable == null) {
+            if (output != null) output.setText("Listening paused briefly; I’ll reopen it.");
+            setActive(false);
+            scheduleNextListen();
+            return;
+        }
+        if (!recognitionAvailable) {
             output.setText("Android speech recognition is unavailable.");
             setActive(false);
             return;
