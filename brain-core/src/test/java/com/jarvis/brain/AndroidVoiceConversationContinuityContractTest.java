@@ -70,6 +70,15 @@ public final class AndroidVoiceConversationContinuityContractTest {
                         && session.contains("releaseSpeechRecognizerSafely();")
                         && session.contains("scheduleNextListen();"),
                 "a stalled post-end-of-speech turn must discard the recognizer and reopen listening without executing stale speech");
+        check(session.contains("ACTIVE_RECOGNIZER_READY_TIMEOUT_MILLIS")
+                        && session.contains("scheduleRecognitionReadyWatchdog(listeningGeneration)")
+                        && session.contains("invalidateRecognitionReadyWatchdog()"),
+                "active Assistant recognition must recover if Samsung/OEM accepts startListening but never reports ready, results, or an error");
+        check(session.contains("private void handleRecognitionReadyTimeout(long listeningGeneration)")
+                        && session.contains("Active recognizer never became ready; rebuilding")
+                        && session.contains("releaseSpeechRecognizerSafely();")
+                        && session.contains("scheduleNextListen();"),
+                "a pre-ready recognizer stall must discard the wedged recognizer and reopen listening without waiting forever");
         check(session.contains("private void releaseSpeechRecognizerSafely()")
                         && session.contains("try { recognizer.cancel(); } catch (RuntimeException cleanupFailure)")
                         && session.contains("try { recognizer.destroy(); } catch (RuntimeException cleanupFailure)"),
