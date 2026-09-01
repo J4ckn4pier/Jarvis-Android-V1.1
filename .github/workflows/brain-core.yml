@@ -21,10 +21,13 @@ jobs:
     steps:
       - uses: actions/checkout@v5
       - name: Set up Java 17
-        uses: actions/setup-java@v5
+        uses:
+          actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
       - name: Run standalone brain acceptance suite
         working-directory: brain-core
-        run: ./run-tests.sh
+        run: |
+          ./run-tests.sh
+          java -cp out com.jarvis.brain.LanguageSettingsTruthfulnessContractTest
