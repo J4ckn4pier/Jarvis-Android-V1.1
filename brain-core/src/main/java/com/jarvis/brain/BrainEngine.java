@@ -201,6 +201,7 @@ public final class BrainEngine {
     private static boolean isNotificationQueryRequest(String lower) {
         if (!lower.contains("notification")) return false;
         String value = lower.trim();
+        if (value.matches("(?:read|show|check)\\s+(?:my\\s+)?notifications?\\s+(?:is|are|was|were|can|could|should|would|means|refers)\\b.*")) return false;
         return value.startsWith("what notification") || value.startsWith("what notifications")
                 || value.startsWith("what are my notification") || value.startsWith("what are my notifications")
                 || value.startsWith("show notification") || value.startsWith("show notifications")
