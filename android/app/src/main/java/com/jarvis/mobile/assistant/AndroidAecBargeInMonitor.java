@@ -31,7 +31,7 @@ final class AndroidAecBargeInMonitor {
 
     boolean isSupported() {
         return context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED
-                && AcousticEchoCanceler.isAvailable();
+                && isAecAvailableSafely();
     }
 
     boolean start(Runnable onBargeIn) {
@@ -41,10 +41,7 @@ final class AndroidAecBargeInMonitor {
             if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
                 return false;
             }
-            int minimum = AudioRecord.getMinBufferSize(
-                    SAMPLE_RATE_HZ,
-                    AudioFormat.CHANNEL_IN_MONO,
-                    AudioFormat.ENCODING_PCM_16BIT);
+            int minimum = minimumBufferSizeSafely();
             if (minimum <= 0) return false;
             int bufferBytes = Math.max(minimum, SAMPLE_RATE_HZ / 5 * 2);
             AudioRecord candidate;
@@ -108,6 +105,25 @@ final class AndroidAecBargeInMonitor {
     void stop() {
         synchronized (lock) {
             stopLocked();
+        }
+    }
+
+    private boolean isAecAvailableSafely() {
+        try {
+            return AcousticEchoCanceler.isAvailable();
+        } catch (RuntimeException unavailable) {
+            return false;
+        }
+    }
+
+    private int minimumBufferSizeSafely() {
+        try {
+            return AudioRecord.getMinBufferSize(
+                    SAMPLE_RATE_HZ,
+                    AudioFormat.CHANNEL_IN_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT);
+        } catch (RuntimeException unavailable) {
+            return AudioRecord.ERROR;
         }
     }
 
