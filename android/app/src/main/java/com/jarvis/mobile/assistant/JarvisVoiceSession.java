@@ -355,6 +355,27 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         }
     }
 
+    private SpeechRecognizer createActiveSpeechRecognizerWithFallback() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                if (SpeechRecognizer.isOnDeviceRecognitionAvailable(getContext())) {
+                    try {
+                        return SpeechRecognizer.createOnDeviceSpeechRecognizer(getContext());
+                    } catch (RuntimeException dedicatedFailure) {
+                        Log.w(VOICE_RECOGNIZER_TAG,
+                                "Active on-device recognizer creation failed; falling back to system recognizer",
+                                dedicatedFailure);
+                    }
+                }
+            } catch (RuntimeException availabilityFailure) {
+                Log.w(VOICE_RECOGNIZER_TAG,
+                        "Active on-device recognizer probe failed; falling back to system recognizer",
+                        availabilityFailure);
+            }
+        }
+        return SpeechRecognizer.createSpeechRecognizer(getContext());
+    }
+
     private void startListening() {
         invalidateScheduledListen();
         invalidateRecognitionTerminalWatchdog();
@@ -386,9 +407,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         long listeningGeneration = ++recognitionGeneration;
         try {
             if (speechRecognizer != null) speechRecognizer.destroy();
-            speechRecognizer = Build.VERSION.SDK_INT >= 31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(getContext())
-                    ? SpeechRecognizer.createOnDeviceSpeechRecognizer(getContext())
-                    : SpeechRecognizer.createSpeechRecognizer(getContext());
+            speechRecognizer = createActiveSpeechRecognizerWithFallback();
             speechRecognizer.setRecognitionListener(new RecognitionListener() {
                 private boolean terminalDelivered;
 
