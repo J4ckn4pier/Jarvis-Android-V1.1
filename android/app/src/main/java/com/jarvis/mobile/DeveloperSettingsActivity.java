@@ -73,7 +73,11 @@ public final class DeveloperSettingsActivity extends Activity {
             status.setText(CortexProviderFactory.status(this));
             Toast.makeText(this, "Provider configuration saved.", Toast.LENGTH_SHORT).show();
         }));
-        body.addView(button("CLEAR SAVED API KEY", () -> { secrets.remove("provider_api_key"); Toast.makeText(this, "Saved API key removed.", Toast.LENGTH_SHORT).show(); }));
+        body.addView(button("CLEAR SAVED API KEY", () -> {
+            secrets.remove("provider_api_key");
+            status.setText(CortexProviderFactory.status(this));
+            Toast.makeText(this, "Saved API key removed.", Toast.LENGTH_SHORT).show();
+        }));
 
         EditText researchEndpoint = input("Research endpoint", research.get(SettingsStore.RESEARCH_ENDPOINT));
         researchEndpoint.setContentDescription("JARVIS research endpoint");
