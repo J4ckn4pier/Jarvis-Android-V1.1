@@ -21,6 +21,7 @@ public final class SemanticReflexSafetyRoutingTest {
         descriptivePhoneCallPhraseFallsThroughToCortex();
         descriptiveOpenPhoneDiscussionFallsThroughToCortex();
         descriptivePlayPhraseFallsThroughToCortex();
+        descriptivePauseMusicPhraseFallsThroughToCortex();
         descriptiveWebSearchPhraseFallsThroughToCortex();
         descriptiveSettingsPhraseFallsThroughToCortex();
         explanatoryRemindMePhraseFallsThroughToCortex();
@@ -122,6 +123,12 @@ public final class SemanticReflexSafetyRoutingTest {
         BrainResponse response = core.handle("Play is an important part of childhood development.");
         check(calls.get() == 1, "descriptive play language must reach cortex");
         check(response.kind() == BrainResponse.Kind.CONVERSATION, "descriptive play language must not start media playback");
+    }
+    private static void descriptivePauseMusicPhraseFallsThroughToCortex() {
+        AtomicInteger calls = new AtomicInteger(); AssistantCore core = coreWithRouter(calls);
+        BrainResponse response = core.handle("Pause music is a common voice command.");
+        check(calls.get() == 1, "descriptive pause-music language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION, "descriptive pause-music language must not pause media");
     }
     private static void descriptiveWebSearchPhraseFallsThroughToCortex() {
         AtomicInteger calls = new AtomicInteger(); AssistantCore core = coreWithRouter(calls);
