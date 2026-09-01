@@ -156,7 +156,8 @@ final class AndroidAecBargeInMonitor {
                 AudioRecord recorder = audioRecord;
                 if (recorder == null) break;
                 int read = recorder.read(buffer, 0, buffer.length, AudioRecord.READ_BLOCKING);
-                if (read <= 0) continue;
+                if (read < 0) break;
+                if (read == 0) continue;
                 if (averageAbsoluteAmplitude(buffer, read) >= ENERGY_THRESHOLD) {
                     hotFrames++;
                     if (hotFrames >= REQUIRED_HOT_FRAMES) {
