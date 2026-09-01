@@ -91,7 +91,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         destroyed = false;
         preferences = getContext().getSharedPreferences("jarvis_shell", Context.MODE_PRIVATE);
         brain = new AndroidBrainRuntime(getContext());
-        textToSpeech = new TextToSpeech(getContext(), this);
+        initializeTextToSpeechSafely();
     }
 
     @Override public View onCreateContentView() {
@@ -662,6 +662,16 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
 
     private int color(int resourceId) { return getContext().getColor(resourceId); }
     private int dp(int value) { return Math.round(value * getContext().getResources().getDisplayMetrics().density); }
+
+    private void initializeTextToSpeechSafely() {
+        textToSpeech = null;
+        try {
+            textToSpeech = new TextToSpeech(getContext(), this);
+        } catch (RuntimeException initializationFailure) {
+            textToSpeech = null;
+            Log.w(VOICE_RECOGNIZER_TAG, "TTS initialization failed; continuing without spoken output", initializationFailure);
+        }
+    }
 
     private void stopTextToSpeechSafely() {
         TextToSpeech engine = textToSpeech;
