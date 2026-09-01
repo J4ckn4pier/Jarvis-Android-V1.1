@@ -36,4 +36,15 @@ final class ManagedJarvisVoiceSession extends JarvisVoiceSession {
             JarvisVoiceInteractionService.rearmPassiveWakeAfterSession();
         }
     }
+
+    @Override public void onDestroy() {
+        try {
+            super.onDestroy();
+        } finally {
+            // Some Samsung/OEM lifecycle paths can destroy or replace a VoiceInteractionSession
+            // without delivering the ordinary hide callback. Never leave passive mic ownership
+            // stranded in the session-active state after terminal session teardown.
+            JarvisVoiceInteractionService.rearmPassiveWakeAfterSession();
+        }
+    }
 }

@@ -255,6 +255,7 @@ public final class BrainEngine {
             }
         } while (changed && !value.isEmpty());
         if (!value.contains("flashlight")) return false;
+        if (value.matches("(?:(?:turn|switch)\\s+(?:on|off)\\s+(?:the\\s+)?flashlight|(?:enable|disable)\\s+(?:the\\s+)?flashlight|kill\\s+(?:the\\s+)?flashlight|flashlight\\s+(?:on|off))\\s+(?:is|are|was|were|can|could|should|would|means|refers)\\b.*")) return false;
         return value.startsWith("turn ") || value.startsWith("switch ") || value.startsWith("enable ")
                 || value.startsWith("disable ") || value.startsWith("kill ")
                 || value.equals("flashlight on") || value.equals("flashlight off");
