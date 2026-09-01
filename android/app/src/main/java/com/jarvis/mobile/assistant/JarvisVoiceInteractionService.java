@@ -84,6 +84,15 @@ public class JarvisVoiceInteractionService extends VoiceInteractionService {
         Log.i(WAKE_TAG, "JARVIS_PASSIVE_WAKE_PAUSED_FOR_SESSION");
     }
 
+    private WakeWordDetectorPort createWakeWordDetectorSafely() {
+        try {
+            return AndroidWakeWordDetectorFactory.create(this);
+        } catch (RuntimeException createFailure) {
+            Log.w(WAKE_TAG, "JARVIS_PASSIVE_WAKE_CREATE_FAILED", createFailure);
+            return null;
+        }
+    }
+
     private boolean startPassiveWakeSafely() {
         passiveWakeStartThrew = false;
         try {
@@ -102,7 +111,12 @@ public class JarvisVoiceInteractionService extends VoiceInteractionService {
             Log.i(WAKE_TAG, "JARVIS_PASSIVE_WAKE_DISABLED reason=user setting");
             return;
         }
-        if (wakeWordDetector == null) wakeWordDetector = AndroidWakeWordDetectorFactory.create(this);
+        if (wakeWordDetector == null) wakeWordDetector = createWakeWordDetectorSafely();
+        if (wakeWordDetector == null) {
+            main.postDelayed(passiveWakeRetry, PASSIVE_WAKE_RETRY_DELAY_MS);
+            Log.w(WAKE_TAG, "JARVIS_PASSIVE_WAKE_RETRY_SCHEDULED reason=detector creation failed");
+            return;
+        }
         if (wakeWordDetector.isRunning()) return;
         boolean started = startPassiveWakeSafely();
         String detectorStatus = wakeWordDetector.status();
