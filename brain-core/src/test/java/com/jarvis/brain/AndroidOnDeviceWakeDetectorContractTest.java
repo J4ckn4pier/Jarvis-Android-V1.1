@@ -51,6 +51,10 @@ public final class AndroidOnDeviceWakeDetectorContractTest {
                         && detector.contains("JARVIS_WAKE_OFFLINE_SUPPORT_CALLBACK_FAILED")
                         && detector.contains("scheduleOfflineSupportRetry"),
                 "Samsung/OEM RecognitionSupport callback failures must be contained and retried instead of leaving passive wake stuck verifying forever");
+        check(detector.contains("status = \"Android offline support verification error \" + error + \"; retrying\";")
+                        && detector.contains("JARVIS_WAKE_OFFLINE_SUPPORT_ERROR error=")
+                        && detector.contains("scheduleOfflineSupportRetry();"),
+                "RecognitionSupportCallback.onError must use the bounded retry path instead of permanently disabling passive wake after a transient Samsung support-service error");
         check(detector.contains("main.postDelayed(offlineSupportRetry")
                         && detector.contains("main.removeCallbacks(offlineSupportRetry)"),
                 "offline-support callback recovery must be bounded and cancelable across stop/handoff lifecycle transitions");
