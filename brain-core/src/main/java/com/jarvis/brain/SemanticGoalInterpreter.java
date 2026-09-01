@@ -102,6 +102,8 @@ public final class SemanticGoalInterpreter {
     }
 
     private static boolean isDialer(String lower) {
+        if (lower.matches("(?:phone|phone app|dialer|open phone|open the phone|open my phone|open dialer|open the dialer)\\s+(?:is|are|was|were|can|could|should|would|means|refers)\\b.*")) return false;
+        if (lower.matches("phone calls?\\s+(?:is|are|was|were|can|could|should|would|means|refers)\\b.*")) return false;
         if (startsAsRequest(lower, "open ") && lower.contains("use to make") && lower.contains("phone call")) return true;
         return startsAsRequest(lower,
                 "open phone", "open the phone", "open my phone", "open dialer", "open the dialer",
