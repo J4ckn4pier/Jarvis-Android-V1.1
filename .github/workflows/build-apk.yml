@@ -24,6 +24,8 @@ jobs:
         run: sh .github/scripts/remote-goal-client-contract.sh
       - name: Verify remote connection developer settings contract
         run: sh .github/scripts/remote-goal-developer-settings-contract.sh
+      - name: Verify deterministic provider disconnect settings contract
+        run: sh .github/scripts/provider-local-disconnect-contract.sh
       - name: Verify widget and lock-screen settings contract
         run: sh .github/scripts/widget-lock-settings-contract.sh
       - name: Verify truthful local AI endpoint guidance
