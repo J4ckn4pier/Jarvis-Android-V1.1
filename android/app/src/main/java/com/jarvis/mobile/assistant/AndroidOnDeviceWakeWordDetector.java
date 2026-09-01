@@ -37,6 +37,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     private static final String TAG = "JARVIS_PASSIVE_WAKE";
     private static final long RESTART_DELAY_MS = 500L;
     private static final long RECREATE_DELAY_MS = 1200L;
+    private static final long OFFLINE_SUPPORT_RETRY_MS = 2500L;
     private static final long END_OF_SPEECH_WATCHDOG_MS = 3000L;
     private static final long READY_WATCHDOG_MS = 4000L;
     private static final Pattern WAKE = Pattern.compile("(?i)(?:^|\\b)(?:hey\\s+)?jarvis(?:\\b|$)");
@@ -143,28 +144,13 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
 
     @TargetApi(Build.VERSION_CODES.TIRAMISU)
     private boolean beginSystemOfflineVerification() {
+        main.removeCallbacks(offlineSupportRetry);
         try {
             recognizer = SpeechRecognizer.createSpeechRecognizer(context);
             final long generation = ++recognizerGeneration;
             recognizer.checkRecognitionSupport(intent, context.getMainExecutor(), new RecognitionSupportCallback() {
                 @Override public void onSupportResult(RecognitionSupport support) {
-                    if (!running || generation != recognizerGeneration) return;
-                    if (!languageInstalledOnDevice(support.getInstalledOnDeviceLanguages(), requestedLanguageTag)) {
-                        boolean downloadable = languageMatches(
-                                support.getSupportedOnDeviceLanguages(), requestedLanguageTag)
-                                || languageMatches(support.getPendingOnDeviceLanguages(), requestedLanguageTag);
-                        status = downloadable
-                                ? "offline speech model is not installed yet for " + requestedLanguageTag
-                                : "default Android recognizer has no installed offline support for " + requestedLanguageTag;
-                        failClosedAfterSupportCheck();
-                        return;
-                    }
-                    systemOfflineVerified = true;
-                    usingDedicatedOnDeviceRecognizer = false;
-                    recognizer.setRecognitionListener(listenerFor(generation));
-                    status = "listening with verified offline Android system recognition for Jarvis / Hey Jarvis";
-                    Log.i(TAG, "JARVIS_WAKE_ENGINE system_recognizer_verified_offline language=" + requestedLanguageTag);
-                    startListening();
+                    handleOfflineSupportResultSafely(generation, support);
                 }
 
                 @Override public void onError(int error) {
@@ -177,10 +163,64 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         } catch (RuntimeException failure) {
             status = "could not verify Android offline recognizer: " + failure.getClass().getSimpleName();
             Log.w(TAG, "JARVIS_WAKE_OFFLINE_SUPPORT_CHECK_FAILED", failure);
-            failClosedAfterSupportCheck();
+            scheduleOfflineSupportRetry();
             return false;
         }
     }
+
+    @TargetApi(Build.VERSION_CODES.TIRAMISU)
+    private void handleOfflineSupportResultSafely(long generation, RecognitionSupport support) {
+        if (!running || generation != recognizerGeneration) return;
+        try {
+            if (!languageInstalledOnDevice(support.getInstalledOnDeviceLanguages(), requestedLanguageTag)) {
+                boolean downloadable = languageMatches(
+                        support.getSupportedOnDeviceLanguages(), requestedLanguageTag)
+                        || languageMatches(support.getPendingOnDeviceLanguages(), requestedLanguageTag);
+                status = downloadable
+                        ? "offline speech model is not installed yet for " + requestedLanguageTag
+                        : "default Android recognizer has no installed offline support for " + requestedLanguageTag;
+                failClosedAfterSupportCheck();
+                return;
+            }
+            systemOfflineVerified = true;
+            usingDedicatedOnDeviceRecognizer = false;
+            recognizer.setRecognitionListener(listenerFor(generation));
+            main.removeCallbacks(offlineSupportRetry);
+            status = "listening with verified offline Android system recognition for Jarvis / Hey Jarvis";
+            Log.i(TAG, "JARVIS_WAKE_ENGINE system_recognizer_verified_offline language=" + requestedLanguageTag);
+            startListening();
+        } catch (RuntimeException supportFailure) {
+            if (!running || generation != recognizerGeneration) return;
+            status = "Android offline support callback failed: " + supportFailure.getClass().getSimpleName();
+            Log.w(TAG, "JARVIS_WAKE_OFFLINE_SUPPORT_CALLBACK_FAILED", supportFailure);
+            scheduleOfflineSupportRetry();
+        }
+    }
+
+    private void scheduleOfflineSupportRetry() {
+        if (!running || wakeDispatched) return;
+        cancelEndOfSpeechWatchdog();
+        cancelReadyWatchdog();
+        listening = false;
+        systemOfflineVerified = false;
+        usingDedicatedOnDeviceRecognizer = false;
+        recognizerGeneration++;
+        main.removeCallbacks(restart);
+        main.removeCallbacks(recreateAndRestart);
+        main.removeCallbacks(offlineSupportRetry);
+        if (recognizer != null) {
+            try { recognizer.cancel(); } catch (RuntimeException ignored) { }
+            try { recognizer.destroy(); } catch (RuntimeException ignored) { }
+            recognizer = null;
+        }
+        main.postDelayed(offlineSupportRetry, OFFLINE_SUPPORT_RETRY_MS);
+    }
+
+    private final Runnable offlineSupportRetry = () -> {
+        if (!running || wakeDispatched || Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return;
+        status = "retrying installed offline speech support verification";
+        beginSystemOfflineVerification();
+    };
 
     private void failClosedAfterSupportCheck() {
         cancelEndOfSpeechWatchdog();
@@ -189,6 +229,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         running = false;
         systemOfflineVerified = false;
         recognizerGeneration++;
+        main.removeCallbacks(offlineSupportRetry);
         if (recognizer != null) {
             try { recognizer.cancel(); } catch (RuntimeException ignored) { }
             try { recognizer.destroy(); } catch (RuntimeException ignored) { }
@@ -349,6 +390,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         if (!running || wakeDispatched) return;
         cancelEndOfSpeechWatchdog();
         cancelReadyWatchdog();
+        main.removeCallbacks(offlineSupportRetry);
         main.removeCallbacks(restart);
         main.removeCallbacks(recreateAndRestart);
         main.postDelayed(restart, delayMs);
@@ -358,6 +400,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         if (!running || wakeDispatched) return;
         cancelEndOfSpeechWatchdog();
         cancelReadyWatchdog();
+        main.removeCallbacks(offlineSupportRetry);
         main.removeCallbacks(restart);
         main.removeCallbacks(recreateAndRestart);
         main.postDelayed(recreateAndRestart, delayMs);
@@ -411,6 +454,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         recognizerGeneration++;
         cancelEndOfSpeechWatchdog();
         cancelReadyWatchdog();
+        main.removeCallbacks(offlineSupportRetry);
         main.removeCallbacks(restart);
         main.removeCallbacks(recreateAndRestart);
         if (recognizer != null) {
@@ -427,6 +471,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         recognizerGeneration++;
         cancelEndOfSpeechWatchdog();
         cancelReadyWatchdog();
+        main.removeCallbacks(offlineSupportRetry);
         main.removeCallbacks(restart);
         main.removeCallbacks(recreateAndRestart);
         if (recognizer != null) {
