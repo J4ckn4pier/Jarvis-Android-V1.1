@@ -172,7 +172,8 @@ public final class BrainEngine {
 
     private static boolean isDirectMediaPlayRequest(String lower) {
         if (!lower.startsWith("play ")) return false;
-        return !lower.matches("play\\s+(?:is|was|were|has|had|can|could|should|would|means|refers)\\b.*");
+        if (lower.matches("play\\s+(?:is|was|were|has|had|can|could|should|would|means|refers)\\b.*")) return false;
+        return !lower.matches("play\\s+(?:music|media|track|song)\\s+(?:is|are|was|were|has|had|can|could|should|would|means|refers)\\b.*");
     }
 
     private static boolean isDirectTranslateRequest(String lower) {
