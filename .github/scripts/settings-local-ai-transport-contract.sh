@@ -6,7 +6,8 @@ LOCAL_POLICY="android/app/src/main/java/com/jarvis/mobile/brain/providers/LocalA
 SHARED_POLICY="brain-core/src/main/java/com/jarvis/brain/EndpointTransportPolicy.java"
 
 # Free Local AI must remain API-key-free and must still go through the shared fail-closed transport policy.
-grep -q 'putString(AppPreferences.PREF_PROVIDER_API_KEY, "")' "$SETTINGS"
+grep -q 'No OpenAI or Google provider credential is required' "$SETTINGS"
+grep -q 'new SecureSecretStore(this).remove("provider_api_key")' "$SETTINGS"
 grep -q 'LocalAiEndpointPolicy.allows' "$SETTINGS"
 grep -q 'EndpointTransportPolicy.allows' "$LOCAL_POLICY"
 
