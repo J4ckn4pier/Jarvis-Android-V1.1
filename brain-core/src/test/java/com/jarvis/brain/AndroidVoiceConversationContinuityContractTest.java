@@ -65,6 +65,12 @@ public final class AndroidVoiceConversationContinuityContractTest {
                         && session.contains("if (recognitionAvailable == null)")
                         && session.contains("scheduleNextListen();"),
                 "a failed active recognizer availability probe must re-enter bounded conversational listening rather than strand the visible Assistant session");
+        check(session.contains("private SpeechRecognizer createActiveSpeechRecognizerWithFallback()")
+                        && session.contains("Active on-device recognizer creation failed; falling back to system recognizer")
+                        && session.contains("return SpeechRecognizer.createSpeechRecognizer(getContext());"),
+                "Samsung reporting an on-device recognizer that cannot actually be created must degrade to the ordinary recognizer instead of retrying the poisoned dedicated path forever");
+        check(session.contains("speechRecognizer = createActiveSpeechRecognizerWithFallback();"),
+                "active Assistant listening must use the Samsung-safe recognizer creation fallback boundary");
         check(session.contains("private boolean terminalDelivered;")
                         && session.contains("private boolean claimTerminal()"),
                 "each active listening turn must latch its first terminal callback");
