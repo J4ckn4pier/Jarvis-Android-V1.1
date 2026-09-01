@@ -57,6 +57,7 @@
         <activity android:name=".ui.BrowserActivity" android:exported="false" android:theme="@style/AppTheme" />
         <activity android:name=".ui.SkillsActivity" android:exported="false" android:theme="@style/AppTheme" />
         <activity android:name=".ui.OverlaysActivity" android:exported="false" android:theme="@style/AppTheme" />
+        <activity android:name="com.jarvis.mobile.ui.ClaudeUiPreviewActivity" android:exported="false" android:theme="@style/AppTheme" />
 
         <service android:name=".assistant.JarvisVoiceInteractionService" android:exported="true" android:permission="android.permission.BIND_VOICE_INTERACTION">
             <intent-filter><action android:name="android.service.voice.VoiceInteractionService" /></intent-filter>
