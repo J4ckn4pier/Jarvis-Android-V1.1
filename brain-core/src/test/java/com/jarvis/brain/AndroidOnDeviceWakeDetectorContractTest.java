@@ -42,6 +42,13 @@ public final class AndroidOnDeviceWakeDetectorContractTest {
         check(detector.contains("status = \"Android recognizer unavailable during recovery\";\n                scheduleRecreate(2500L);"),
                 "failed recognizer recreation must keep retrying even when Samsung's dedicated on-device recognizer is the selected engine");
 
+        check(detector.contains("recognizerGeneration"),
+                "passive wake must generation-tag recognizers so callbacks from a destroyed Samsung/OEM recognizer cannot affect its replacement");
+        check(detector.contains("generation != recognizerGeneration"),
+                "every passive recognizer listener/support callback must reject stale generations before mutating wake state");
+        check(detector.contains("setRecognitionListener(listenerFor(generation))"),
+                "each passive recognizer must receive a generation-bound listener instead of sharing the detector object across replacements");
+
         check(detector.contains("wakeDispatched"), "wake detector must latch the first matching partial/final result so one phrase cannot trigger duplicate assistant sessions");
         check(detector.contains("stopListeningForWakeHandoff"), "wake detector must have an explicit handoff path that releases passive recognition before showing the assistant");
         check(detector.contains("recognizer.cancel()"), "wake handoff must cancel passive recognition immediately to release the microphone for the assistant session");

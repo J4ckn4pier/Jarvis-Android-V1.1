@@ -51,6 +51,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     private boolean usingDedicatedOnDeviceRecognizer;
     private boolean systemOfflineVerified;
     private boolean wakeDispatched;
+    private long recognizerGeneration;
     private String status = "stopped";
 
     AndroidOnDeviceWakeWordDetector(Context context) {
@@ -143,9 +144,10 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     private boolean beginSystemOfflineVerification() {
         try {
             recognizer = SpeechRecognizer.createSpeechRecognizer(context);
+            final long generation = ++recognizerGeneration;
             recognizer.checkRecognitionSupport(intent, context.getMainExecutor(), new RecognitionSupportCallback() {
                 @Override public void onSupportResult(RecognitionSupport support) {
-                    if (!running) return;
+                    if (!running || generation != recognizerGeneration) return;
                     if (!languageInstalledOnDevice(support.getInstalledOnDeviceLanguages(), requestedLanguageTag)) {
                         boolean downloadable = languageMatches(
                                 support.getSupportedOnDeviceLanguages(), requestedLanguageTag)
@@ -158,14 +160,14 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
                     }
                     systemOfflineVerified = true;
                     usingDedicatedOnDeviceRecognizer = false;
-                    recognizer.setRecognitionListener(AndroidOnDeviceWakeWordDetector.this);
+                    recognizer.setRecognitionListener(listenerFor(generation));
                     status = "listening with verified offline Android system recognition for Jarvis / Hey Jarvis";
                     Log.i(TAG, "JARVIS_WAKE_ENGINE system_recognizer_verified_offline language=" + requestedLanguageTag);
                     startListening();
                 }
 
                 @Override public void onError(int error) {
-                    if (!running) return;
+                    if (!running || generation != recognizerGeneration) return;
                     status = "Android could not prove offline speech support (error " + error + ")";
                     failClosedAfterSupportCheck();
                 }
@@ -184,6 +186,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         listening = false;
         running = false;
         systemOfflineVerified = false;
+        recognizerGeneration++;
         if (recognizer != null) {
             try { recognizer.cancel(); } catch (RuntimeException ignored) { }
             try { recognizer.destroy(); } catch (RuntimeException ignored) { }
@@ -218,11 +221,61 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     @Override public boolean isRunning() { return running; }
     @Override public String status() { return status; }
 
+    private RecognitionListener listenerFor(long generation) {
+        return new RecognitionListener() {
+            @Override public void onReadyForSpeech(Bundle params) {
+                if (generation != recognizerGeneration) return;
+                AndroidOnDeviceWakeWordDetector.this.onReadyForSpeech(params);
+            }
+
+            @Override public void onBeginningOfSpeech() {
+                if (generation != recognizerGeneration) return;
+                AndroidOnDeviceWakeWordDetector.this.onBeginningOfSpeech();
+            }
+
+            @Override public void onRmsChanged(float rmsdB) {
+                if (generation != recognizerGeneration) return;
+                AndroidOnDeviceWakeWordDetector.this.onRmsChanged(rmsdB);
+            }
+
+            @Override public void onBufferReceived(byte[] buffer) {
+                if (generation != recognizerGeneration) return;
+                AndroidOnDeviceWakeWordDetector.this.onBufferReceived(buffer);
+            }
+
+            @Override public void onEndOfSpeech() {
+                if (generation != recognizerGeneration) return;
+                AndroidOnDeviceWakeWordDetector.this.onEndOfSpeech();
+            }
+
+            @Override public void onError(int error) {
+                if (generation != recognizerGeneration) return;
+                AndroidOnDeviceWakeWordDetector.this.onError(error);
+            }
+
+            @Override public void onResults(Bundle results) {
+                if (generation != recognizerGeneration) return;
+                AndroidOnDeviceWakeWordDetector.this.onResults(results);
+            }
+
+            @Override public void onPartialResults(Bundle partialResults) {
+                if (generation != recognizerGeneration) return;
+                AndroidOnDeviceWakeWordDetector.this.onPartialResults(partialResults);
+            }
+
+            @Override public void onEvent(int eventType, Bundle params) {
+                if (generation != recognizerGeneration) return;
+                AndroidOnDeviceWakeWordDetector.this.onEvent(eventType, params);
+            }
+        };
+    }
+
     @TargetApi(Build.VERSION_CODES.S)
     private boolean recreateRecognizer() {
         cancelEndOfSpeechWatchdog();
         listening = false;
         usingDedicatedOnDeviceRecognizer = false;
+        recognizerGeneration++;
         if (recognizer != null) {
             try { recognizer.cancel(); } catch (RuntimeException ignored) { }
             try { recognizer.destroy(); } catch (RuntimeException ignored) { }
@@ -248,7 +301,8 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
                 status = "offline recognition is not verified";
                 return false;
             }
-            recognizer.setRecognitionListener(this);
+            final long generation = ++recognizerGeneration;
+            recognizer.setRecognitionListener(listenerFor(generation));
             return true;
         } catch (RuntimeException failure) {
             status = "could not create Android recognizer: " + failure.getClass().getSimpleName();
@@ -325,6 +379,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         wakeDispatched = true;
         listening = false;
         running = false;
+        recognizerGeneration++;
         cancelEndOfSpeechWatchdog();
         main.removeCallbacks(restart);
         main.removeCallbacks(recreateAndRestart);
@@ -339,6 +394,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         listening = false;
         wakeDispatched = false;
         systemOfflineVerified = false;
+        recognizerGeneration++;
         cancelEndOfSpeechWatchdog();
         main.removeCallbacks(restart);
         main.removeCallbacks(recreateAndRestart);
