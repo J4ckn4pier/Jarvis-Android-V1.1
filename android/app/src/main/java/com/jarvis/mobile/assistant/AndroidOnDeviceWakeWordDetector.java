@@ -37,6 +37,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     private static final String TAG = "JARVIS_PASSIVE_WAKE";
     private static final long RESTART_DELAY_MS = 500L;
     private static final long RECREATE_DELAY_MS = 1200L;
+    private static final long END_OF_SPEECH_WATCHDOG_MS = 3000L;
     private static final Pattern WAKE = Pattern.compile("(?i)(?:^|\\b)(?:hey\\s+)?jarvis(?:\\b|$)");
 
     private final Context context;
@@ -179,6 +180,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     }
 
     private void failClosedAfterSupportCheck() {
+        cancelEndOfSpeechWatchdog();
         listening = false;
         running = false;
         systemOfflineVerified = false;
@@ -218,6 +220,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
 
     @TargetApi(Build.VERSION_CODES.S)
     private boolean recreateRecognizer() {
+        cancelEndOfSpeechWatchdog();
         listening = false;
         usingDedicatedOnDeviceRecognizer = false;
         if (recognizer != null) {
@@ -255,6 +258,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     }
 
     private void startListening() {
+        cancelEndOfSpeechWatchdog();
         if (!running || wakeDispatched || recognizer == null || listening) return;
         if (!usingDedicatedOnDeviceRecognizer && !systemOfflineVerified) {
             status = "offline recognition is not verified";
@@ -274,6 +278,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
 
     private void scheduleRestart(long delayMs) {
         if (!running || wakeDispatched) return;
+        cancelEndOfSpeechWatchdog();
         main.removeCallbacks(restart);
         main.removeCallbacks(recreateAndRestart);
         main.postDelayed(restart, delayMs);
@@ -281,10 +286,22 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
 
     private void scheduleRecreate(long delayMs) {
         if (!running || wakeDispatched) return;
+        cancelEndOfSpeechWatchdog();
         main.removeCallbacks(restart);
         main.removeCallbacks(recreateAndRestart);
         main.postDelayed(recreateAndRestart, delayMs);
     }
+
+    private void cancelEndOfSpeechWatchdog() {
+        main.removeCallbacks(endOfSpeechWatchdog);
+    }
+
+    private final Runnable endOfSpeechWatchdog = () -> {
+        if (!running || wakeDispatched || listening) return;
+        status = "wake recognizer stalled after end of speech; recovering";
+        Log.w(TAG, "JARVIS_WAKE_END_OF_SPEECH_STALL");
+        scheduleRecreate(RECREATE_DELAY_MS);
+    };
 
     private final Runnable restart = this::startListening;
 
@@ -308,6 +325,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         wakeDispatched = true;
         listening = false;
         running = false;
+        cancelEndOfSpeechWatchdog();
         main.removeCallbacks(restart);
         main.removeCallbacks(recreateAndRestart);
         if (recognizer != null) {
@@ -321,6 +339,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         listening = false;
         wakeDispatched = false;
         systemOfflineVerified = false;
+        cancelEndOfSpeechWatchdog();
         main.removeCallbacks(restart);
         main.removeCallbacks(recreateAndRestart);
         if (recognizer != null) {
@@ -333,6 +352,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     }
 
     @Override public void onReadyForSpeech(Bundle params) {
+        cancelEndOfSpeechWatchdog();
         listening = true;
         status = usingDedicatedOnDeviceRecognizer
                 ? "listening with Android on-device recognition for Jarvis / Hey Jarvis"
@@ -342,9 +362,15 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     @Override public void onBeginningOfSpeech() { }
     @Override public void onRmsChanged(float rmsdB) { }
     @Override public void onBufferReceived(byte[] buffer) { }
-    @Override public void onEndOfSpeech() { listening = false; }
+    @Override public void onEndOfSpeech() {
+        if (!running || wakeDispatched) return;
+        listening = false;
+        cancelEndOfSpeechWatchdog();
+        main.postDelayed(endOfSpeechWatchdog, END_OF_SPEECH_WATCHDOG_MS);
+    }
 
     @Override public void onError(int error) {
+        cancelEndOfSpeechWatchdog();
         listening = false;
         if (!running || wakeDispatched) return;
         if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
@@ -367,6 +393,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
     }
 
     @Override public void onResults(Bundle results) {
+        cancelEndOfSpeechWatchdog();
         listening = false;
         inspect(results);
         scheduleRestart(RESTART_DELAY_MS);
