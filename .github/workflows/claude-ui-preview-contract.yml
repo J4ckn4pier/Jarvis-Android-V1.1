@@ -2,7 +2,7 @@ name: Claude UI Preview Contract
 
 on:
   push:
-    branches: [feature/claude-ui-integration]
+    branches: [feature/claude-ui-integration, feature/claude-ui-delivery-refresh-2026-09-01]
   workflow_dispatch:
 
 jobs:
