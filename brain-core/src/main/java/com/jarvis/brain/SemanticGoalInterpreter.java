@@ -25,11 +25,15 @@ public final class SemanticGoalInterpreter {
         if (isDialer(lower)) return Optional.of(new Plan("Open the phone dialer", List.of(new PlanStep("open_dialer"))));
 
         Matcher timer = TIMER.matcher(lower);
-        if (startsAsRequest(lower, "set ", "start ") && timer.find()) return Optional.of(new Plan("Set timer", List.of(new PlanStep("set_timer",
-                Map.of("amount", timer.group(1), "unit", timer.group(2)), false))));
+        if (startsAsRequest(lower, "set ", "start ") && timer.find()
+                && !looksLikeDescriptiveContinuation(lower.substring(timer.end()).trim())) {
+            return Optional.of(new Plan("Set timer", List.of(new PlanStep("set_timer",
+                    Map.of("amount", timer.group(1), "unit", timer.group(2)), false))));
+        }
 
         Matcher alarm = ALARM.matcher(lower);
-        if (startsAsRequest(lower, "set ", "make ") && alarm.find()) {
+        if (startsAsRequest(lower, "set ", "make ") && alarm.find()
+                && !looksLikeDescriptiveContinuation(lower.substring(alarm.end()).trim())) {
             int hour = Integer.parseInt(alarm.group(1));
             int minute = alarm.group(2) == null ? 0 : Integer.parseInt(alarm.group(2));
             String meridiem = alarm.group(3);
@@ -121,6 +125,10 @@ public final class SemanticGoalInterpreter {
 
     private static boolean looksLikeDescriptiveClause(String normalized) {
         return normalized.matches(".*\\b(?:about|because|when|while|if|that|which|who|where|why|is|are|was|were|can|could|should|would)\\b.*");
+    }
+
+    private static boolean looksLikeDescriptiveContinuation(String suffix) {
+        return suffix.matches("(?:is|are|was|were|can|could|should|would|means|mean|refers|refer)\\b.*");
     }
 
     private static String webQuery(String raw, String lower) {
