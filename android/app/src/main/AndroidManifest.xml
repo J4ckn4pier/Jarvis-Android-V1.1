@@ -54,6 +54,7 @@
         <activity android:name=".ui.TasksProjectsActivity" android:exported="false" android:theme="@style/AppTheme" />
         <activity android:name=".ui.RoutinesActivity" android:exported="false" android:theme="@style/AppTheme" />
         <activity android:name=".ui.ActivityFeedActivity" android:exported="false" android:theme="@style/AppTheme" />
+        <activity android:name=".ui.CalendarActivity" android:exported="false" android:theme="@style/AppTheme" />
         <activity android:name=".ui.BrowserActivity" android:exported="false" android:theme="@style/AppTheme" />
         <activity android:name=".ui.SkillsActivity" android:exported="false" android:theme="@style/AppTheme" />
         <activity android:name=".ui.OverlaysActivity" android:exported="false" android:theme="@style/AppTheme" />
