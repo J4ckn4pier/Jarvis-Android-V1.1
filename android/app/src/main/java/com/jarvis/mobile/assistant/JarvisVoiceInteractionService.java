@@ -15,9 +15,14 @@ public class JarvisVoiceInteractionService extends VoiceInteractionService {
     private static final String WAKE_TAG = "JARVIS_PASSIVE_WAKE";
     private static final String TEST_COMMAND_EXTRA = "jarvis_test_command";
     private static final long PASSIVE_WAKE_RETRY_DELAY_MS = 2500L;
+    private static final long WAKE_SESSION_SHOW_TIMEOUT_MS = 5000L;
     private static volatile JarvisVoiceInteractionService activeInstance;
     private final Handler main = new Handler(Looper.getMainLooper());
     private final Runnable passiveWakeRetry = () -> armPassiveWake("retry after transient startup failure");
+    private final Runnable wakeSessionShowWatchdog = () -> {
+        Log.w(WAKE_TAG, "JARVIS_PASSIVE_WAKE_SESSION_SHOW_TIMEOUT");
+        armPassiveWake("wake session show timeout");
+    };
     private WakeWordDetectorPort wakeWordDetector;
 
     @Override public void onReady() {
@@ -28,10 +33,13 @@ public class JarvisVoiceInteractionService extends VoiceInteractionService {
     }
 
     private void showWakeSession() {
+        main.removeCallbacks(wakeSessionShowWatchdog);
         try {
             showSession(new Bundle(), VoiceInteractionSession.SHOW_WITH_ASSIST);
+            main.postDelayed(wakeSessionShowWatchdog, WAKE_SESSION_SHOW_TIMEOUT_MS);
             Log.i(WAKE_TAG, "JARVIS_PASSIVE_WAKE_TRIGGERED");
         } catch (RuntimeException failure) {
+            main.removeCallbacks(wakeSessionShowWatchdog);
             Log.w(WAKE_TAG, "JARVIS_PASSIVE_WAKE_SESSION_SHOW_FAILED", failure);
             armPassiveWake("wake session show failed");
         }
@@ -69,6 +77,7 @@ public class JarvisVoiceInteractionService extends VoiceInteractionService {
 
     private void pausePassiveWake() {
         main.removeCallbacks(passiveWakeRetry);
+        main.removeCallbacks(wakeSessionShowWatchdog);
         if (wakeWordDetector == null) return;
         wakeWordDetector.stop();
         Log.i(WAKE_TAG, "JARVIS_PASSIVE_WAKE_PAUSED_FOR_SESSION");
@@ -103,6 +112,7 @@ public class JarvisVoiceInteractionService extends VoiceInteractionService {
 
     @Override public void onShutdown() {
         main.removeCallbacks(passiveWakeRetry);
+        main.removeCallbacks(wakeSessionShowWatchdog);
         if (wakeWordDetector != null) { wakeWordDetector.stop(); wakeWordDetector = null; }
         if (activeInstance == this) activeInstance = null;
         Log.i(TEST_TAG, "JARVIS_VOICE_SERVICE_SHUTDOWN");

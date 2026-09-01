@@ -39,6 +39,43 @@ public final class AndroidVoiceConversationContinuityContractTest {
                         && session.contains("submittedGeneration != sessionGeneration")
                         && session.contains("!sessionVisible"),
                 "slow results from a hidden/previous voice session must not be delivered into a later visible conversation");
+        check(session.contains("long recognitionGeneration;"),
+                "active Assistant recognition must maintain its own callback generation");
+        check(session.contains("long listeningGeneration = ++recognitionGeneration;"),
+                "each active listening turn must bind callbacks to a new recognition generation");
+        check(session.contains("listeningGeneration != recognitionGeneration || !sessionVisible"),
+                "callbacks from a destroyed/replaced active-session recognizer must be ignored before they change UI, execute commands, or schedule listening");
+        check(session.contains("@Override public void onHide() {\n        sessionGeneration++;\n        recognitionGeneration++;"),
+                "hiding the Assistant session must invalidate the active recognizer generation before late OEM callbacks can arrive");
+        check(session.contains("@Override public void onDestroy() {\n        destroyed = true;\n        sessionGeneration++;\n        recognitionGeneration++;"),
+                "destroying the Assistant session must terminally mark the session and invalidate active recognizer callbacks before the recognizer is torn down");
+        check(session.contains("catch (RuntimeException recognitionFailure)")
+                        && session.contains("recoverRecognitionStartFailure(recognitionFailure);"),
+                "Samsung/OEM recognizer creation or start exceptions must recover instead of crashing the active Assistant session");
+        check(session.contains("private void recoverRecognitionStartFailure(RuntimeException recognitionFailure)")
+                        && session.contains("recognitionGeneration++;")
+                        && session.contains("speechRecognizer = null;")
+                        && session.contains("scheduleNextListen();"),
+                "recognizer-start recovery must invalidate callbacks, discard the failed recognizer, and reopen listening while the conversation remains active");
+        check(session.contains("private boolean terminalDelivered;")
+                        && session.contains("private boolean claimTerminal()"),
+                "each active listening turn must latch its first terminal callback");
+        check(occurrences(session, "if (!claimTerminal()) return;") >= 2,
+                "both recognition error and final-result paths must reject duplicate terminal callbacks from the same Samsung/OEM listening turn");
+        check(session.contains("ACTIVE_END_OF_SPEECH_TIMEOUT_MILLIS")
+                        && session.contains("scheduleRecognitionTerminalWatchdog(listeningGeneration)")
+                        && session.contains("invalidateRecognitionTerminalWatchdog()"),
+                "active Assistant recognition must recover if Samsung/OEM sends end-of-speech but never sends results or an error");
+        check(session.contains("private void handleRecognitionTerminalTimeout(long listeningGeneration)")
+                        && session.contains("releaseSpeechRecognizerSafely();")
+                        && session.contains("scheduleNextListen();"),
+                "a stalled post-end-of-speech turn must discard the recognizer and reopen listening without executing stale speech");
+        check(session.contains("private void releaseSpeechRecognizerSafely()")
+                        && session.contains("try { recognizer.cancel(); } catch (RuntimeException cleanupFailure)")
+                        && session.contains("try { recognizer.destroy(); } catch (RuntimeException cleanupFailure)"),
+                "Samsung/OEM recognizer cleanup exceptions must be contained so hide/destroy lifecycle can finish normally");
+        check(occurrences(session, "releaseSpeechRecognizerSafely();") >= 2,
+                "both hide and destroy lifecycle paths must use guarded recognizer cleanup");
         check(session.contains("brainExecutor.shutdownNow()"),
                 "voice-session destruction must stop its background brain executor");
         check(approval.contains("runtime.hasPendingApproval()")
@@ -50,9 +87,19 @@ public final class AndroidVoiceConversationContinuityContractTest {
                 "voice approval vocabulary must remain explicit and narrow");
         check(approval.contains("if(isDeferral(n))return cancel"), "spoken deferral/cancel must remain available while an approval is pending");
         check(session.contains("@Override public void onHide()"), "hiding the assistant must stop continuous listening");
-        check(session.contains("speechRecognizer.cancel()"), "hide/destroy lifecycle must cancel active recognition");
+        check(session.contains("speechRecognizer.cancel()") || session.contains("recognizer.cancel()"), "hide/destroy lifecycle must cancel active recognition");
 
         System.out.println("AndroidVoiceConversationContinuityContractTest: PASS");
+    }
+
+    private static int occurrences(String value, String needle) {
+        int count = 0;
+        int index = 0;
+        while ((index = value.indexOf(needle, index)) >= 0) {
+            count++;
+            index += needle.length();
+        }
+        return count;
     }
 
     private static void check(boolean condition, String message) {
