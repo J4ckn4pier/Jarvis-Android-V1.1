@@ -29,6 +29,10 @@ public final class AndroidVoiceAecBargeInContractTest {
                 "barge-in capture may only proceed with granted microphone permission");
         check(monitor.contains("catch (SecurityException"),
                 "barge-in capture must fail closed if microphone permission is revoked between check and AudioRecord creation");
+        check(monitor.contains("if (read < 0) break;"),
+                "fatal Samsung/OEM AudioRecord read errors must terminate dead AEC capture instead of spinning forever");
+        check(monitor.contains("if (read == 0) continue;"),
+                "zero-length AEC reads may retry without conflating them with fatal negative AudioRecord errors");
         check(monitor.contains("MediaRecorder.AudioSource.VOICE_COMMUNICATION"),
                 "barge-in microphone path must request the communication audio source for echo handling");
         check(monitor.contains("AcousticEchoCanceler.create"),
