@@ -27,6 +27,7 @@ public final class ClaudeUiPreviewActivity extends Activity {
     static final String ANDROID_BRIDGE = "JarvisAndroid";
 
     private WebView preview;
+    private ClaudeUiStatePublisher statePublisher;
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
@@ -36,6 +37,7 @@ public final class ClaudeUiPreviewActivity extends Activity {
         }
 
         preview = new WebView(this);
+        statePublisher = new ClaudeUiStatePublisher(preview);
         preview.setBackgroundColor(Color.BLACK);
         WebSettings settings = preview.getSettings();
         settings.setJavaScriptEnabled(true);
@@ -53,6 +55,14 @@ public final class ClaudeUiPreviewActivity extends Activity {
             @Override public boolean shouldOverrideUrlLoading(WebView view, String url) {
                 return !CANONICAL_URL.equals(url);
             }
+
+            @Override public void onPageFinished(WebView view, String url) {
+                super.onPageFinished(view, url);
+                if (CANONICAL_URL.equals(url) && statePublisher != null) {
+                    statePublisher.publish(ClaudeUiStatePublisher.State.IDLE,
+                            "Android presentation channel ready");
+                }
+            }
         });
         preview.addJavascriptInterface(new ClaudeUiActionRouter(this), ANDROID_BRIDGE);
         setContentView(preview, new ViewGroup.LayoutParams(
@@ -62,6 +72,7 @@ public final class ClaudeUiPreviewActivity extends Activity {
     }
 
     @Override protected void onDestroy() {
+        statePublisher = null;
         if (preview != null) {
             preview.removeJavascriptInterface(ANDROID_BRIDGE);
             preview.stopLoading();
