@@ -9,6 +9,7 @@ public final class DescriptiveVolumeOpeningSafetyTest {
         descriptiveVolumeOpeningFallsThroughToCortex();
         descriptiveCalendarOpeningFallsThroughToCortex();
         descriptiveNotificationOpeningFallsThroughToCortex();
+        descriptiveFlashlightCommandOpeningFallsThroughToCortex();
         System.out.println("DescriptiveVolumeOpeningSafetyTest passed");
     }
 
@@ -40,6 +41,16 @@ public final class DescriptiveVolumeOpeningSafetyTest {
         check(cortexCalls.get() == 1, "descriptive notification-opening language must reach cortex");
         check(response.kind() == BrainResponse.Kind.CONVERSATION,
                 "descriptive notification-opening language must not query notifications");
+    }
+
+    private static void descriptiveFlashlightCommandOpeningFallsThroughToCortex() {
+        AtomicInteger cortexCalls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(cortexCalls);
+        BrainResponse response = core.handle("Turn on the flashlight is useful advice during an outage.");
+
+        check(cortexCalls.get() == 1, "descriptive flashlight command-shaped language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "descriptive flashlight command-shaped language must not change flashlight state");
     }
 
     private static AssistantCore coreWithRouter(AtomicInteger cortexCalls) {
