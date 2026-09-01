@@ -20,8 +20,10 @@ public final class AndroidOnDeviceWakeDetectorContractTest {
         String sessionService = Files.readString(assistant.resolve("JarvisVoiceSessionService.java"));
         String settings = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/SettingsActivity.java"));
 
-        check(factory.contains("AndroidOnDeviceWakeWordDetector.isAvailable(app)"), "factory must require an Android speech service before constructing wake");
-        check(factory.contains("new AndroidOnDeviceWakeWordDetector(app)"), "factory must construct the real detector instead of returning the disabled stub");
+        check(!factory.contains("if (AndroidOnDeviceWakeWordDetector.isAvailable(app))"),
+                "a transient Samsung/OEM speech-availability false result at service startup must not permanently replace passive wake with a disabled detector");
+        check(factory.contains("AndroidOnDeviceWakeWordDetector detector = new AndroidOnDeviceWakeWordDetector(app)"),
+                "factory must retain the real detector so its bounded start retry can recover when Samsung speech services become available");
         check(detector.contains("SpeechRecognizer.isOnDeviceRecognitionAvailable(context)"), "wake detector must prefer Android's dedicated on-device recognizer");
         check(detector.contains("private boolean dedicatedOnDeviceRecognitionAvailableSafely()")
                         && detector.contains("JARVIS_WAKE_ON_DEVICE_AVAILABILITY_CHECK_FAILED")
