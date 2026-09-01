@@ -57,6 +57,10 @@ public final class AndroidVoiceTtsCallbackGenerationContractTest {
                         && session.contains("TTS language preference failed")
                         && session.contains("TTS speech-rate preference failed"),
                 "Samsung/OEM TTS language/rate configuration exceptions must be contained independently so Assistant show or TTS handoff cannot crash the voice session");
+        check(session.contains("private void attachTtsProgressListenerSafely()")
+                        && session.contains("catch (RuntimeException listenerFailure)")
+                        && session.contains("TTS progress-listener attachment failed"),
+                "Samsung/OEM failure while attaching the TTS progress listener must be contained so onInit cannot crash the Assistant session");
 
         System.out.println("AndroidVoiceTtsCallbackGenerationContractTest: PASS");
     }
