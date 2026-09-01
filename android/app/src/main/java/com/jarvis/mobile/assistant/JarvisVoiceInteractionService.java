@@ -24,6 +24,7 @@ public class JarvisVoiceInteractionService extends VoiceInteractionService {
         armPassiveWake("wake session show timeout");
     };
     private WakeWordDetectorPort wakeWordDetector;
+    private boolean passiveWakeStartThrew;
 
     @Override public void onReady() {
         super.onReady();
@@ -83,6 +84,17 @@ public class JarvisVoiceInteractionService extends VoiceInteractionService {
         Log.i(WAKE_TAG, "JARVIS_PASSIVE_WAKE_PAUSED_FOR_SESSION");
     }
 
+    private boolean startPassiveWakeSafely() {
+        passiveWakeStartThrew = false;
+        try {
+            return wakeWordDetector.start(this::showWakeSession);
+        } catch (RuntimeException startFailure) {
+            passiveWakeStartThrew = true;
+            Log.w(WAKE_TAG, "JARVIS_PASSIVE_WAKE_START_FAILED", startFailure);
+            return false;
+        }
+    }
+
     private void armPassiveWake(String reason) {
         main.removeCallbacks(passiveWakeRetry);
         if (!wakeEnabled()) {
@@ -92,9 +104,9 @@ public class JarvisVoiceInteractionService extends VoiceInteractionService {
         }
         if (wakeWordDetector == null) wakeWordDetector = AndroidWakeWordDetectorFactory.create(this);
         if (wakeWordDetector.isRunning()) return;
-        boolean started = wakeWordDetector.start(this::showWakeSession);
+        boolean started = startPassiveWakeSafely();
         String detectorStatus = wakeWordDetector.status();
-        if (!started && transientWakeStartupFailure(detectorStatus)) {
+        if (!started && (passiveWakeStartThrew || transientWakeStartupFailure(detectorStatus))) {
             main.postDelayed(passiveWakeRetry, PASSIVE_WAKE_RETRY_DELAY_MS);
             Log.w(WAKE_TAG, "JARVIS_PASSIVE_WAKE_RETRY_SCHEDULED reason=" + detectorStatus);
         }
