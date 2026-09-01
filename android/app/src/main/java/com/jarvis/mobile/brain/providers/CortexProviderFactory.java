@@ -62,6 +62,7 @@ public final class CortexProviderFactory {
             return "localhost".equals(host)
                     || "127.0.0.1".equals(host)
                     || "::1".equals(host)
+                    || "10.0.2.2".equals(host)
                     || host.endsWith(".local");
         } catch (RuntimeException invalid) {
             return false;
