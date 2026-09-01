@@ -52,8 +52,23 @@ public final class AndroidVoiceTtsCallbackGenerationContractTest {
                 "Samsung/OEM TTS stop failures during normal session transitions must be contained behind a safe stop boundary");
         check(!session.contains("if (textToSpeech != null) textToSpeech.stop();"),
                 "hide, barge-in, speech-begin, and manual interrupt paths must never call OEM TTS stop directly");
+        check(session.contains("private void applyVoicePreferences()")
+                        && occurrences(session, "catch (RuntimeException preferenceFailure)") >= 2
+                        && session.contains("TTS language preference failed")
+                        && session.contains("TTS speech-rate preference failed"),
+                "Samsung/OEM TTS language/rate configuration exceptions must be contained independently so Assistant show or TTS handoff cannot crash the voice session");
 
         System.out.println("AndroidVoiceTtsCallbackGenerationContractTest: PASS");
+    }
+
+    private static int occurrences(String value, String needle) {
+        int count = 0;
+        int index = 0;
+        while ((index = value.indexOf(needle, index)) >= 0) {
+            count++;
+            index += needle.length();
+        }
+        return count;
     }
 
     private static void check(boolean condition, String message) {

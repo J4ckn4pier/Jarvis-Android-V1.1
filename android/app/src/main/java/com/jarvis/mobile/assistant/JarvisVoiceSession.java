@@ -604,12 +604,21 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     }
 
     private void applyVoicePreferences() {
-        if (textToSpeech == null) return;
-        textToSpeech.setLanguage(configuredLanguage());
+        TextToSpeech engine = textToSpeech;
+        if (engine == null) return;
+        try {
+            engine.setLanguage(configuredLanguage());
+        } catch (RuntimeException preferenceFailure) {
+            Log.w(VOICE_RECOGNIZER_TAG, "TTS language preference failed", preferenceFailure);
+        }
         float rate = preferences == null ? 1.0f : preferences.getFloat("voice_rate", 1.0f);
         if (rate < 0.5f) rate = 0.5f;
         if (rate > 1.5f) rate = 1.5f;
-        textToSpeech.setSpeechRate(rate);
+        try {
+            engine.setSpeechRate(rate);
+        } catch (RuntimeException preferenceFailure) {
+            Log.w(VOICE_RECOGNIZER_TAG, "TTS speech-rate preference failed", preferenceFailure);
+        }
     }
 
     private Locale configuredLanguage() {
