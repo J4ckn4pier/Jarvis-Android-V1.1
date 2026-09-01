@@ -183,6 +183,7 @@ public final class SemanticGoalInterpreter {
                 "show ", "check ", "read ", "calendar ", "schedule ", "agenda ", "tell me ",
                 "what does my day", "what s on ", "what is on ");
         if (!explicitRequest) return null;
+        if (lower.matches("(?:calendar|schedule|agenda)\\s+(?:(?:today|tomorrow)\\s+)?(?:is|are|was|were|can|could|should|would|means|refers)\\b.*")) return null;
         if (lower.contains("tomorrow")) return "tomorrow";
         if (lower.contains("today") || lower.contains("my day")) return "today";
         return null;
