@@ -1,0 +1,72 @@
+name: Claude UI Preview Contract
+
+on:
+  push:
+    branches: [feature/claude-ui-integration]
+  workflow_dispatch:
+
+jobs:
+  preview-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify exact-source Claude preview boundary
+        run: sh .github/scripts/claude-ui-preview-contract.sh
+      - name: Verify Claude UI action bridge contract
+        run: sh .github/scripts/claude-ui-action-bridge-contract.sh
+      - name: Verify Claude UI navigation bridge contract
+        run: sh .github/scripts/claude-ui-navigation-contract.sh
+      - name: Verify Claude UI tasks/projects navigation contract
+        run: sh .github/scripts/claude-ui-tasks-navigation-contract.sh
+      - name: Verify Claude UI calendar navigation contract
+        run: sh .github/scripts/claude-ui-calendar-navigation-contract.sh
+      - name: Verify Claude UI messages navigation contract
+        run: sh .github/scripts/claude-ui-messages-navigation-contract.sh
+      - name: Verify Claude UI devices navigation contract
+        run: sh .github/scripts/claude-ui-devices-navigation-contract.sh
+      - name: Verify Claude UI music navigation contract
+        run: sh .github/scripts/claude-ui-music-navigation-contract.sh
+      - name: Verify Claude UI connect navigation contract
+        run: sh .github/scripts/claude-ui-connect-navigation-contract.sh
+      - name: Verify complete staged JARVIS Hub navigation
+        run: sh .github/scripts/claude-ui-hub-navigation-contract.sh
+      - name: Verify Claude UI media control contract
+        run: sh .github/scripts/claude-ui-media-contract.sh
+      - name: Verify Claude UI truthful capability contract
+        run: sh .github/scripts/claude-ui-capabilities-contract.sh
+      - name: Verify Claude UI action result contract
+        run: sh .github/scripts/claude-ui-action-result-contract.sh
+      - name: Verify truthful visible-control availability
+        run: sh .github/scripts/claude-ui-action-availability-contract.sh
+      - name: Verify Claude UI trusted navigation contract
+        run: sh .github/scripts/claude-ui-trusted-navigation-contract.sh
+      - name: Verify Claude UI preview lifecycle contract
+        run: sh .github/scripts/claude-ui-preview-lifecycle-contract.sh
+      - name: Verify Android-to-Claude presentation state channel
+        run: sh .github/scripts/claude-ui-state-channel-contract.sh
+      - name: Verify AI Providers and Developer Options presentation routes
+        run: sh .github/scripts/claude-ui-provider-settings-contract.sh
+      - name: Verify downloadable preview artifact contract
+        run: sh .github/scripts/claude-ui-preview-artifact-contract.sh
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android 16 SDK
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Compile preview surface in real Android app
+        working-directory: android
+        run: gradle --rerun-tasks :app:assembleDebug --stacktrace
+      - name: Preserve installable Claude UI preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-Claude-UI-Preview
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
