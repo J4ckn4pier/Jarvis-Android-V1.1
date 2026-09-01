@@ -92,6 +92,7 @@ public final class SemanticGoalInterpreter {
 
     private static boolean isJarvisSettingsRequest(String lower) {
         if (!lower.contains("settings")) return false;
+        if (lower.matches("(?:settings|open settings|open the settings|open jarvis settings|show settings|show me settings|show jarvis settings|go to settings)\\s+(?:is|are|was|were|can|could|should|would|means|refers)\\b.*")) return false;
         if (startsAsRequest(lower,
                 "settings", "open settings", "open the settings", "open jarvis settings",
                 "show settings", "show me settings", "show jarvis settings", "go to settings")) return true;
