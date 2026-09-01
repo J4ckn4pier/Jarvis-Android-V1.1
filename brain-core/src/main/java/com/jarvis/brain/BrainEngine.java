@@ -125,7 +125,7 @@ public final class BrainEngine {
         }
         Matcher timer = Pattern.compile("(?i)set (?:a )?timer for (\\d+)\\s*(seconds?|minutes?|hours?)").matcher(input);
         if (startsAsRequest(lower, "set ", "start ") && timer.find()) return action("Set timer", "set_timer", Map.of("amount", timer.group(1), "unit", timer.group(2)), false, acceptedWithoutWake, context);
-        if (lower.startsWith("remind me ")) return action("Create reminder", "create_reminder", Map.of("request", input.substring(10).trim()), false, acceptedWithoutWake, context);
+        if (isReminderCreationRequest(lower)) return action("Create reminder", "create_reminder", Map.of("request", input.substring(10).trim()), false, acceptedWithoutWake, context);
         if (lower.startsWith("navigate ") || lower.startsWith("directions ")) return action("Navigate", "navigate", Map.of("destination", input.replaceFirst("(?i)^(navigate|directions)(?:\\s+to)?\\s+", "")), false, acceptedWithoutWake, context);
         if (isDirectMediaPlayRequest(lower)) return action("Play media", "media_play", Map.of("query", input.substring(5).trim()), false, acceptedWithoutWake, context);
         if (isFlashlightCommand(lower)) return action("Set flashlight", "set_flashlight", Map.of("state", flashlightState(lower)), false, acceptedWithoutWake, context);
@@ -135,6 +135,13 @@ public final class BrainEngine {
         Matcher text = Pattern.compile("(?i)^(?:text|message)\\s+([^,]+?)\\s+(.+)$").matcher(input);
         if (text.matches()) return action("Send message", "send_message", Map.of("recipient", text.group(1).trim(), "message", text.group(2).trim()), true, acceptedWithoutWake, context);
         return null;
+    }
+
+    private static boolean isReminderCreationRequest(String lower) {
+        String value = lower.trim();
+        if (!value.startsWith("remind me ")) return false;
+        String request = value.substring("remind me ".length()).trim();
+        return !request.matches("(?:why|how|what|who|where|when|which)\\b.*");
     }
 
     private static boolean isDirectMediaPlayRequest(String lower) {
