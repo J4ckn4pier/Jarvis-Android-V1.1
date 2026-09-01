@@ -19,6 +19,7 @@ public final class JarvisHubActivity extends JarvisChromeActivity {
         body.addView(row("Tasks & Projects", "Saved tasks and project state", open(TasksProjectsActivity.class)));
 
         body.addView(section("TOOLS"));
+        body.addView(row("Music", "Now playing and persisted queue state", open(MusicActivity.class)));
         body.addView(row("Browser", "Saved bookmarks", open(BrowserActivity.class)));
         body.addView(row("Skills", "Capabilities actually registered in this build", open(SkillsActivity.class)));
         body.addView(row("Overlays", "Live popup overlay controls and Android surface links", open(OverlaysActivity.class)));
