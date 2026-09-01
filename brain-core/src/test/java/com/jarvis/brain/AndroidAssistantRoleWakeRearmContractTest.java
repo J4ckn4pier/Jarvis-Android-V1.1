@@ -8,6 +8,7 @@ public final class AndroidAssistantRoleWakeRearmContractTest {
     public static void main(String[] args) throws Exception {
         String main = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/MainActivity.java"));
         String managedSession = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/assistant/ManagedJarvisVoiceSession.java"));
+        String voiceSession = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/assistant/JarvisVoiceSession.java"));
         check(main.contains("requestCode == ASSISTANT_ROLE_REQUEST"), "MainActivity must handle Assistant role result");
         check(main.contains("JarvisVoiceInteractionService.refreshPassiveWakePreference()"),
                 "Assistant role completion must explicitly refresh passive wake");
@@ -20,6 +21,11 @@ public final class AndroidAssistantRoleWakeRearmContractTest {
         check(managedSession.contains("@Override public void onDestroy()")
                         && managedSession.contains("JarvisVoiceInteractionService.rearmPassiveWakeAfterSession();"),
                 "Samsung/OEM Assistant-session destruction must re-arm passive wake even when Android skips the normal onHide callback");
+        int blockedStart = voiceSession.indexOf("JARVIS_LOCK_SCREEN_BLOCKED");
+        int blockedReturn = blockedStart < 0 ? -1 : voiceSession.indexOf("return;", blockedStart);
+        String blockedPath = blockedStart < 0 || blockedReturn < 0 ? "" : voiceSession.substring(blockedStart, blockedReturn);
+        check(blockedPath.contains("JarvisVoiceInteractionService.rearmPassiveWakeAfterSession();"),
+                "lock-screen rejection must re-arm passive wake without depending on Samsung/OEM delivering onHide");
         System.out.println("AndroidAssistantRoleWakeRearmContractTest passed");
     }
 
