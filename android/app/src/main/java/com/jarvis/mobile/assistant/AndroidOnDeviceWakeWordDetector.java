@@ -531,15 +531,26 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         cancelReadyWatchdog();
         cancelEndOfSpeechWatchdog();
         listening = false;
-        inspect(results);
-        scheduleRestart(RESTART_DELAY_MS);
+        inspectSafely(results, true);
     }
 
     @Override public void onPartialResults(Bundle partialResults) {
         cancelReadyWatchdog();
-        inspect(partialResults);
+        inspectSafely(partialResults, false);
     }
     @Override public void onEvent(int eventType, Bundle params) { cancelReadyWatchdog(); }
+
+    private void inspectSafely(Bundle bundle, boolean terminal) {
+        try {
+            inspect(bundle);
+        } catch (RuntimeException resultFailure) {
+            if (!running || wakeDispatched) return;
+            status = "Android wake result callback failed: " + resultFailure.getClass().getSimpleName();
+            Log.w(TAG, "JARVIS_WAKE_RESULTS_CALLBACK_FAILED", resultFailure);
+        } finally {
+            if (terminal) scheduleRestart(RESTART_DELAY_MS);
+        }
+    }
 
     private void inspect(Bundle bundle) {
         if (!running || wakeDispatched || bundle == null) return;
