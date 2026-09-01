@@ -7,6 +7,7 @@ import java.nio.file.Path;
 public final class AndroidPassiveWakeSessionShowRecoveryContractTest {
     public static void main(String[] args) throws Exception {
         String service = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/assistant/JarvisVoiceInteractionService.java"));
+        String managedSession = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/assistant/ManagedJarvisVoiceSession.java"));
         check(service.contains("try {\n            showSession(new Bundle(), VoiceInteractionSession.SHOW_WITH_ASSIST);"),
                 "wake session handoff must guard Android showSession failures");
         check(service.contains("catch (RuntimeException failure)"),
@@ -46,6 +47,13 @@ public final class AndroidPassiveWakeSessionShowRecoveryContractTest {
                 "passive wake arming must never call the detector factory outside the service recovery boundary");
         check(service.contains("if (wakeWordDetector == null) {\n            main.postDelayed(passiveWakeRetry, PASSIVE_WAKE_RETRY_DELAY_MS);"),
                 "a detector factory/probe exception must schedule a bounded retry instead of leaving JARVIS permanently deaf");
+
+        check(managedSession.contains("catch (RuntimeException showFailure)"),
+                "managed Assistant onShow must contain Samsung/OEM session-show exceptions after passive wake has released the microphone");
+        check(managedSession.contains("JarvisVoiceInteractionService.rearmPassiveWakeAfterSession();"),
+                "failed managed Assistant onShow must immediately re-arm passive wake instead of leaving the phone deaf");
+        check(managedSession.contains("throw showFailure;"),
+                "managed Assistant onShow must preserve Android lifecycle failure semantics after restoring passive wake ownership");
 
         System.out.println("AndroidPassiveWakeSessionShowRecoveryContractTest passed");
     }
