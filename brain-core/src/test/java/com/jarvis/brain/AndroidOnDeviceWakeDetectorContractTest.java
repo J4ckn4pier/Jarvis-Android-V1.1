@@ -46,6 +46,13 @@ public final class AndroidOnDeviceWakeDetectorContractTest {
         check(detector.contains("stopListeningForWakeHandoff"), "wake detector must have an explicit handoff path that releases passive recognition before showing the assistant");
         check(detector.contains("recognizer.cancel()"), "wake handoff must cancel passive recognition immediately to release the microphone for the assistant session");
 
+        check(detector.contains("END_OF_SPEECH_WATCHDOG_MS")
+                        && detector.contains("endOfSpeechWatchdog")
+                        && detector.contains("main.postDelayed(endOfSpeechWatchdog, END_OF_SPEECH_WATCHDOG_MS)"),
+                "Samsung/OEM onEndOfSpeech without a terminal result/error must have a bounded watchdog so passive wake cannot remain silently deaf");
+        check(detector.contains("main.removeCallbacks(endOfSpeechWatchdog)"),
+                "every terminal, restart, stop, and wake-handoff path must be able to cancel the passive end-of-speech watchdog");
+
         check(detector.contains("getSharedPreferences(\"jarvis_shell\""), "wake detector must read the same persisted JARVIS language setting as active conversation");
         check(detector.contains("getString(\"language\""), "wake detector must resolve its recognizer language from the visible Language setting");
         check(settings.contains("putString(\"language\", tags[index]).apply();\n                    JarvisVoiceInteractionService.refreshPassiveWakePreference();"),
