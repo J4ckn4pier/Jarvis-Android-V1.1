@@ -58,6 +58,8 @@ public final class UserFacingSettingsContractTest {
 
         check(settings.contains("Backup & Sync is not available in this prototype yet."),
                 "Backup & Sync must truthfully say when no production backup/sync runtime exists");
+        check(settings.contains("Unavailable in prototype — local data stays on this phone"),
+                "Backup & Sync row summary must not imply a dormant or unverified synchronization capability");
         check(!settings.contains("backup_sync_enabled") && !settings.contains("Allow configured remote sync"),
                 "Backup & Sync must not persist or advertise a non-consumed remote-sync preference");
         check(settings.contains("Remote goal continuity") && settings.contains("separate from Backup & Sync"),
