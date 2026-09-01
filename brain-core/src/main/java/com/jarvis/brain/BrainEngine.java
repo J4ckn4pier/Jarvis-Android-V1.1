@@ -128,7 +128,6 @@ public final class BrainEngine {
                 && !looksLikeDescriptiveContinuation(lower.substring(timer.end()).trim())) {
             return action("Set timer", "set_timer", Map.of("amount", timer.group(1), "unit", timer.group(2)), false, acceptedWithoutWake, context);
         }
-        if (isReminderCreationRequest(lower)) return action("Create reminder", "create_reminder", Map.of("request", input.substring(10).trim()), false, acceptedWithoutWake, context);
         if (isDirectNavigationRequest(lower)) return action("Navigate", "navigate", Map.of("destination", input.replaceFirst("(?i)^(navigate|directions)(?:\\s+to)?\\s+", "")), false, acceptedWithoutWake, context);
         if (isDirectMediaPlayRequest(lower)) return action("Play media", "media_play", Map.of("query", input.substring(5).trim()), false, acceptedWithoutWake, context);
         if (isFlashlightCommand(lower)) return action("Set flashlight", "set_flashlight", Map.of("state", flashlightState(lower)), false, acceptedWithoutWake, context);
