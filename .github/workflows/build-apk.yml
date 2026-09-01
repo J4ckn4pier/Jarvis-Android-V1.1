@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, brain-first-v1, feature/product-local-cortex]
   pull_request:
-    branches: [main]
+    branches: [main, feature/product-local-cortex]
   workflow_dispatch:
 
 jobs:
@@ -32,6 +32,8 @@ jobs:
         run: sh .github/scripts/remote-goal-approval-contract.sh
       - name: Verify remote result is consumed after delivery
         run: sh .github/scripts/remote-goal-result-consumption-contract.sh
+      - name: Verify Settings Backup & Sync runtime truth
+        run: sh .github/scripts/settings-backup-runtime-truth-contract.sh
       - uses: android-actions/setup-android@v3
       - name: Install Android 16 SDK
         run: |
