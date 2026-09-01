@@ -189,6 +189,7 @@ public final class BrainEngine {
     private static boolean isCalendarQueryRequest(String lower) {
         if (!lower.contains("calendar")) return false;
         String value = lower.trim();
+        if (value.matches("calendar\\s+(?:today|tomorrow)\\s+(?:is|are|was|were|can|could|should|would|means|refers)\\b.*")) return false;
         return value.startsWith("what's on my calendar") || value.startsWith("what is on my calendar")
                 || value.startsWith("what do i have on my calendar") || value.startsWith("what's on the calendar")
                 || value.startsWith("what is on the calendar") || value.startsWith("show my calendar")
