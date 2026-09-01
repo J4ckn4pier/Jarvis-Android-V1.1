@@ -217,7 +217,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         bargeInMonitor.stop();
         releaseSpeechRecognizerSafely();
         invalidateSpeechCallback();
-        if (textToSpeech != null) textToSpeech.stop();
+        stopTextToSpeechSafely();
         setActive(false);
         super.onHide();
     }
@@ -233,7 +233,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         invalidateScheduledListen();
         bargeInMonitor.stop();
         invalidateSpeechCallback();
-        if (textToSpeech != null) textToSpeech.stop();
+        stopTextToSpeechSafely();
         startListening();
     }
 
@@ -246,7 +246,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
             invalidateScheduledListen();
             bargeInMonitor.stop();
             invalidateSpeechCallback();
-            if (textToSpeech != null) textToSpeech.stop();
+            stopTextToSpeechSafely();
             startListening();
         });
     }
@@ -325,7 +325,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
                 @Override public void onBeginningOfSpeech() {
                     if (stale()) return;
                     invalidateSpeechCallback();
-                    if (textToSpeech != null) textToSpeech.stop();
+                    stopTextToSpeechSafely();
                     resumeAfterSpeech = false;
                     output.setText("I’m listening.");
                 }
@@ -558,6 +558,14 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
 
     private int color(int resourceId) { return getContext().getColor(resourceId); }
     private int dp(int value) { return Math.round(value * getContext().getResources().getDisplayMetrics().density); }
+
+    private void stopTextToSpeechSafely() {
+        TextToSpeech engine = textToSpeech;
+        if (engine == null) return;
+        try { engine.stop(); } catch (RuntimeException stopFailure) {
+            Log.w(VOICE_RECOGNIZER_TAG, "TTS stop failed during voice-session transition", stopFailure);
+        }
+    }
 
     private void releaseTextToSpeechSafely() {
         TextToSpeech engine = textToSpeech;
