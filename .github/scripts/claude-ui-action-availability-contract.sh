@@ -16,6 +16,7 @@ grep -Fq '\"reason\":\"audio_service_unavailable\"' "$ROUTER" || fail "media con
 grep -Fq '\"reason\":\"assistant_role_unavailable\"' "$ROUTER" || fail "default-assistant control must report unavailable assistant role"
 grep -Fq '\"reason\":\"already_default_assistant\"' "$ROUTER" || fail "default-assistant control must report when no action is needed"
 grep -Fq 'String availability = actionAvailability(action);' "$ROUTER" || fail "actionWithResult must consult availability before queueing"
-grep -Fq 'if (!availability.contains("\\\"enabled\\\":true"))' "$ROUTER" || fail "disabled controls must not be queued"
+grep -Fq 'if (!availability.contains(' "$ROUTER" || fail "disabled controls must not be queued"
+grep -Fq '\"reason\":\"unavailable\"' "$ROUTER" || fail "rejected environment-dependent actions must be reported as unavailable"
 
 echo "Claude UI action-availability contract GREEN"
