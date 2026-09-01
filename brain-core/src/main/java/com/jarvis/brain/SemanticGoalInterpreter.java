@@ -179,7 +179,7 @@ public final class SemanticGoalInterpreter {
         boolean media = lower.contains("music") || lower.contains("media") || lower.contains("track") || lower.contains("song");
         if (!media) return null;
         if (!startsAsRequest(lower, "play ", "pause ", "resume ", "continue ", "next ", "previous ", "skip ", "back ", "go back ")) return null;
-        if (lower.matches("(?:pause|resume|continue|next|previous|skip|back|go back)\\s+(?:music|media|track|song)\\s+(?:is|are|was|were|can|could|should|would|means|refers)\\b.*")) return null;
+        if (lower.matches("(?:play|pause|resume|continue|next|previous|skip|back|go back)\\s+(?:music|media|track|song)\\s+(?:is|are|was|were|can|could|should|would|means|refers)\\b.*")) return null;
         if (lower.contains("pause")) return "pause";
         if (lower.contains("resume") || lower.contains("continue") || lower.contains("play")) return "play";
         if (lower.contains("next") || lower.contains("skip")) return "next";
