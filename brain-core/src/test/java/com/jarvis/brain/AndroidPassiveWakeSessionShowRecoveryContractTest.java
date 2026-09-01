@@ -37,6 +37,16 @@ public final class AndroidPassiveWakeSessionShowRecoveryContractTest {
                 "passive wake arming must never call the OEM detector start path without the service recovery boundary");
         check(service.contains("passiveWakeStartThrew || transientWakeStartupFailure(detectorStatus)"),
                 "an exception thrown during passive wake startup must enter the bounded retry path even when the detector cannot provide a transient status");
+
+        check(service.contains("private WakeWordDetectorPort createWakeWordDetectorSafely()")
+                        && service.contains("AndroidWakeWordDetectorFactory.create(this)")
+                        && service.contains("JARVIS_PASSIVE_WAKE_CREATE_FAILED"),
+                "Samsung/OEM exceptions while probing or constructing the passive wake detector must be contained by the voice service");
+        check(service.contains("wakeWordDetector = createWakeWordDetectorSafely();"),
+                "passive wake arming must never call the detector factory outside the service recovery boundary");
+        check(service.contains("if (wakeWordDetector == null) {\n            main.postDelayed(passiveWakeRetry, PASSIVE_WAKE_RETRY_DELAY_MS);"),
+                "a detector factory/probe exception must schedule a bounded retry instead of leaving JARVIS permanently deaf");
+
         System.out.println("AndroidPassiveWakeSessionShowRecoveryContractTest passed");
     }
 
