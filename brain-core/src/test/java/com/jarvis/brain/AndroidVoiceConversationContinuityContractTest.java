@@ -79,6 +79,10 @@ public final class AndroidVoiceConversationContinuityContractTest {
                         && session.contains("releaseSpeechRecognizerSafely();")
                         && session.contains("scheduleNextListen();"),
                 "a pre-ready recognizer stall must discard the wedged recognizer and reopen listening without waiting forever");
+        check(session.contains("@Override public void onRmsChanged(float rmsdB) {\n                    if (stale()) return;\n                    invalidateRecognitionReadyWatchdog();\n                }")
+                        && session.contains("@Override public void onBufferReceived(byte[] buffer) {\n                    if (stale()) return;\n                    invalidateRecognitionReadyWatchdog();\n                }")
+                        && session.contains("@Override public void onEvent(int eventType, Bundle params) {\n                    if (stale()) return;\n                    invalidateRecognitionReadyWatchdog();\n                }"),
+                "Samsung/OEM audio-progress or recognizer-event callbacks must prove the recognizer is alive and cancel the pre-ready watchdog even if onReadyForSpeech is delayed or omitted");
         check(session.contains("private void releaseSpeechRecognizerSafely()")
                         && session.contains("try { recognizer.cancel(); } catch (RuntimeException cleanupFailure)")
                         && session.contains("try { recognizer.destroy(); } catch (RuntimeException cleanupFailure)"),
