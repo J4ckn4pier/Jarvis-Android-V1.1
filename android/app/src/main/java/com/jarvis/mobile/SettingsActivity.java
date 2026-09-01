@@ -15,6 +15,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.speech.SpeechRecognizer;
 import android.text.InputFilter;
 import android.text.InputType;
 import android.view.Gravity;
@@ -227,7 +228,13 @@ public class SettingsActivity extends Activity {
     private void disconnectProvider(){getSharedPreferences("jarvis_cortex",MODE_PRIVATE).edit().putString("mode",CortexProviderFactory.MODE_LOCAL).apply();new SecureSecretStore(this).remove("provider_api_key");Toast.makeText(this,"AI provider disconnected. JARVIS is using its deterministic local fallback.",Toast.LENGTH_SHORT).show();render();}
     private boolean isAssistantRoleHeld(){RoleManager manager=getSystemService(RoleManager.class);return manager!=null&&manager.isRoleAvailable(RoleManager.ROLE_ASSISTANT)&&manager.isRoleHeld(RoleManager.ROLE_ASSISTANT);}
     private String assistantSummary(){return isAssistantRoleHeld()?"JARVIS is the default assistant":"Required for passive wake — tap to enable";}
-    private String wakeSummary(){if(!preferences.getBoolean("wake_enabled",true))return "Disabled";return isAssistantRoleHeld()?"Listen locally for “Jarvis” or “Hey Jarvis”":"Requires JARVIS as your default assistant — tap to finish setup";}
+    private String wakeSummary(){
+        if(!preferences.getBoolean("wake_enabled",true))return "Disabled";
+        if(!isAssistantRoleHeld())return "Requires JARVIS as your default assistant — tap to finish setup";
+        if(checkSelfPermission(Manifest.permission.RECORD_AUDIO)!=PackageManager.PERMISSION_GRANTED)return "Microphone permission required";
+        if(!SpeechRecognizer.isRecognitionAvailable(this))return "Android speech recognition unavailable";
+        return "Configured for local “Jarvis” / “Hey Jarvis”; Android offline speech support is verified at runtime";
+    }
     private String voiceModelSummary(){String pace=preferences.getString("voice_model_label","System voice");return "Android system TTS voice • "+pace+" pace";}
     private String languageSummary(){String tag=preferences.getString("language","system");if("system".equalsIgnoreCase(tag))return "Follow Android system — "+getResources().getConfiguration().getLocales().get(0).getDisplayLanguage();Locale locale=Locale.forLanguageTag(tag);return locale.getDisplayName();}
     private String permissionSummary(){
