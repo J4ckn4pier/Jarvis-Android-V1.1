@@ -35,8 +35,8 @@ public final class AndroidPassiveWakeCommercialContractTest {
 
         check(service.contains("WakeWordDetectorPort wakeWordDetector"),
                 "voice interaction service must own one passive wake detector");
-        check(service.contains("wakeWordDetector = AndroidWakeWordDetectorFactory.create(this)"),
-                "voice service must create detector through the release-safe factory");
+        check(service.contains("return AndroidWakeWordDetectorFactory.create(this)"),
+                "voice service must create detector through the release-safe factory, including when wrapped by an OEM exception boundary");
         check(service.contains("wakeWordDetector.start(this::showWakeSession)"),
                 "voice service must start passive wake only through the detector port");
         check(service.contains("private void showWakeSession()"),
