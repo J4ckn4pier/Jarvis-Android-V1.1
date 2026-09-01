@@ -3,7 +3,7 @@ package com.jarvis.brain;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-/** Samsung/OEM runtime microphone permission loss must stop retries instead of causing a recognizer loop. */
+/** Samsung/OEM runtime microphone and recognition callback failures must recover without recognizer loops or stranded sessions. */
 public final class AndroidVoicePermissionRevocationContractTest {
     public static void main(String[] args) throws Exception {
         String session = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/assistant/JarvisVoiceSession.java"));
@@ -20,6 +20,13 @@ public final class AndroidVoicePermissionRevocationContractTest {
                 "permission-loss recovery must invalidate callbacks, cancel pending relistens, and release the recognizer");
         check(session.contains("Microphone permission"),
                 "permission loss must surface a truthful microphone-permission message");
+        check(session.contains("handleRecognitionResultsSafely(results)"),
+                "active Assistant final-result Bundles must cross a Samsung/OEM exception boundary before command execution");
+        check(session.contains("handleRecognitionPartialSafely(partialResults)"),
+                "active Assistant partial-result Bundles must cross the same protected OEM callback boundary");
+        check(session.contains("ACTIVE_RECOGNITION_RESULTS_CALLBACK_FAILED")
+                        && session.contains("scheduleNextListen();"),
+                "malformed active recognition results must leave evidence and reopen multi-turn listening instead of stranding the session");
 
         System.out.println("AndroidVoicePermissionRevocationContractTest: PASS");
     }
