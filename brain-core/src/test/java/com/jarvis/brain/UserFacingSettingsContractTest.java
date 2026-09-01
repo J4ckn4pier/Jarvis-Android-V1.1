@@ -45,6 +45,9 @@ public final class UserFacingSettingsContractTest {
                 "Free Local AI must not tell users arbitrary HTTPS endpoints are accepted when the local-only policy rejects them");
         check(developerSettings.contains("EndpointTransportPolicy.allows"),
                 "Developer Options must apply the shared safe endpoint transport policy before saving provider endpoints");
+        int clearKey = developerSettings.indexOf("CLEAR SAVED API KEY");
+        check(clearKey >= 0 && developerSettings.substring(clearKey, Math.min(developerSettings.length(), clearKey + 400)).contains("status.setText(CortexProviderFactory.status(this))"),
+                "Developer Options must immediately refresh provider status after clearing the saved API key so the UI cannot keep claiming a provider is configured");
         check(!settings.contains("PREFRONTAL CORTEX"), "normal Settings must not expose internal cortex jargon");
         check(!settings.contains("API key"), "normal Settings must not expose a raw API-key field");
         check(!settings.contains("RESEARCH ENDPOINT"), "normal Settings must not expose raw research endpoint controls");
