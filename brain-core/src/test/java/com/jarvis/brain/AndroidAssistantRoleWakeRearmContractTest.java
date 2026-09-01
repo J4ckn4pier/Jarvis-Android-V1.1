@@ -20,6 +20,9 @@ public final class AndroidAssistantRoleWakeRearmContractTest {
         check(managedSession.contains("@Override public void onDestroy()")
                         && managedSession.contains("JarvisVoiceInteractionService.rearmPassiveWakeAfterSession();"),
                 "Samsung/OEM Assistant-session destruction must re-arm passive wake even when Android skips the normal onHide callback");
+        check(managedSession.contains("lockScreenSessionWillBeRejected()")
+                        && managedSession.contains("JarvisVoiceInteractionService.rearmPassiveWakeAfterSession();"),
+                "lock-screen rejection must re-arm passive wake without depending on Samsung/OEM delivering onHide");
         System.out.println("AndroidAssistantRoleWakeRearmContractTest passed");
     }
 
