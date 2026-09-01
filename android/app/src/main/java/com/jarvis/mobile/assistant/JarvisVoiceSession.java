@@ -683,11 +683,11 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         }
     }
 
-    @Override public void onInit(int status) {
-        if (destroyed) return;
-        if (status == TextToSpeech.SUCCESS && textToSpeech != null) {
-            applyVoicePreferences();
-            textToSpeech.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+    private void attachTtsProgressListenerSafely() {
+        TextToSpeech engine = textToSpeech;
+        if (engine == null) return;
+        try {
+            engine.setOnUtteranceProgressListener(new UtteranceProgressListener() {
                 @Override public void onStart(String utteranceId) {
                     if (!isCurrentSpeechCallback(utteranceId)) return;
                 }
@@ -698,6 +698,18 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
                     if (output != null) output.post(() -> finishSpeechCallback(utteranceId));
                 }
             });
+        } catch (RuntimeException listenerFailure) {
+            Log.w(VOICE_RECOGNIZER_TAG, "TTS progress-listener attachment failed; retiring speech engine", listenerFailure);
+            invalidateSpeechCallback();
+            releaseTextToSpeechSafely();
+        }
+    }
+
+    @Override public void onInit(int status) {
+        if (destroyed) return;
+        if (status == TextToSpeech.SUCCESS && textToSpeech != null) {
+            applyVoicePreferences();
+            attachTtsProgressListenerSafely();
         }
     }
 
