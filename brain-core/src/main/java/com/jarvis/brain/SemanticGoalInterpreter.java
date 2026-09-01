@@ -206,8 +206,11 @@ public final class SemanticGoalInterpreter {
     }
     private static boolean onLanguage(String lower) { return lower.contains("turn on") || lower.contains("switch on") || lower.contains("enable"); }
     private static boolean isFoodDiscovery(String lower) {
+        boolean explicitRequest = startsAsRequest(lower, "find ", "find me ", "where should ", "recommend ", "suggest ", "show me ");
+        if (!explicitRequest) return false;
         boolean food = lower.contains("food") || lower.contains("eat") || lower.contains("dinner") || lower.contains("restaurant");
-        boolean discovery = lower.contains("find") || lower.contains("somewhere") || lower.contains("place") || lower.contains("where should");
+        boolean discovery = lower.contains("find") || lower.contains("somewhere") || lower.contains("place") || lower.contains("where should")
+                || lower.contains("recommend") || lower.contains("suggest");
         boolean context = lower.contains("tonight") || lower.contains("nearby") || lower.contains("around here") || lower.contains("dinner");
         return food && discovery && context;
     }
