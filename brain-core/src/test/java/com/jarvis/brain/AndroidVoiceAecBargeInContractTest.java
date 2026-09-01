@@ -15,6 +15,8 @@ public final class AndroidVoiceAecBargeInContractTest {
                 "Samsung/OEM exceptions while probing AEC availability must be contained at the barge-in boundary");
         check(monitor.contains("private int minimumBufferSizeSafely()"),
                 "Samsung/OEM exceptions while probing AudioRecord minimum buffer size must be contained at the barge-in boundary");
+        check(monitor.contains("private boolean isInitializedSafely(AudioRecord recorder)"),
+                "Samsung/OEM exceptions while reading AudioRecord initialization state must be contained before microphone ownership");
         check(monitor.contains("context.checkSelfPermission(Manifest.permission.RECORD_AUDIO)"),
                 "barge-in capture must explicitly re-check runtime microphone permission at the capture boundary");
         check(monitor.contains("PackageManager.PERMISSION_GRANTED"),
