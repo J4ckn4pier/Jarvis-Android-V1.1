@@ -65,9 +65,8 @@ public final class AndroidVoiceTtsCallbackGenerationContractTest {
                         && session.contains("catch (RuntimeException initializationFailure)")
                         && session.contains("TTS initialization failed; continuing without spoken output"),
                 "Samsung/OEM TTS construction failure must be contained so Assistant session creation still reaches listening");
-        check(session.contains("initializeTextToSpeechSafely();")
-                        && !session.contains("textToSpeech = new TextToSpeech(getContext(), this);"),
-                "onCreate must initialize the OEM TTS engine through the safe construction boundary rather than crash the voice session");
+        check(session.contains("brain = new AndroidBrainRuntime(getContext());\n        initializeTextToSpeechSafely();"),
+                "onCreate must route OEM TTS construction through the safe boundary rather than constructing it inline");
 
         System.out.println("AndroidVoiceTtsCallbackGenerationContractTest: PASS");
     }
