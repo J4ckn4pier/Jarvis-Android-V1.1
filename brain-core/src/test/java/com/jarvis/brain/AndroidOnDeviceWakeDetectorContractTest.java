@@ -23,6 +23,12 @@ public final class AndroidOnDeviceWakeDetectorContractTest {
         check(factory.contains("AndroidOnDeviceWakeWordDetector.isAvailable(app)"), "factory must require an Android speech service before constructing wake");
         check(factory.contains("new AndroidOnDeviceWakeWordDetector(app)"), "factory must construct the real detector instead of returning the disabled stub");
         check(detector.contains("SpeechRecognizer.isOnDeviceRecognitionAvailable(context)"), "wake detector must prefer Android's dedicated on-device recognizer");
+        check(detector.contains("private boolean dedicatedOnDeviceRecognitionAvailableSafely()")
+                        && detector.contains("JARVIS_WAKE_ON_DEVICE_AVAILABILITY_CHECK_FAILED")
+                        && detector.contains("catch (RuntimeException availabilityFailure)"),
+                "Samsung/OEM exceptions from the dedicated on-device availability probe must fall through to the verified system-recognizer path instead of escaping passive wake startup");
+        check(occurrences(detector, "dedicatedOnDeviceRecognitionAvailableSafely()") >= 3,
+                "both initial passive-wake startup and recognizer recreation must use the protected dedicated on-device availability probe");
         check(detector.contains("SpeechRecognizer.createOnDeviceSpeechRecognizer(context)"), "wake detector must use the dedicated Android on-device recognizer when exposed");
 
         if (detector.contains("SpeechRecognizer.createSpeechRecognizer(context)")) {
@@ -102,6 +108,16 @@ public final class AndroidOnDeviceWakeDetectorContractTest {
         check(settings.contains("JarvisVoiceInteractionService.refreshPassiveWakePreference()"), "the visible Wake Word switch must immediately refresh the live passive listener");
 
         System.out.println("AndroidOnDeviceWakeDetectorContractTest passed");
+    }
+
+    private static int occurrences(String text, String needle) {
+        int count = 0;
+        int from = 0;
+        while ((from = text.indexOf(needle, from)) >= 0) {
+            count++;
+            from += needle.length();
+        }
+        return count;
     }
 
     private static void check(boolean value, String message) { if (!value) throw new AssertionError(message); }
