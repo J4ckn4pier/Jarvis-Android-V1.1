@@ -112,9 +112,14 @@ public final class SemanticGoalInterpreter {
             if (candidate.isBlank()) return "";
             String normalized = normalize(candidate);
             if (normalized.equals("settings") || normalized.equals("the settings") || normalized.contains("phone dialer")) return "";
+            if (looksLikeDescriptiveClause(normalized)) return "";
             return candidate;
         }
         return "";
+    }
+
+    private static boolean looksLikeDescriptiveClause(String normalized) {
+        return normalized.matches(".*\\b(?:about|because|when|while|if|that|which|who|where|why|is|are|was|were|can|could|should|would)\\b.*");
     }
 
     private static String webQuery(String raw, String lower) {
