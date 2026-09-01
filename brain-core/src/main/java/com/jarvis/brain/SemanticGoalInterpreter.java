@@ -201,7 +201,8 @@ public final class SemanticGoalInterpreter {
             if (idx < 0) continue;
             String candidate = raw.substring(Math.min(raw.length(), idx + cue.length())).trim();
             String normalizedCandidate = normalize(candidate);
-            if (normalizedCandidate.isBlank() || VAGUE_DESTINATIONS.contains(normalizedCandidate)) return "";
+            if (normalizedCandidate.isBlank() || VAGUE_DESTINATIONS.contains(normalizedCandidate)
+                    || looksLikeDescriptiveClause(normalizedCandidate)) return "";
             return candidate;
         }
         return "";
