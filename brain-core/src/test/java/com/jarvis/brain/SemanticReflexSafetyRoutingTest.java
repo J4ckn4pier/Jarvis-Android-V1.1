@@ -18,6 +18,7 @@ public final class SemanticReflexSafetyRoutingTest {
         descriptiveNearestGasStationPhraseFallsThroughToCortex();
         descriptiveDirectionsPhraseFallsThroughToCortex();
         descriptivePhoneCallPhraseFallsThroughToCortex();
+        descriptiveOpenPhoneDiscussionFallsThroughToCortex();
         descriptivePlayPhraseFallsThroughToCortex();
         descriptiveWebSearchPhraseFallsThroughToCortex();
         descriptiveSettingsPhraseFallsThroughToCortex();
@@ -98,6 +99,12 @@ public final class SemanticReflexSafetyRoutingTest {
         BrainResponse response = core.handle("Why does my phone call open the speaker controls automatically?");
         check(calls.get() == 1, "descriptive phone-call language must reach cortex");
         check(response.kind() == BrainResponse.Kind.CONVERSATION, "descriptive phone-call language must not open the dialer");
+    }
+    private static void descriptiveOpenPhoneDiscussionFallsThroughToCortex() {
+        AtomicInteger calls = new AtomicInteger(); AssistantCore core = coreWithRouter(calls);
+        BrainResponse response = core.handle("Open communication about phone etiquette is important.");
+        check(calls.get() == 1, "descriptive open/phone language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION, "descriptive open/phone language must not open the dialer");
     }
     private static void descriptivePlayPhraseFallsThroughToCortex() {
         AtomicInteger calls = new AtomicInteger(); AssistantCore core = coreWithRouter(calls);
