@@ -79,6 +79,21 @@ public final class AndroidVoiceTtsCallbackGenerationContractTest {
         check(session.contains("TTS terminal callback timed out; reopening listening"),
                 "watchdog expiry must be observable as a Samsung/OEM voice-session recovery event");
 
+        check(session.contains("TTS_START_CALLBACK_TIMEOUT_MILLIS"),
+                "accepted Samsung/OEM TTS playback must have a short bounded start-callback watchdog");
+        check(session.contains("scheduleTtsStartWatchdog(utteranceId)"),
+                "successful TTS submission must arm a start watchdog in case Samsung accepts speak but never begins audio");
+        check(session.contains("handleTtsStartTimeout(utteranceId)"),
+                "missing Samsung TTS onStart must enter an explicit recovery path instead of waiting for the long terminal timeout");
+        check(session.contains("invalidateTtsStartWatchdog()"),
+                "onStart, normal completion, interruption, hide, and destroy must invalidate any stale TTS start watchdog");
+        check(session.contains("TTS start callback timed out; reopening listening"),
+                "TTS start-watchdog expiry must be observable as a Samsung/OEM voice-session recovery event");
+        check(session.contains("@Override public void onStart(String utteranceId) {\n                    if (!isCurrentSpeechCallback(utteranceId)) return;\n                    invalidateTtsStartWatchdog();"),
+                "a real onStart callback must cancel the short start watchdog while preserving the terminal watchdog for completion");
+        check(!session.contains("recognognitionAvailable"),
+                "voice-session source must keep the recognizer availability guard compilable while TTS recovery is hardened");
+
         System.out.println("AndroidVoiceTtsCallbackGenerationContractTest: PASS");
     }
 

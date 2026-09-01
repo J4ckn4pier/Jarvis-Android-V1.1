@@ -47,6 +47,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private static final long NEXT_LISTEN_DELAY_MILLIS = 180L;
     private static final long ACTIVE_END_OF_SPEECH_TIMEOUT_MILLIS = 3000L;
     private static final long ACTIVE_RECOGNIZER_READY_TIMEOUT_MILLIS = 4000L;
+    private static final long TTS_START_CALLBACK_TIMEOUT_MILLIS = 4000L;
     private static final long TTS_TERMINAL_CALLBACK_TIMEOUT_MILLIS = 60000L;
     private static final String TEST_TAG = "JARVIS_ASSISTANT_TEST";
     private static final String SHARED_BRAIN_TAG = "JARVIS_SHARED_BRAIN_ACTIVE";
@@ -77,6 +78,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private long recognitionTerminalWatchdogGeneration;
     private long recognitionReadyWatchdogGeneration;
     private long speechGeneration;
+    private volatile long ttsStartWatchdogGeneration;
     private long ttsTerminalWatchdogGeneration;
     private long listenScheduleGeneration;
     private volatile String activeUtteranceId = "";
@@ -619,7 +621,10 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         if (engine == null) return false;
         try {
             boolean accepted = engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId) == TextToSpeech.SUCCESS;
-            if (accepted) scheduleTtsTerminalWatchdog(utteranceId);
+            if (accepted) {
+                scheduleTtsStartWatchdog(utteranceId);
+                scheduleTtsTerminalWatchdog(utteranceId);
+            }
             return accepted;
         } catch (RuntimeException speechFailure) {
             Log.w(VOICE_RECOGNIZER_TAG, "TTS playback failed; continuing without spoken output", speechFailure);
@@ -631,6 +636,31 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         speechGeneration++;
         activeUtteranceId = "jarvis-session-" + speechGeneration;
         return activeUtteranceId;
+    }
+
+    private void invalidateTtsStartWatchdog() {
+        ttsStartWatchdogGeneration++;
+    }
+
+    private void scheduleTtsStartWatchdog(String utteranceId) {
+        long watchdogGeneration = ++ttsStartWatchdogGeneration;
+        TextView surface = output;
+        if (surface == null) return;
+        surface.postDelayed(() -> {
+            if (watchdogGeneration != ttsStartWatchdogGeneration) return;
+            handleTtsStartTimeout(utteranceId);
+        }, TTS_START_CALLBACK_TIMEOUT_MILLIS);
+    }
+
+    private void handleTtsStartTimeout(String utteranceId) {
+        if (!isCurrentSpeechCallback(utteranceId) || !sessionVisible) return;
+        Log.w(VOICE_RECOGNIZER_TAG, "TTS start callback timed out; reopening listening");
+        invalidateSpeechCallback();
+        bargeInMonitor.stop();
+        stopTextToSpeechSafely();
+        if (!resumeAfterSpeech) return;
+        resumeAfterSpeech = false;
+        scheduleNextListen();
     }
 
     private void invalidateTtsTerminalWatchdog() {
@@ -661,6 +691,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private void invalidateSpeechCallback() {
         speechGeneration++;
         activeUtteranceId = "";
+        invalidateTtsStartWatchdog();
         invalidateTtsTerminalWatchdog();
     }
 
@@ -778,6 +809,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
             engine.setOnUtteranceProgressListener(new UtteranceProgressListener() {
                 @Override public void onStart(String utteranceId) {
                     if (!isCurrentSpeechCallback(utteranceId)) return;
+                    invalidateTtsStartWatchdog();
                 }
                 @Override public void onDone(String utteranceId) {
                     if (output != null) output.post(() -> finishSpeechCallback(utteranceId));
