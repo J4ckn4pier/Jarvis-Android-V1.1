@@ -34,6 +34,16 @@ public final class AndroidVoicePermissionRevocationContractTest {
         check(session.contains("ACTIVE_RECOGNITION_RESULTS_CALLBACK_FAILED")
                         && session.contains("scheduleNextListen();"),
                 "malformed active recognition results must leave evidence and reopen multi-turn listening instead of stranding the session");
+        check(session.contains("ERROR_RECOGNIZER_BUSY")
+                        && session.contains("ERROR_SERVER"),
+                "Samsung recognizer busy/server failures must be distinguished from ordinary no-match conversational retries");
+        check(session.contains("scheduleRecognitionServiceRecovery"),
+                "Samsung recognizer service failures must enter an explicit recovery/backoff path instead of the normal 180ms relisten loop");
+        check(session.contains("RECOGNIZER_SERVICE_RETRY_MAX_MILLIS"),
+                "recognizer service recovery must be bounded rather than hammering the Samsung speech service indefinitely");
+        check(session.contains("releaseSpeechRecognizerSafely();")
+                        && session.contains("recognizerServiceFailureCount"),
+                "service-level recognition failures must retire the current recognizer and track consecutive failures for bounded backoff");
 
         System.out.println("AndroidVoicePermissionRevocationContractTest: PASS");
     }
