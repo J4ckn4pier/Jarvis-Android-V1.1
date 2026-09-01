@@ -96,6 +96,7 @@ public final class SemanticGoalInterpreter {
     }
 
     private static boolean isDialer(String lower) {
+        if (startsAsRequest(lower, "open ") && lower.contains("use to make") && lower.contains("phone call")) return true;
         return startsAsRequest(lower,
                 "open phone", "open the phone", "open my phone", "open dialer", "open the dialer",
                 "phone app", "phone", "dialer", "make a phone call", "make calls", "dial ");
