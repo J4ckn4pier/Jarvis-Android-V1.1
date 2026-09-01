@@ -18,5 +18,7 @@ grep -Fq '\"reason\":\"already_default_assistant\"' "$ROUTER" || fail "default-a
 grep -Fq 'String availability = actionAvailability(action);' "$ROUTER" || fail "actionWithResult must consult availability before queueing"
 grep -Fq 'if (!availability.contains(' "$ROUTER" || fail "disabled controls must not be queued"
 grep -Fq '\"reason\":\"unavailable\"' "$ROUTER" || fail "rejected environment-dependent actions must be reported as unavailable"
+grep -Fq 'if (!isActionAvailable(action)) return;' "$ROUTER" || fail "legacy action(action) bridge must not dispatch supported-but-unavailable controls"
+grep -Fq 'private boolean isActionAvailable(String action)' "$ROUTER" || fail "availability dispatch guard must be shared rather than duplicated ad hoc"
 
 echo "Claude UI action-availability contract GREEN"
