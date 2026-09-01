@@ -27,6 +27,11 @@ public final class AndroidVoicePermissionRevocationContractTest {
         check(session.contains("ACTIVE_RECOGNITION_RESULTS_CALLBACK_FAILED")
                         && session.contains("scheduleNextListen();"),
                 "malformed active recognition results must leave evidence and reopen multi-turn listening instead of stranding the session");
+        check(session.contains("checkRecordAudioPermissionSafely()"),
+                "active listening must not call the Samsung/OEM permission layer outside an exception boundary");
+        check(session.contains("MICROPHONE_PERMISSION_CHECK_FAILED")
+                        && session.contains("scheduleVoiceRetry("),
+                "a transient Samsung/OEM permission-probe failure must leave evidence and retry instead of escaping or stranding the session");
 
         System.out.println("AndroidVoicePermissionRevocationContractTest: PASS");
     }
