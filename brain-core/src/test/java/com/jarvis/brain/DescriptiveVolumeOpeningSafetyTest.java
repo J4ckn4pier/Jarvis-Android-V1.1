@@ -9,6 +9,7 @@ public final class DescriptiveVolumeOpeningSafetyTest {
         descriptiveVolumeOpeningFallsThroughToCortex();
         descriptiveCalendarOpeningFallsThroughToCortex();
         descriptiveNotificationOpeningFallsThroughToCortex();
+        descriptiveWeatherOpeningFallsThroughToCortex();
         System.out.println("DescriptiveVolumeOpeningSafetyTest passed");
     }
 
@@ -40,6 +41,16 @@ public final class DescriptiveVolumeOpeningSafetyTest {
         check(cortexCalls.get() == 1, "descriptive notification-opening language must reach cortex");
         check(response.kind() == BrainResponse.Kind.CONVERSATION,
                 "descriptive notification-opening language must not query notifications");
+    }
+
+    private static void descriptiveWeatherOpeningFallsThroughToCortex() {
+        AtomicInteger cortexCalls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(cortexCalls);
+        BrainResponse response = core.handle("Weather today is mostly discussed through apps instead of newspapers.");
+
+        check(cortexCalls.get() == 1, "descriptive weather-opening language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "descriptive weather-opening language must not perform a weather lookup");
     }
 
     private static AssistantCore coreWithRouter(AtomicInteger cortexCalls) {
