@@ -16,6 +16,8 @@ jobs:
         run: sh .github/scripts/claude-ui-action-bridge-contract.sh
       - name: Verify Claude UI navigation bridge contract
         run: sh .github/scripts/claude-ui-navigation-contract.sh
+      - name: Verify Claude UI tasks/projects navigation contract
+        run: sh .github/scripts/claude-ui-tasks-navigation-contract.sh
       - name: Verify Claude UI truthful capability contract
         run: sh .github/scripts/claude-ui-capabilities-contract.sh
       - name: Verify Claude UI action result contract
