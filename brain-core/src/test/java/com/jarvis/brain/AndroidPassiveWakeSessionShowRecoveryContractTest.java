@@ -35,6 +35,8 @@ public final class AndroidPassiveWakeSessionShowRecoveryContractTest {
                 "Samsung/OEM exceptions thrown by wake detector startup must be contained by the voice service");
         check(service.contains("boolean started = startPassiveWakeSafely();"),
                 "passive wake arming must never call the OEM detector start path without the service recovery boundary");
+        check(service.contains("passiveWakeStartThrew || transientWakeStartupFailure(detectorStatus)"),
+                "an exception thrown during passive wake startup must enter the bounded retry path even when the detector cannot provide a transient status");
         System.out.println("AndroidPassiveWakeSessionShowRecoveryContractTest passed");
     }
 
