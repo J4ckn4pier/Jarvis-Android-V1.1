@@ -19,6 +19,7 @@ public final class SemanticReflexIntegrationTest {
         mediaControlRoutesOffline();
         webSearchRoutesOffline();
         dinnerParaphraseBuildsDiscoveryPlan();
+        descriptiveFoodDiscoveryDoesNotBuildDiscoveryPlan();
         ambiguousRequestStillFallsThroughToReasoning();
         System.out.println("SemanticReflexIntegrationTest: " + checks + " assertions passed");
     }
@@ -106,6 +107,11 @@ public final class SemanticReflexIntegrationTest {
         check(plan.steps().stream().anyMatch(s -> s.tool().equals("rank_options")), "dinner plan needs ranking");
         check(plan.steps().stream().anyMatch(s -> s.tool().equals("present_options")), "dinner plan needs presentation");
         check(plan.steps().get(0).arguments().get("time").equals("tonight"), "semantic reflex should retain requested dinner timing");
+    }
+
+    private static void descriptiveFoodDiscoveryDoesNotBuildDiscoveryPlan() {
+        check(new SemanticGoalInterpreter().interpret("Finding somewhere to eat tonight can be stressful.").isEmpty(),
+                "descriptive food-discovery language must not become an autonomous discovery plan");
     }
 
     private static void ambiguousRequestStillFallsThroughToReasoning() {
