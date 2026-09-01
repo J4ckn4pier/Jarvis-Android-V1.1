@@ -153,7 +153,12 @@ public final class BrainEngine {
 
     private static boolean isHighConfidenceCallRecipient(String recipient) {
         String value = recipient == null ? "" : recipient.trim().toLowerCase(Locale.ROOT);
-        return !value.startsWith("me ") && !value.startsWith("it ");
+        if (value.startsWith("me ") || value.startsWith("it ")) return false;
+        String[] words = value.split("\\s+");
+        for (int i = 1; i < words.length; i++) {
+            if (looksLikeDescriptiveContinuation(String.join(" ", java.util.Arrays.copyOfRange(words, i, words.length)))) return false;
+        }
+        return true;
     }
 
     private static boolean isReminderCreationRequest(String lower) {
