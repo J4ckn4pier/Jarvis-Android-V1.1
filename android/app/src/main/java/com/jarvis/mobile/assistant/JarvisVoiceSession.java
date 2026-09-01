@@ -337,6 +337,10 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
                 }
                 @Override public void onError(int error) {
                     if (!claimTerminal()) return;
+                    if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
+                        handleRecognitionPermissionLoss();
+                        return;
+                    }
                     output.setText(error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
                             ? "I didn’t catch that. I’m still listening."
                             : "Listening paused briefly; I’ll reopen it.");
@@ -378,6 +382,16 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         } catch (RuntimeException recognitionFailure) {
             recoverRecognitionStartFailure(recognitionFailure);
         }
+    }
+
+    private void handleRecognitionPermissionLoss() {
+        Log.w(VOICE_RECOGNIZER_TAG, "Microphone permission lost during active recognition; stopping automatic relisten");
+        recognitionGeneration++;
+        invalidateScheduledListen();
+        bargeInMonitor.stop();
+        releaseSpeechRecognizerSafely();
+        setActive(false);
+        if (output != null) output.setText("Microphone permission is required. Open JARVIS and grant Microphone permission to continue.");
     }
 
     private void releaseSpeechRecognizerSafely() {
