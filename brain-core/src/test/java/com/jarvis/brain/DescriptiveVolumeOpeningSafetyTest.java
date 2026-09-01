@@ -8,6 +8,7 @@ public final class DescriptiveVolumeOpeningSafetyTest {
     public static void main(String[] args) {
         descriptiveVolumeOpeningFallsThroughToCortex();
         descriptiveCalendarOpeningFallsThroughToCortex();
+        descriptiveNotificationOpeningFallsThroughToCortex();
         System.out.println("DescriptiveVolumeOpeningSafetyTest passed");
     }
 
@@ -29,6 +30,16 @@ public final class DescriptiveVolumeOpeningSafetyTest {
         check(cortexCalls.get() == 1, "descriptive calendar-opening language must reach cortex");
         check(response.kind() == BrainResponse.Kind.CONVERSATION,
                 "descriptive calendar-opening language must not query the user's calendar");
+    }
+
+    private static void descriptiveNotificationOpeningFallsThroughToCortex() {
+        AtomicInteger cortexCalls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(cortexCalls);
+        BrainResponse response = core.handle("Read notifications are useful when your hands are busy.");
+
+        check(cortexCalls.get() == 1, "descriptive notification-opening language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "descriptive notification-opening language must not query notifications");
     }
 
     private static AssistantCore coreWithRouter(AtomicInteger cortexCalls) {
