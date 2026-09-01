@@ -14,8 +14,8 @@ public final class AndroidVoiceExplicitBargeInContractTest {
                 "voice session must define one explicit barge-in boundary");
         check(session.contains("resumeAfterSpeech = false;"),
                 "barge-in must disarm the pending post-TTS auto-listen callback");
-        check(session.contains("textToSpeech.stop();"),
-                "barge-in must stop JARVIS speech immediately");
+        check(session.contains("stopTextToSpeechSafely();"),
+                "barge-in must stop JARVIS speech immediately through the OEM-safe stop boundary");
         check(session.contains("startListening();"),
                 "barge-in must transition directly into recognition");
 
