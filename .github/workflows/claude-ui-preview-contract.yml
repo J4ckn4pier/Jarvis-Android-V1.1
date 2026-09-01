@@ -42,6 +42,8 @@ jobs:
         run: sh .github/scripts/claude-ui-preview-lifecycle-contract.sh
       - name: Verify Android-to-Claude presentation state channel
         run: sh .github/scripts/claude-ui-state-channel-contract.sh
+      - name: Verify AI Providers and Developer Options presentation routes
+        run: sh .github/scripts/claude-ui-provider-settings-contract.sh
       - uses: actions/setup-java@v5
         with:
           distribution: temurin
