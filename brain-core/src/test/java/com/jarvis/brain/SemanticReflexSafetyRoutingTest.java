@@ -9,6 +9,7 @@ public final class SemanticReflexSafetyRoutingTest {
         descriptiveOpenPhraseFallsThroughToCortex();
         descriptiveVolumePhraseFallsThroughToCortex();
         descriptiveFlashlightPhraseFallsThroughToCortex();
+        descriptiveFlashlightOpeningPhraseFallsThroughToCortex();
         descriptiveNotificationPhraseFallsThroughToCortex();
         descriptiveWeatherPhraseFallsThroughToCortex();
         descriptiveCalendarPhraseFallsThroughToCortex();
@@ -51,6 +52,12 @@ public final class SemanticReflexSafetyRoutingTest {
         BrainResponse response = core.handle("Why does my flashlight turn off when the camera opens?");
         check(calls.get() == 1, "descriptive flashlight language must reach cortex");
         check(response.kind() == BrainResponse.Kind.CONVERSATION, "descriptive flashlight language must not change flashlight state");
+    }
+    private static void descriptiveFlashlightOpeningPhraseFallsThroughToCortex() {
+        AtomicInteger calls = new AtomicInteger(); AssistantCore core = coreWithRouter(calls);
+        BrainResponse response = core.handle("Flashlight technology can turn on automatically in some devices.");
+        check(calls.get() == 1, "descriptive flashlight-opening language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION, "descriptive flashlight-opening language must not change flashlight state");
     }
     private static void descriptiveNotificationPhraseFallsThroughToCortex() {
         AtomicInteger calls = new AtomicInteger(); AssistantCore core = coreWithRouter(calls);
