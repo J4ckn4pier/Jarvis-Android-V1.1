@@ -23,6 +23,10 @@ public final class UserFacingSettingsContractTest {
         for (String title : new String[]{"Voice", "Wake Word", "Voice Model", "Language", "App Permissions", "AI Providers", "Backup & Sync", "Profile", "Default Apps", "Personality", "Widgets & Lock Screen"}) {
             check(settings.contains(title), "user Settings must include canonical group: " + title);
         }
+        check(settings.contains("System TTS voice; this setting changes speaking pace only."),
+                "Voice Model must truthfully explain that the prototype uses Android's system TTS voice and only changes speaking pace");
+        check(settings.contains("voice_rate") && voiceSession.contains("getFloat(\"voice_rate\", 1.0f)") && voiceSession.contains("setSpeechRate(rate)"),
+                "the visible Voice Model / pace setting must remain wired to the production TTS speech-rate runtime");
         check(settings.contains("showProviderConnections"),
                 "AI Providers must open a real user-facing connection surface instead of a status-only toast");
         check(settings.contains("CONNECT / CHANGE") && settings.contains("DISCONNECT"),
