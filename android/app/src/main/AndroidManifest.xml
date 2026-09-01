@@ -58,6 +58,7 @@
         <activity android:name=".ui.MessagesActivity" android:exported="false" android:theme="@style/AppTheme" />
         <activity android:name=".ui.DevicesActivity" android:exported="false" android:theme="@style/AppTheme" />
         <activity android:name=".ui.MusicActivity" android:exported="false" android:theme="@style/AppTheme" />
+        <activity android:name=".ui.ConnectActivity" android:exported="false" android:theme="@style/AppTheme" />
         <activity android:name=".ui.BrowserActivity" android:exported="false" android:theme="@style/AppTheme" />
         <activity android:name=".ui.SkillsActivity" android:exported="false" android:theme="@style/AppTheme" />
         <activity android:name=".ui.OverlaysActivity" android:exported="false" android:theme="@style/AppTheme" />
