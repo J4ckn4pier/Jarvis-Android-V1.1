@@ -126,7 +126,7 @@ public final class BrainEngine {
         Matcher timer = Pattern.compile("(?i)set (?:a )?timer for (\\d+)\\s*(seconds?|minutes?|hours?)").matcher(input);
         if (startsAsRequest(lower, "set ", "start ") && timer.find()) return action("Set timer", "set_timer", Map.of("amount", timer.group(1), "unit", timer.group(2)), false, acceptedWithoutWake, context);
         if (isReminderCreationRequest(lower)) return action("Create reminder", "create_reminder", Map.of("request", input.substring(10).trim()), false, acceptedWithoutWake, context);
-        if (lower.startsWith("navigate ") || lower.startsWith("directions ")) return action("Navigate", "navigate", Map.of("destination", input.replaceFirst("(?i)^(navigate|directions)(?:\\s+to)?\\s+", "")), false, acceptedWithoutWake, context);
+        if (isDirectNavigationRequest(lower)) return action("Navigate", "navigate", Map.of("destination", input.replaceFirst("(?i)^(navigate|directions)(?:\\s+to)?\\s+", "")), false, acceptedWithoutWake, context);
         if (isDirectMediaPlayRequest(lower)) return action("Play media", "media_play", Map.of("query", input.substring(5).trim()), false, acceptedWithoutWake, context);
         if (isFlashlightCommand(lower)) return action("Set flashlight", "set_flashlight", Map.of("state", flashlightState(lower)), false, acceptedWithoutWake, context);
         if (isCalendarQueryRequest(lower)) return action("Query calendar", "calendar_query", Map.of("when", lower.contains("tomorrow") ? "tomorrow" : "today"), false, acceptedWithoutWake, context);
@@ -152,6 +152,13 @@ public final class BrainEngine {
         if (!value.startsWith("remind me ")) return false;
         String request = value.substring("remind me ".length()).trim();
         return !request.matches("(?:why|how|what|who|where|when|which)\\b.*");
+    }
+
+    private static boolean isDirectNavigationRequest(String lower) {
+        String value = lower.trim();
+        if (value.startsWith("navigate ")) return true;
+        if (!value.startsWith("directions ")) return false;
+        return !value.matches("directions\\s+(?:are|is|were|was|can|could|should|would|mean|means|refer|refers)\\b.*");
     }
 
     private static boolean isDirectMediaPlayRequest(String lower) {
