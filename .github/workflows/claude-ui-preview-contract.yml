@@ -63,3 +63,10 @@ jobs:
       - name: Compile preview surface in real Android app
         working-directory: android
         run: gradle --rerun-tasks :app:assembleDebug --stacktrace
+      - name: Preserve installable Claude UI preview
+        uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS-Claude-UI-Preview
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
