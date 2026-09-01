@@ -68,7 +68,7 @@ public final class BrainEngine {
         }
 
         Matcher contactCall = Pattern.compile("(?i)^call\\s+(.+)$").matcher(input);
-        if (contactCall.matches()) {
+        if (contactCall.matches() && isHighConfidenceCallRecipient(contactCall.group(1))) {
             return action("Call contact", "call_contact", Map.of("recipient", contactCall.group(1).trim()), true,
                     acceptedWithoutWake, context);
         }
@@ -140,6 +140,11 @@ public final class BrainEngine {
     private static boolean isHighConfidenceMessageRecipient(String recipient) {
         String value = recipient == null ? "" : recipient.trim().toLowerCase(Locale.ROOT);
         return !value.matches("messaging|message|messages|communication|communications");
+    }
+
+    private static boolean isHighConfidenceCallRecipient(String recipient) {
+        String value = recipient == null ? "" : recipient.trim().toLowerCase(Locale.ROOT);
+        return !value.startsWith("me ") && !value.startsWith("it ");
     }
 
     private static boolean isReminderCreationRequest(String lower) {
