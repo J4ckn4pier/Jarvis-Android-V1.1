@@ -26,6 +26,8 @@ jobs:
         run: sh .github/scripts/claude-ui-devices-navigation-contract.sh
       - name: Verify Claude UI music navigation contract
         run: sh .github/scripts/claude-ui-music-navigation-contract.sh
+      - name: Verify Claude UI connect navigation contract
+        run: sh .github/scripts/claude-ui-connect-navigation-contract.sh
       - name: Verify Claude UI media control contract
         run: sh .github/scripts/claude-ui-media-contract.sh
       - name: Verify Claude UI truthful capability contract
