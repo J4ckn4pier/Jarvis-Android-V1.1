@@ -272,6 +272,16 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         };
     }
 
+    private boolean recognitionAvailableSafely() {
+        try {
+            return isAvailable(context);
+        } catch (RuntimeException availabilityFailure) {
+            status = "Android recognizer availability check failed: " + availabilityFailure.getClass().getSimpleName();
+            Log.w(TAG, "JARVIS_WAKE_AVAILABILITY_CHECK_FAILED", availabilityFailure);
+            return false;
+        }
+    }
+
     @TargetApi(Build.VERSION_CODES.S)
     private boolean recreateRecognizer() {
         cancelEndOfSpeechWatchdog();
@@ -284,7 +294,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
             try { recognizer.destroy(); } catch (RuntimeException ignored) { }
             recognizer = null;
         }
-        if (!running || !isAvailable(context)) return false;
+        if (!running || !recognitionAvailableSafely()) return false;
         if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
             status = "microphone permission missing";
             running = false;
