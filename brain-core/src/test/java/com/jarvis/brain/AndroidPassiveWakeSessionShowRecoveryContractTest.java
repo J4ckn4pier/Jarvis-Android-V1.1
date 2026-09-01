@@ -29,6 +29,12 @@ public final class AndroidPassiveWakeSessionShowRecoveryContractTest {
                 "a failed passive wake start must schedule another start attempt instead of remaining permanently deaf");
         check(service.contains("main.removeCallbacks(passiveWakeRetry)"),
                 "passive wake retry must be cancellable during session handoff, disable, and shutdown");
+        check(service.contains("private boolean startPassiveWakeSafely()")
+                        && service.contains("catch (RuntimeException startFailure)")
+                        && service.contains("JARVIS_PASSIVE_WAKE_START_FAILED"),
+                "Samsung/OEM exceptions thrown by wake detector startup must be contained by the voice service");
+        check(service.contains("boolean started = startPassiveWakeSafely();"),
+                "passive wake arming must never call the OEM detector start path without the service recovery boundary");
         System.out.println("AndroidPassiveWakeSessionShowRecoveryContractTest passed");
     }
 
