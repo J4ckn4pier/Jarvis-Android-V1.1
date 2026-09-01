@@ -62,6 +62,14 @@ public final class AndroidVoiceConversationContinuityContractTest {
                 "each active listening turn must latch its first terminal callback");
         check(occurrences(session, "if (!claimTerminal()) return;") >= 2,
                 "both recognition error and final-result paths must reject duplicate terminal callbacks from the same Samsung/OEM listening turn");
+        check(session.contains("ACTIVE_END_OF_SPEECH_TIMEOUT_MILLIS")
+                        && session.contains("scheduleRecognitionTerminalWatchdog(listeningGeneration)")
+                        && session.contains("invalidateRecognitionTerminalWatchdog()"),
+                "active Assistant recognition must recover if Samsung/OEM sends end-of-speech but never sends results or an error");
+        check(session.contains("private void handleRecognitionTerminalTimeout(long listeningGeneration)")
+                        && session.contains("releaseSpeechRecognizerSafely();")
+                        && session.contains("scheduleNextListen();"),
+                "a stalled post-end-of-speech turn must discard the recognizer and reopen listening without executing stale speech");
         check(session.contains("private void releaseSpeechRecognizerSafely()")
                         && session.contains("try { recognizer.cancel(); } catch (RuntimeException cleanupFailure)")
                         && session.contains("try { recognizer.destroy(); } catch (RuntimeException cleanupFailure)"),
