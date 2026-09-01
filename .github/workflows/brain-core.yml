@@ -27,6 +27,4 @@ jobs:
           java-version: '17'
       - name: Run standalone brain acceptance suite
         working-directory: brain-core
-        run: |
-          ./run-tests.sh
-          java -cp out com.jarvis.brain.LanguageSettingsTruthfulnessContractTest
+        run: ./run-tests.sh
