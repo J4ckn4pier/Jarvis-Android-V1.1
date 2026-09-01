@@ -68,8 +68,48 @@ public final class ClaudeUiActionRouter {
         if (!isSupported(action)) {
             return "{\"accepted\":false,\"action\":\"" + safeAction + "\",\"reason\":\"unsupported\"}";
         }
+        String availability = actionAvailability(action);
+        if (!availability.contains("\"enabled\":true")) {
+            return "{\"accepted\":false,\"action\":\"" + safeAction + "\",\"reason\":\"unavailable\",\"availability\":" + availability + "}";
+        }
         activity.runOnUiThread(() -> dispatch(action));
         return "{\"accepted\":true,\"action\":\"" + safeAction + "\",\"reason\":\"queued\"}";
+    }
+
+    /**
+     * Returns environment-aware presentation availability for a visible Claude control.
+     * Supported-but-unavailable actions remain discoverable without pretending a tap will work.
+     */
+    @JavascriptInterface
+    public String actionAvailability(String action) {
+        String safeAction = jsonEscape(action == null ? "" : action);
+        if (!isSupported(action)) {
+            return "{\"enabled\":false,\"action\":\"" + safeAction + "\",\"reason\":\"unsupported\"}";
+        }
+
+        switch (action) {
+            case ACTION_MEDIA_PREVIOUS:
+            case ACTION_MEDIA_PLAY_PAUSE:
+            case ACTION_MEDIA_NEXT:
+                AudioManager audio = (AudioManager) activity.getSystemService(Context.AUDIO_SERVICE);
+                if (audio == null) {
+                    return "{\"enabled\":false,\"action\":\"" + safeAction + "\",\"reason\":\"audio_service_unavailable\"}";
+                }
+                break;
+            case ACTION_DEFAULT_ASSISTANT:
+                RoleManager roles = activity.getSystemService(RoleManager.class);
+                if (roles == null || !roles.isRoleAvailable(RoleManager.ROLE_ASSISTANT)) {
+                    return "{\"enabled\":false,\"action\":\"" + safeAction + "\",\"reason\":\"assistant_role_unavailable\"}";
+                }
+                if (roles.isRoleHeld(RoleManager.ROLE_ASSISTANT)) {
+                    return "{\"enabled\":false,\"action\":\"" + safeAction + "\",\"reason\":\"already_default_assistant\"}";
+                }
+                break;
+            default:
+                break;
+        }
+
+        return "{\"enabled\":true,\"action\":\"" + safeAction + "\",\"reason\":\"available\"}";
     }
 
     @JavascriptInterface
