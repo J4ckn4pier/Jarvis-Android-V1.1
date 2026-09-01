@@ -8,6 +8,8 @@ public final class DescriptiveWebSearchOpeningSafetyTest {
     public static void main(String[] args) {
         descriptiveWebSearchOpeningFallsThroughToCortex();
         descriptiveNavigationDestinationFallsThroughToCortex();
+        descriptiveTimerOpeningFallsThroughToCortex();
+        descriptiveAlarmOpeningFallsThroughToCortex();
         System.out.println("DescriptiveWebSearchOpeningSafetyTest passed");
     }
 
@@ -31,6 +33,28 @@ public final class DescriptiveWebSearchOpeningSafetyTest {
         check(calls.get() == 1, "descriptive navigation-destination language must reach cortex");
         check(response.kind() == BrainResponse.Kind.CONVERSATION,
                 "descriptive navigation-destination language must not start navigation");
+    }
+
+    private static void descriptiveTimerOpeningFallsThroughToCortex() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+
+        BrainResponse response = core.handle("Set a timer for 10 minutes is a common focus technique.");
+
+        check(calls.get() == 1, "descriptive timer-opening language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "descriptive timer-opening language must not set a timer");
+    }
+
+    private static void descriptiveAlarmOpeningFallsThroughToCortex() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+
+        BrainResponse response = core.handle("Set an alarm for 7 am is a typical morning routine.");
+
+        check(calls.get() == 1, "descriptive alarm-opening language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "descriptive alarm-opening language must not set an alarm");
     }
 
     private static AssistantCore coreWithRouter(AtomicInteger calls) {
