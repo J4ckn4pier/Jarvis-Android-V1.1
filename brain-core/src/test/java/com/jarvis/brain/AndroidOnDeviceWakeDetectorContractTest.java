@@ -47,6 +47,13 @@ public final class AndroidOnDeviceWakeDetectorContractTest {
                 "Samsung/OEM exceptions from SpeechRecognizer availability probes during internal recovery must be contained rather than escaping the main-thread recovery runnable");
         check(detector.contains("if (!running || !recognitionAvailableSafely()) return false;"),
                 "recognizer recreation must use the protected availability probe so an OEM Binder failure returns to the bounded recreate loop");
+        check(detector.contains("handleOfflineSupportResultSafely(generation, support)")
+                        && detector.contains("JARVIS_WAKE_OFFLINE_SUPPORT_CALLBACK_FAILED")
+                        && detector.contains("scheduleOfflineSupportRetry"),
+                "Samsung/OEM RecognitionSupport callback failures must be contained and retried instead of leaving passive wake stuck verifying forever");
+        check(detector.contains("main.postDelayed(offlineSupportRetry")
+                        && detector.contains("main.removeCallbacks(offlineSupportRetry)"),
+                "offline-support callback recovery must be bounded and cancelable across stop/handoff lifecycle transitions");
 
         check(detector.contains("recognizerGeneration"),
                 "passive wake must generation-tag recognizers so callbacks from a destroyed Samsung/OEM recognizer cannot affect its replacement");
