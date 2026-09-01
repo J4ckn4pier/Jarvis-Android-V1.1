@@ -39,6 +39,8 @@ public final class UserFacingSettingsContractTest {
                 "provider status must classify a compatible endpoint before normal Settings calls it free/local AI");
         check(providerFactory.contains("endsWith(\".local\")") && providerFactory.contains("localhost"),
                 "local compatible classification must be limited to local hostnames or loopback rather than arbitrary HTTPS providers");
+        check(providerFactory.contains("\"10.0.2.2\".equals(host)"),
+                "provider status must classify Android emulator host alias 10.0.2.2 as local whenever normal Free Local AI setup accepts it");
         check(localAiPolicy.contains("EndpointTransportPolicy.allows")
                         && localAiPolicy.contains("endsWith(\".local\")")
                         && localAiPolicy.contains("localhost"),
