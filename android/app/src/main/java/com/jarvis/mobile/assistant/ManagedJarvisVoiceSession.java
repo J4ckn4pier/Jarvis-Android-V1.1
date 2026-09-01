@@ -19,7 +19,14 @@ final class ManagedJarvisVoiceSession extends JarvisVoiceSession {
 
     @Override public void onShow(Bundle args, int flags) {
         JarvisVoiceInteractionService.pausePassiveWakeForSession();
-        super.onShow(args, flags);
+        try {
+            super.onShow(args, flags);
+        } catch (RuntimeException showFailure) {
+            // Samsung/OEM session setup can fail after passive wake has already released the mic.
+            // Restore idle microphone ownership before preserving the platform lifecycle failure.
+            JarvisVoiceInteractionService.rearmPassiveWakeAfterSession();
+            throw showFailure;
+        }
     }
 
     @Override public void onHide() {
