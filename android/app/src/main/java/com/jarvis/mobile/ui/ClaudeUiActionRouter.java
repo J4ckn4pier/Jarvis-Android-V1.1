@@ -24,6 +24,7 @@ import com.jarvis.mobile.SettingsActivity;
 public final class ClaudeUiActionRouter {
     public static final String ACTION_LISTEN = "listen";
     public static final String ACTION_SETTINGS = "settings";
+    public static final String ACTION_AI_PROVIDERS = "ai_providers";
     public static final String ACTION_DEVELOPER_OPTIONS = "developer_options";
     public static final String ACTION_HELP = "help";
     public static final String ACTION_NOTES = "notes";
@@ -47,7 +48,7 @@ public final class ClaudeUiActionRouter {
     public static final String ACTION_NOTIFICATION_ACCESS = "notification_access";
     public static final String ACTION_ACCESSIBILITY = "accessibility";
 
-    private static final String SUPPORTED_ACTIONS_JSON = "[\"listen\",\"settings\",\"developer_options\",\"help\",\"notes\",\"memory\",\"routines\",\"skills\",\"overlays\",\"activity_feed\",\"calendar\",\"messages\",\"devices\",\"music\",\"connect\",\"browser\",\"hub\",\"tasks_projects\",\"media_previous\",\"media_play_pause\",\"media_next\",\"default_assistant\",\"notification_access\",\"accessibility\"]";
+    private static final String SUPPORTED_ACTIONS_JSON = "[\"listen\",\"settings\",\"ai_providers\",\"developer_options\",\"help\",\"notes\",\"memory\",\"routines\",\"skills\",\"overlays\",\"activity_feed\",\"calendar\",\"messages\",\"devices\",\"music\",\"connect\",\"browser\",\"hub\",\"tasks_projects\",\"media_previous\",\"media_play_pause\",\"media_next\",\"default_assistant\",\"notification_access\",\"accessibility\"]";
     private static final int ASSISTANT_ROLE_REQUEST = 8101;
 
     private final Activity activity;
@@ -77,6 +78,7 @@ public final class ClaudeUiActionRouter {
         switch (action) {
             case ACTION_LISTEN:
             case ACTION_SETTINGS:
+            case ACTION_AI_PROVIDERS:
             case ACTION_DEVELOPER_OPTIONS:
             case ACTION_HELP:
             case ACTION_NOTES:
@@ -119,6 +121,7 @@ public final class ClaudeUiActionRouter {
                 activity.startActivity(assist);
                 break;
             case ACTION_SETTINGS:
+            case ACTION_AI_PROVIDERS:
                 activity.startActivity(new Intent(activity, SettingsActivity.class));
                 break;
             case ACTION_DEVELOPER_OPTIONS:
