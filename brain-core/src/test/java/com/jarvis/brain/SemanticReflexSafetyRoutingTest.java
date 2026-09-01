@@ -24,6 +24,7 @@ public final class SemanticReflexSafetyRoutingTest {
         descriptiveSettingsPhraseFallsThroughToCortex();
         explanatoryRemindMePhraseFallsThroughToCortex();
         descriptiveTextMessagingPhraseFallsThroughToCortex();
+        idiomaticCallMePhraseFallsThroughToCortex();
         directImperativeStillUsesSafeLocalReflex();
         System.out.println("SemanticReflexSafetyRoutingTest passed");
     }
@@ -136,6 +137,12 @@ public final class SemanticReflexSafetyRoutingTest {
         BrainResponse response = core.handle("Text messaging is useful when a phone call would be disruptive.");
         check(calls.get() == 1, "descriptive text-messaging language must reach cortex");
         check(response.kind() == BrainResponse.Kind.CONVERSATION, "descriptive text-messaging language must not send a message");
+    }
+    private static void idiomaticCallMePhraseFallsThroughToCortex() {
+        AtomicInteger calls = new AtomicInteger(); AssistantCore core = coreWithRouter(calls);
+        BrainResponse response = core.handle("Call me crazy, but local AI is getting surprisingly good.");
+        check(calls.get() == 1, "idiomatic call-me language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION, "idiomatic call-me language must not call a contact");
     }
     private static void directImperativeStillUsesSafeLocalReflex() {
         AtomicInteger calls = new AtomicInteger(); AssistantCore core = coreWithRouter(calls);
