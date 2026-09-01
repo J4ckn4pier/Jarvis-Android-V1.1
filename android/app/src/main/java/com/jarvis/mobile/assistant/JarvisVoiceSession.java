@@ -45,6 +45,7 @@ import java.util.function.Supplier;
 public class JarvisVoiceSession extends VoiceInteractionSession implements TextToSpeech.OnInitListener {
     private static final long CONVERSATION_WINDOW_MILLIS = 10 * 60 * 1000L;
     private static final long NEXT_LISTEN_DELAY_MILLIS = 180L;
+    private static final long ACTIVE_END_OF_SPEECH_TIMEOUT_MILLIS = 3000L;
     private static final String TEST_TAG = "JARVIS_ASSISTANT_TEST";
     private static final String SHARED_BRAIN_TAG = "JARVIS_SHARED_BRAIN_ACTIVE";
     private static final String RUNTIME_FAILURE_TAG = "JARVIS_RUNTIME_FAILURE";
@@ -71,6 +72,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private long conversationDeadlineElapsedRealtime;
     private long sessionGeneration;
     private long recognitionGeneration;
+    private long recognitionTerminalWatchdogGeneration;
     private long speechGeneration;
     private long listenScheduleGeneration;
     private volatile String activeUtteranceId = "";
@@ -209,6 +211,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     @Override public void onHide() {
         sessionGeneration++;
         recognitionGeneration++;
+        invalidateRecognitionTerminalWatchdog();
         sessionVisible = false;
         autoListenTriggered = false;
         resumeAfterSpeech = false;
@@ -279,8 +282,34 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         }, NEXT_LISTEN_DELAY_MILLIS);
     }
 
+    private void invalidateRecognitionTerminalWatchdog() {
+        recognitionTerminalWatchdogGeneration++;
+    }
+
+    private void scheduleRecognitionTerminalWatchdog(long listeningGeneration) {
+        long watchdogGeneration = ++recognitionTerminalWatchdogGeneration;
+        TextView surface = output;
+        if (surface == null) return;
+        surface.postDelayed(() -> {
+            if (watchdogGeneration != recognitionTerminalWatchdogGeneration) return;
+            handleRecognitionTerminalTimeout(listeningGeneration);
+        }, ACTIVE_END_OF_SPEECH_TIMEOUT_MILLIS);
+    }
+
+    private void handleRecognitionTerminalTimeout(long listeningGeneration) {
+        if (listeningGeneration != recognitionGeneration || !sessionVisible) return;
+        Log.w(VOICE_RECOGNIZER_TAG, "Active recognizer ended speech without terminal callback; rebuilding");
+        recognitionGeneration++;
+        invalidateRecognitionTerminalWatchdog();
+        releaseSpeechRecognizerSafely();
+        setActive(false);
+        if (output != null) output.setText("Listening paused briefly; I’ll reopen it.");
+        scheduleNextListen();
+    }
+
     private void startListening() {
         invalidateScheduledListen();
+        invalidateRecognitionTerminalWatchdog();
         bargeInMonitor.stop();
         if (!conversationWindowOpen()) {
             if (output != null) output.setText("Conversation paused. Tap LISTEN when you want me again.");
@@ -314,6 +343,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
                 private boolean claimTerminal() {
                     if (stale()) return false;
                     terminalDelivered = true;
+                    invalidateRecognitionTerminalWatchdog();
                     return true;
                 }
 
@@ -334,6 +364,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
                 @Override public void onEndOfSpeech() {
                     if (stale()) return;
                     output.setText("Thinking…");
+                    scheduleRecognitionTerminalWatchdog(listeningGeneration);
                 }
                 @Override public void onError(int error) {
                     if (!claimTerminal()) return;
@@ -387,6 +418,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private void handleRecognitionPermissionLoss() {
         Log.w(VOICE_RECOGNIZER_TAG, "Microphone permission lost during active recognition; stopping automatic relisten");
         recognitionGeneration++;
+        invalidateRecognitionTerminalWatchdog();
         invalidateScheduledListen();
         bargeInMonitor.stop();
         releaseSpeechRecognizerSafely();
@@ -409,6 +441,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private void recoverRecognitionStartFailure(RuntimeException recognitionFailure) {
         Log.w(VOICE_RECOGNIZER_TAG, "Active recognizer failed to start; retrying", recognitionFailure);
         recognitionGeneration++;
+        invalidateRecognitionTerminalWatchdog();
         SpeechRecognizer failedRecognizer = speechRecognizer;
         speechRecognizer = null;
         if (failedRecognizer != null) {
@@ -615,6 +648,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         destroyed = true;
         sessionGeneration++;
         recognitionGeneration++;
+        invalidateRecognitionTerminalWatchdog();
         sessionVisible = false;
         resumeAfterSpeech = false;
         conversationDeadlineElapsedRealtime = 0L;
