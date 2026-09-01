@@ -167,10 +167,26 @@ public class SettingsActivity extends Activity {
     }
 
     private void showWidgetLockSettings(){
-        String[] choices={"Add JARVIS Quick Access widget","Open Android display / lock-screen settings"};
+        boolean allowed=preferences.getBoolean("lock_screen_assistant_enabled",true);
+        String[] choices={
+                "Lock-screen assistant: "+(allowed?"Allowed":"Blocked"),
+                "Add JARVIS Quick Access widget",
+                "Open Android display / lock-screen settings"
+        };
         new AlertDialog.Builder(this).setTitle("Widgets & Lock Screen")
-                .setMessage("Quick Access is a home-screen widget. Lock-screen assistant access is managed by Android; JARVIS does not persist a separate lock-screen permission.")
-                .setItems(choices,(dialog,which)->{if(which==0)requestQuickAccessWidget();else launch(Settings.ACTION_DISPLAY_SETTINGS);})
+                .setMessage("Quick Access is a home-screen widget. JARVIS also has an app-level choice for whether its assistant session may remain available while this device is locked; Android's own lock-screen and assistant security rules still apply.")
+                .setItems(choices,(dialog,which)->{if(which==0)showLockScreenAssistantPicker();else if(which==1)requestQuickAccessWidget();else launch(Settings.ACTION_DISPLAY_SETTINGS);})
+                .setNegativeButton("CANCEL",null)
+                .show();
+    }
+    private void showLockScreenAssistantPicker(){
+        boolean current=preferences.getBoolean("lock_screen_assistant_enabled",true);
+        String[] labels={"Allow JARVIS while device is locked","Block JARVIS while device is locked"};
+        int initial=current?0:1;
+        new AlertDialog.Builder(this).setTitle("Lock-screen assistant")
+                .setMessage("This controls JARVIS's own voice-session gate. Android may still impose additional lock-screen restrictions.")
+                .setSingleChoiceItems(labels,initial,null)
+                .setPositiveButton("SAVE",(dialog,which)->{AlertDialog d=(AlertDialog)dialog;int selected=d.getListView().getCheckedItemPosition();if(selected<0)selected=initial;boolean checked=selected==0;preferences.edit().putBoolean("lock_screen_assistant_enabled",checked).apply();render();})
                 .setNegativeButton("CANCEL",null)
                 .show();
     }
@@ -222,7 +238,7 @@ public class SettingsActivity extends Activity {
         return "Core permissions: "+granted+"/3 granted; notification & screen access managed separately";
     }
     private String backupSummary(){return "Unavailable in prototype — local data stays on this phone";}
-    private String widgetLockSummary(){return "Quick Access widget • lock-screen access is managed by Android";}
+    private String widgetLockSummary(){return "Quick Access widget • lock-screen assistant "+(preferences.getBoolean("lock_screen_assistant_enabled",true)?"allowed":"blocked");}
     private void requestAssistant(){RoleManager manager=getSystemService(RoleManager.class);if(manager==null||!manager.isRoleAvailable(RoleManager.ROLE_ASSISTANT)){Toast.makeText(this,"Android did not expose the Assistant role on this device.",Toast.LENGTH_LONG).show();return;}if(manager.isRoleHeld(RoleManager.ROLE_ASSISTANT)){JarvisVoiceInteractionService.refreshPassiveWakePreference();Toast.makeText(this,"JARVIS is already your default assistant.",Toast.LENGTH_SHORT).show();return;}startActivity(manager.createRequestRoleIntent(RoleManager.ROLE_ASSISTANT));}
     private void launchAppDetails(){startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName())));}
     private void launch(String action){try{startActivity(new Intent(action));}catch(Exception ignored){Toast.makeText(this,"That Android settings page is not available on this device.",Toast.LENGTH_SHORT).show();}}
