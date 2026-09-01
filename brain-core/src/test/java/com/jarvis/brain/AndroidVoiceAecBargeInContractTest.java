@@ -19,8 +19,12 @@ public final class AndroidVoiceAecBargeInContractTest {
                 "Samsung/OEM exceptions while reading AudioRecord initialization state must be contained before microphone ownership");
         check(monitor.contains("private void releaseAudioRecordSafely(AudioRecord recorder)"),
                 "Samsung/OEM exceptions while releasing a rejected AudioRecord must not escape the TTS-to-microphone handoff boundary");
+        check(monitor.contains("private boolean hasRecordAudioPermissionSafely()"),
+                "Samsung/OEM exceptions while probing runtime microphone permission must be contained at the AEC handoff boundary");
         check(monitor.contains("context.checkSelfPermission(Manifest.permission.RECORD_AUDIO)"),
                 "barge-in capture must explicitly re-check runtime microphone permission at the capture boundary");
+        check(monitor.contains("return context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;"),
+                "the exception-safe permission probe must preserve the granted-permission requirement");
         check(monitor.contains("PackageManager.PERMISSION_GRANTED"),
                 "barge-in capture may only proceed with granted microphone permission");
         check(monitor.contains("catch (SecurityException"),
