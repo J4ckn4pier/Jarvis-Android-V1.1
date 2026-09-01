@@ -47,6 +47,12 @@ public final class AndroidVoiceTtsCallbackGenerationContractTest {
                         && session.contains("scheduleNextListen();"),
                 "failed TTS playback must skip barge-in, invalidate the utterance callback, and reopen listening while the conversation remains active");
 
+        check(session.contains("private void stopTextToSpeechSafely()")
+                        && session.contains("catch (RuntimeException stopFailure)"),
+                "Samsung/OEM TTS stop failures during normal session transitions must be contained behind a safe stop boundary");
+        check(!session.contains("if (textToSpeech != null) textToSpeech.stop();"),
+                "hide, barge-in, speech-begin, and manual interrupt paths must never call OEM TTS stop directly");
+
         System.out.println("AndroidVoiceTtsCallbackGenerationContractTest: PASS");
     }
 
