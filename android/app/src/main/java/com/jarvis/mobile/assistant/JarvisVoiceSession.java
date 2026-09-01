@@ -377,7 +377,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
             scheduleNextListen();
             return;
         }
-        if (!recognognitionAvailable) {
+        if (!recognitionAvailable) {
             output.setText("Android speech recognition is unavailable.");
             setActive(false);
             return;
