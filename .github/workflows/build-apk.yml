@@ -26,6 +26,8 @@ jobs:
         run: sh .github/scripts/remote-goal-developer-settings-contract.sh
       - name: Verify widget and lock-screen settings contract
         run: sh .github/scripts/widget-lock-settings-contract.sh
+      - name: Verify truthful local AI endpoint guidance
+        run: sh .github/scripts/local-ai-endpoint-message-contract.sh
       - name: Verify remote project continuity contract
         run: sh .github/scripts/remote-goal-continuity-contract.sh
       - name: Verify remote progress UI continuity contract
