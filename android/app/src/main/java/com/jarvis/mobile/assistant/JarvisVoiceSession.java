@@ -393,8 +393,14 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
                     resumeAfterSpeech = false;
                     output.setText("I’m listening.");
                 }
-                @Override public void onRmsChanged(float rmsdB) { }
-                @Override public void onBufferReceived(byte[] buffer) { }
+                @Override public void onRmsChanged(float rmsdB) {
+                    if (stale()) return;
+                    invalidateRecognitionReadyWatchdog();
+                }
+                @Override public void onBufferReceived(byte[] buffer) {
+                    if (stale()) return;
+                    invalidateRecognitionReadyWatchdog();
+                }
                 @Override public void onEndOfSpeech() {
                     if (stale()) return;
                     invalidateRecognitionReadyWatchdog();
@@ -436,7 +442,10 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
                         Log.d("JARVIS_ENDPOINTING", "partial completeSilenceHintMs=" + endpointing.completeSilenceMillis(lastPartial));
                     }
                 }
-                @Override public void onEvent(int eventType, Bundle params) { }
+                @Override public void onEvent(int eventType, Bundle params) {
+                    if (stale()) return;
+                    invalidateRecognitionReadyWatchdog();
+                }
             });
             Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
             intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
