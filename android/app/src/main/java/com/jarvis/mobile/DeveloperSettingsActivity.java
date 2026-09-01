@@ -56,14 +56,14 @@ public final class DeveloperSettingsActivity extends Activity {
         key.setInputType(InputType.TYPE_CLASS_TEXT | InputType.TYPE_TEXT_VARIATION_PASSWORD);
         body.addView(model); body.addView(endpoint); body.addView(key);
         body.addView(button("SAVE PROVIDER CONFIG", () -> {
-            String endpointValue = endpoint.getText().toString().trim();
-            if (!endpointValue.isEmpty() && !EndpointTransportPolicy.allows(endpointValue)) {
-                Toast.makeText(this, "Use HTTPS, loopback HTTP, or a user-owned .local HTTP endpoint.", Toast.LENGTH_LONG).show(); return;
-            }
             String mode = providers.getCheckedRadioButtonId() == compatible.getId() ? CortexProviderFactory.MODE_OPENAI_COMPATIBLE
                     : providers.getCheckedRadioButtonId() == openai.getId() ? CortexProviderFactory.MODE_OPENAI
                     : providers.getCheckedRadioButtonId() == anthropic.getId() ? CortexProviderFactory.MODE_ANTHROPIC
                     : CortexProviderFactory.MODE_LOCAL;
+            String endpointValue = endpoint.getText().toString().trim();
+            if (!CortexProviderFactory.MODE_LOCAL.equals(mode) && !endpointValue.isEmpty() && !EndpointTransportPolicy.allows(endpointValue)) {
+                Toast.makeText(this, "Use HTTPS, loopback HTTP, or a user-owned .local HTTP endpoint.", Toast.LENGTH_LONG).show(); return;
+            }
             String keyValue = key.getText().toString().trim();
             if (!keyValue.isEmpty()) {
                 try { secrets.put("provider_api_key", keyValue); key.setText(""); }
