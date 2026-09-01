@@ -60,7 +60,7 @@ final class AndroidAecBargeInMonitor {
             } catch (RuntimeException unavailable) {
                 return false;
             }
-            if (candidate.getState() != AudioRecord.STATE_INITIALIZED) {
+            if (!isInitializedSafely(candidate)) {
                 candidate.release();
                 return false;
             }
@@ -124,6 +124,14 @@ final class AndroidAecBargeInMonitor {
                     AudioFormat.ENCODING_PCM_16BIT);
         } catch (RuntimeException unavailable) {
             return AudioRecord.ERROR;
+        }
+    }
+
+    private boolean isInitializedSafely(AudioRecord recorder) {
+        try {
+            return recorder.getState() == AudioRecord.STATE_INITIALIZED;
+        } catch (RuntimeException unavailable) {
+            return false;
         }
     }
 
