@@ -5,10 +5,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/** Direct reminder language must reach reasoning so the structured reminder schema can be resolved before Android execution. */
+/** Direct reminder language must reach reasoning so structured temporal plans can be resolved before Android execution. */
 public final class ReminderCortexRoutingContractTest {
     public static void main(String[] args) {
         naturalReminderReachesCortexForStructuredTemporalPlan();
+        conditionalAlarmRequestReachesCortexInsteadOfImmediateReflex();
         System.out.println("ReminderCortexRoutingContractTest passed");
     }
 
@@ -41,6 +42,24 @@ public final class ReminderCortexRoutingContractTest {
         check("Call Mom".equals(step.arguments().get("title")), "structured reminder must preserve resolved title");
         check("1788382800000".equals(step.arguments().get("start_millis")),
                 "structured reminder must preserve resolved epoch-millis time");
+    }
+
+    private static void conditionalAlarmRequestReachesCortexInsteadOfImmediateReflex() {
+        AtomicInteger cortexCalls = new AtomicInteger();
+        BrainEngine brain = BrainEngine.createDefault(Clock.systemUTC());
+        brain.beginInvokedConversation();
+        ReasoningRouter router = request -> {
+            cortexCalls.incrementAndGet();
+            return new ReasoningResult("test-cortex", "Cortex handled the conditional alarm request.", null);
+        };
+        AssistantCore core = new AssistantCore(brain, router, ToolRegistry.standard());
+
+        BrainResponse response = core.handle("Set an alarm for 7 AM if I decide to wake up early.");
+
+        check(cortexCalls.get() == 1,
+                "conditional alarm language must reach cortex instead of firing an immediate local alarm reflex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "conditional alarm language must not immediately produce an alarm action plan");
     }
 
     private static void check(boolean value, String message) {
