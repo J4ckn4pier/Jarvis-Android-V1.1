@@ -1,0 +1,46 @@
+name: Wake Lane Patch Helper
+
+on: [push]
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: automation/samsung-tts-listener-error-recovery-20260902-r2
+          fetch-depth: 1
+      - name: Apply minimal Samsung TTS listener recovery patch
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('android/app/src/main/java/com/jarvis/mobile/assistant/JarvisVoiceSession.java')
+          source = path.read_text()
+          before = '            engine.setOnUtteranceProgressListener(new UtteranceProgressListener() {'
+          after = '            int listenerStatus = engine.setOnUtteranceProgressListener(new UtteranceProgressListener() {'
+          if source.count(before) != 1:
+              raise SystemExit(f'expected exactly one listener registration, found {source.count(before)}')
+          source = source.replace(before, after, 1)
+          before_tail = '            });\n        } catch (RuntimeException listenerFailure) {'
+          after_tail = '''            });
+            if (listenerStatus == TextToSpeech.ERROR) {
+                Log.w(VOICE_RECOGNIZER_TAG, "TTS progress-listener attachment returned ERROR; retiring speech engine");
+                invalidateSpeechCallback();
+                releaseTextToSpeechSafely();
+            }
+        } catch (RuntimeException listenerFailure) {'''
+          if source.count(before_tail) != 1:
+              raise SystemExit(f'expected exactly one listener registration tail, found {source.count(before_tail)}')
+          path.write_text(source.replace(before_tail, after_tail, 1))
+          PY
+      - name: Commit source patch and remove helper
+        run: |
+          git config user.name "jarvis-wake-ci"
+          git config user.email "jarvis-wake-ci@users.noreply.github.com"
+          git add android/app/src/main/java/com/jarvis/mobile/assistant/JarvisVoiceSession.java
+          git rm .github/workflows/wake-lane-patch-helper.yml
+          git commit -m "fix(android): retire TTS engine when listener attachment returns ERROR"
+          git push origin HEAD:automation/samsung-tts-listener-error-recovery-20260902-r2
