@@ -61,6 +61,10 @@ public final class AndroidVoiceTtsCallbackGenerationContractTest {
                         && session.contains("catch (RuntimeException listenerFailure)")
                         && session.contains("TTS progress-listener attachment failed"),
                 "Samsung/OEM failure while attaching the TTS progress listener must be contained so onInit cannot crash the Assistant session");
+        check(session.contains("int listenerStatus = engine.setOnUtteranceProgressListener")
+                        && session.contains("listenerStatus == TextToSpeech.ERROR")
+                        && session.contains("TTS progress-listener attachment returned ERROR; retiring speech engine"),
+                "Samsung/OEM TTS listener attachment must treat the API ERROR return as a failed callback channel and retire the engine instead of silently waiting on watchdogs");
         check(session.contains("private void initializeTextToSpeechSafely()")
                         && session.contains("catch (RuntimeException initializationFailure)")
                         && session.contains("TTS initialization failed; continuing without spoken output"),
@@ -119,6 +123,6 @@ public final class AndroidVoiceTtsCallbackGenerationContractTest {
     }
 
     private static void check(boolean condition, String message) {
-        if (!condition) throw new AssertionError(message);
+        if (!condition) throw new IllegalStateException(message);
     }
 }
