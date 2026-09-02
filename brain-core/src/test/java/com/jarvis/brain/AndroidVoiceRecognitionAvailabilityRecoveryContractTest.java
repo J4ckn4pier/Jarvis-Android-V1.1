@@ -37,6 +37,12 @@ public final class AndroidVoiceRecognitionAvailabilityRecoveryContractTest {
         check(recreateCases.contains("SpeechRecognizer.ERROR_TOO_MANY_REQUESTS"), "passive Samsung wake must rebuild/back off after ERROR_TOO_MANY_REQUESTS instead of retrying the same recognizer every 500ms");
         check(recreateCases.contains("scheduleRecreate(RECREATE_DELAY_MS);"), "passive speech-service failures must use recognizer recreation recovery");
 
+        String activeErrorRecovery = between(session, "@Override public void onError(int error) {", "@Override public void onResults(Bundle results) {");
+        check(activeErrorRecovery.contains("error == SpeechRecognizer.ERROR_CLIENT"), "active Samsung Assistant recognition must rebuild the recognizer after ERROR_CLIENT during microphone handoff/startup");
+        String activeServiceFailurePath = between(activeErrorRecovery, "if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY", "output.setText(error == SpeechRecognizer.ERROR_NO_MATCH");
+        check(activeServiceFailurePath.contains("releaseSpeechRecognizerSafely();"), "active ERROR_CLIENT recovery must release the possibly wedged recognizer before retry");
+        check(activeServiceFailurePath.contains("scheduleRecognitionServiceRecovery();"), "active ERROR_CLIENT recovery must use bounded speech-service backoff instead of the normal 180ms relisten loop");
+
         check(!wakeDetector.contains("@Override public void onEvent(int eventType, Bundle params) { cancelReadyWatchdog(); }"), "generic Samsung/OEM recognizer events must not cancel the passive ready watchdog before microphone readiness is proven");
 
         int passiveStart = wakeDetector.indexOf("recognizer.startListening(intent);");
