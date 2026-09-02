@@ -9,6 +9,7 @@ public final class DescriptiveVolumeOpeningSafetyTest {
         descriptiveVolumeOpeningFallsThroughToCortex();
         descriptiveCommandShapedVolumeOpeningFallsThroughToCortex();
         descriptiveCalendarOpeningFallsThroughToCortex();
+        descriptiveCommandShapedCalendarOpeningFallsThroughToCortex();
         descriptiveNotificationOpeningFallsThroughToCortex();
         descriptiveFlashlightCommandOpeningFallsThroughToCortex();
         System.out.println("DescriptiveVolumeOpeningSafetyTest passed");
@@ -42,6 +43,16 @@ public final class DescriptiveVolumeOpeningSafetyTest {
         check(cortexCalls.get() == 1, "descriptive calendar-opening language must reach cortex");
         check(response.kind() == BrainResponse.Kind.CONVERSATION,
                 "descriptive calendar-opening language must not query the user's calendar");
+    }
+
+    private static void descriptiveCommandShapedCalendarOpeningFallsThroughToCortex() {
+        AtomicInteger cortexCalls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(cortexCalls);
+        BrainResponse response = core.handle("Show my calendar today can be useful when planning a trip.");
+
+        check(cortexCalls.get() == 1, "descriptive command-shaped calendar language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "descriptive command-shaped calendar language must not query the user's calendar");
     }
 
     private static void descriptiveNotificationOpeningFallsThroughToCortex() {
