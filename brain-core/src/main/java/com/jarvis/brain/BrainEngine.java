@@ -151,6 +151,7 @@ public final class BrainEngine {
         if (raw.isEmpty()) return false;
         String value = raw.toLowerCase(Locale.ROOT);
         if (value.matches("messaging|message|messages|communication|communications")) return false;
+        if (value.matches("mom|mum|mother|dad|father|brother|sister|wife|husband|partner|grandma|grandmother|grandpa|grandfather")) return true;
         char first = raw.charAt(0);
         return Character.isUpperCase(first) || Character.isDigit(first) || first == '+';
     }
