@@ -496,7 +496,9 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
                         return;
                     }
                     if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY
-                            || error == SpeechRecognizer.ERROR_SERVER) {
+                            || error == SpeechRecognizer.ERROR_SERVER
+                            || error == SpeechRecognizer.ERROR_SERVER_DISCONNECTED
+                            || error == SpeechRecognizer.ERROR_TOO_MANY_REQUESTS) {
                         Log.w(VOICE_RECOGNIZER_TAG, "Active recognizer service failure " + error + "; rebuilding with backoff");
                         recognitionGeneration++;
                         invalidateRecognitionTerminalWatchdog();
