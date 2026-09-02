@@ -537,8 +537,8 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
             intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, endpointing.minimumUtteranceMillis());
             intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, endpointing.possiblyCompleteSilenceMillis(""));
             intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, endpointing.completeSilenceMillis(""));
-            speechRecognizer.startListening(intent);
             scheduleRecognitionReadyWatchdog(listeningGeneration);
+            speechRecognizer.startListening(intent);
         } catch (RuntimeException recognitionFailure) {
             recoverRecognitionStartFailure(recognitionFailure);
         }
