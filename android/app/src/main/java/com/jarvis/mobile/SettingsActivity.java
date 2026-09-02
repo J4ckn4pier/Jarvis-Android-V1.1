@@ -1,5 +1,6 @@
 package com.jarvis.mobile;
 
+import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.app.role.RoleManager;
@@ -7,6 +8,7 @@ import android.appwidget.AppWidgetManager;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.content.pm.ResolveInfo;
 import android.graphics.Color;
 import android.net.Uri;
@@ -164,7 +166,9 @@ public class SettingsActivity extends Activity {
     private String wakeSummary(){if(!preferences.getBoolean("wake_enabled",true))return "Disabled";return isAssistantRoleHeld()?"Listen locally for “Jarvis” or “Hey Jarvis”":"Requires JARVIS as your default assistant — tap to finish setup";}
     private String voiceModelSummary(){return preferences.getString("voice_model_label","System voice");}
     private String languageSummary(){String tag=preferences.getString("language","system");if("system".equalsIgnoreCase(tag))return "Follow Android system — "+getResources().getConfiguration().getLocales().get(0).getDisplayLanguage();Locale locale=Locale.forLanguageTag(tag);return locale.getDisplayName();}
-    private String permissionSummary(){return "Microphone, contacts, calendar, notifications and screen control";}
+    private boolean hasRuntimePermission(String permission){return Build.VERSION.SDK_INT<Build.VERSION_CODES.M||checkSelfPermission(permission)==PackageManager.PERMISSION_GRANTED;}
+    private boolean secureSettingContains(String key){try{String enabled=Settings.Secure.getString(getContentResolver(),key);return enabled!=null&&enabled.contains(getPackageName());}catch(RuntimeException unavailable){return false;}}
+    private String permissionSummary(){ArrayList<String> missing=new ArrayList<>();if(!hasRuntimePermission(Manifest.permission.RECORD_AUDIO))missing.add("microphone");if(!hasRuntimePermission(Manifest.permission.READ_CONTACTS))missing.add("contacts");if(!hasRuntimePermission(Manifest.permission.READ_CALENDAR))missing.add("calendar");if(!secureSettingContains(Settings.Secure.ENABLED_NOTIFICATION_LISTENERS))missing.add("notification access");if(!secureSettingContains(Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES))missing.add("screen control");return missing.isEmpty()?"Required Android access enabled":"Needs setup: "+String.join(", ",missing);}
     private String backupSummary(){if(!preferences.getBoolean("backup_sync_enabled",false))return "Local only";return new RemoteGoalStateStore(this).loadConnection()==null?"Local only — remote connection not configured":"Configured remote sync allowed";}
     private String widgetLockSummary(){return preferences.getBoolean("lock_screen_assistant_enabled",true)?"Lock-screen assistant enabled":"Lock-screen assistant disabled";}
     private void requestAssistant(){RoleManager manager=getSystemService(RoleManager.class);if(manager==null||!manager.isRoleAvailable(RoleManager.ROLE_ASSISTANT)){Toast.makeText(this,"Android did not expose the Assistant role on this device.",Toast.LENGTH_LONG).show();return;}if(manager.isRoleHeld(RoleManager.ROLE_ASSISTANT)){JarvisVoiceInteractionService.refreshPassiveWakePreference();Toast.makeText(this,"JARVIS is already your default assistant.",Toast.LENGTH_SHORT).show();return;}startActivity(manager.createRequestRoleIntent(RoleManager.ROLE_ASSISTANT));}
