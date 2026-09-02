@@ -132,7 +132,7 @@ public final class SemanticGoalInterpreter {
     }
 
     private static boolean looksLikeDescriptiveContinuation(String suffix) {
-        return suffix.matches("(?:is|are|was|were|can|could|should|would|means|mean|refers|refer)\\b.*");
+        return suffix.matches("(?:is|are|was|were|can|could|should|would|means|mean|refers|refer|if|unless|when|whenever|while|until|after|before)\\b.*");
     }
 
     private static String webQuery(String raw, String lower) {
