@@ -12,6 +12,7 @@ public final class DescriptiveVolumeOpeningSafetyTest {
         descriptiveCommandShapedCalendarOpeningFallsThroughToCortex();
         descriptiveNotificationOpeningFallsThroughToCortex();
         descriptiveFlashlightCommandOpeningFallsThroughToCortex();
+        unrelatedTurnOpeningMentioningFlashlightFallsThroughToCortex();
         System.out.println("DescriptiveVolumeOpeningSafetyTest passed");
     }
 
@@ -73,6 +74,16 @@ public final class DescriptiveVolumeOpeningSafetyTest {
         check(cortexCalls.get() == 1, "descriptive flashlight command-shaped language must reach cortex");
         check(response.kind() == BrainResponse.Kind.CONVERSATION,
                 "descriptive flashlight command-shaped language must not change flashlight state");
+    }
+
+    private static void unrelatedTurnOpeningMentioningFlashlightFallsThroughToCortex() {
+        AtomicInteger cortexCalls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(cortexCalls);
+        BrainResponse response = core.handle("Turn signals can be confused with flashlight controls.");
+
+        check(cortexCalls.get() == 1, "unrelated turn-opening language mentioning flashlight must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "unrelated turn-opening language mentioning flashlight must not change flashlight state");
     }
 
     private static AssistantCore coreWithRouter(AtomicInteger cortexCalls) {
