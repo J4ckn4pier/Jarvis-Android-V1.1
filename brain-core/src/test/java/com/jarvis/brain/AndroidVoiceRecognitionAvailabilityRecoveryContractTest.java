@@ -23,12 +23,13 @@ public final class AndroidVoiceRecognitionAvailabilityRecoveryContractTest {
                 wakeDetector,
                 "private void stopListeningForWakeHandoff() {",
                 "private void stopInternal() {");
-        check(wakeHandoff.contains("recognizer.cancel()"),
+        check(wakeHandoff.contains("SpeechRecognizer handoffRecognizer = recognizer;")
+                        && wakeHandoff.contains("recognizer = null;"),
+                "passive wake handoff must detach the retired recognizer before opening the Assistant session");
+        check(wakeHandoff.contains("handoffRecognizer.cancel()"),
                 "passive wake handoff must cancel recognition before opening the Assistant session");
-        check(wakeHandoff.contains("recognizer.destroy()"),
+        check(wakeHandoff.contains("handoffRecognizer.destroy()"),
                 "Samsung/OEM passive wake handoff must destroy the recognizer so it cannot retain microphone ownership while active listening starts");
-        check(wakeHandoff.contains("recognizer = null;"),
-                "passive wake handoff must clear the retired recognizer before invoking the Assistant session callback");
 
         System.out.println("AndroidVoiceRecognitionAvailabilityRecoveryContractTest: PASS");
     }
