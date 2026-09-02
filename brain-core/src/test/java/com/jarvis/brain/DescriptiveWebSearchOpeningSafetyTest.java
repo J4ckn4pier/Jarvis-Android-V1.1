@@ -8,6 +8,7 @@ public final class DescriptiveWebSearchOpeningSafetyTest {
     public static void main(String[] args) {
         descriptiveWebSearchOpeningFallsThroughToCortex();
         descriptiveNavigationDestinationFallsThroughToCortex();
+        descriptiveDirectionsDestinationFallsThroughToCortex();
         descriptiveTimerOpeningFallsThroughToCortex();
         descriptiveAlarmOpeningFallsThroughToCortex();
         System.out.println("DescriptiveWebSearchOpeningSafetyTest passed");
@@ -33,6 +34,17 @@ public final class DescriptiveWebSearchOpeningSafetyTest {
         check(calls.get() == 1, "descriptive navigation-destination language must reach cortex");
         check(response.kind() == BrainResponse.Kind.CONVERSATION,
                 "descriptive navigation-destination language must not start navigation");
+    }
+
+    private static void descriptiveDirectionsDestinationFallsThroughToCortex() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+
+        BrainResponse response = core.handle("Directions to Denver can be useful when planning a trip.");
+
+        check(calls.get() == 1, "descriptive directions-destination language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "descriptive directions-destination language must not start navigation");
     }
 
     private static void descriptiveTimerOpeningFallsThroughToCortex() {
