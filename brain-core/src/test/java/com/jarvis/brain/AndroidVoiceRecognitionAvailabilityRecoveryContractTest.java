@@ -46,6 +46,9 @@ public final class AndroidVoiceRecognitionAvailabilityRecoveryContractTest {
         check(recreateCases.contains("scheduleRecreate(RECREATE_DELAY_MS);"),
                 "passive speech-service failures must use recognizer recreation recovery");
 
+        check(!wakeDetector.contains("@Override public void onEvent(int eventType, Bundle params) { cancelReadyWatchdog(); }"),
+                "generic Samsung/OEM recognizer events must not cancel the passive ready watchdog before microphone readiness is proven");
+
         System.out.println("AndroidVoiceRecognitionAvailabilityRecoveryContractTest: PASS");
     }
 
