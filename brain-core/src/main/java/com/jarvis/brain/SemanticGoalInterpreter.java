@@ -135,6 +135,10 @@ public final class SemanticGoalInterpreter {
         return suffix.matches("(?:is|are|was|were|can|could|should|would|means|mean|refers|refer|if|unless|when|whenever|while|until|after|before)\\b.*");
     }
 
+    private static boolean looksLikeDescriptiveWebSearchOpening(String normalized) {
+        return normalized.matches("(?:information|searching|research|web searches?|online searches?|lookups?)\\s+(?:is|are|was|were|can|could|should|would|means|refers)\\b.*");
+    }
+
     private static String webQuery(String raw, String lower) {
         String[] cues = {"search the web for ", "search web for ", "search online for ", "look up online "};
         if (!startsAsRequest(lower, cues)) return "";
@@ -142,7 +146,7 @@ public final class SemanticGoalInterpreter {
             int idx = lower.indexOf(cue);
             if (idx >= 0) {
                 String candidate = raw.substring(Math.min(raw.length(), idx + cue.length())).trim().replaceFirst("[.!?]+$", "").trim();
-                if (candidate.isBlank() || looksLikeDescriptiveClause(normalize(candidate))) return "";
+                if (candidate.isBlank() || looksLikeDescriptiveWebSearchOpening(normalize(candidate))) return "";
                 return candidate;
             }
         }
