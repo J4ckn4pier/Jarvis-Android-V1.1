@@ -18,7 +18,7 @@ public final class UserFacingSettingsContractTest {
         String openAi = Files.readString(providers.resolve("OpenAIResponsesProvider.java"));
         String anthropic = Files.readString(providers.resolve("AnthropicMessagesProvider.java"));
         String manifest = Files.readString(Path.of("../android/app/src/main/AndroidManifest.xml"));
-        for (String title : new String[]{"Voice", "Wake Word", "Voice Model", "Language", "App Permissions", "AI Providers", "Backup & Sync", "Profile", "Default Apps", "Personality", "Widgets & Lock Screen"}) {
+        for (String title : new String[]{"Voice", "Wake Word", "Voice Speed", "Language", "App Permissions", "AI Providers", "Backup & Sync", "Profile", "Default Apps", "Personality", "Widgets & Lock Screen"}) {
             check(settings.contains(title), "user Settings must include canonical group: " + title);
         }
         check(settings.contains("showProviderConnections"),
