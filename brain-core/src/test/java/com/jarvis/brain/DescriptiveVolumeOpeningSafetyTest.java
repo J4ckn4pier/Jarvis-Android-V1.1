@@ -7,6 +7,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class DescriptiveVolumeOpeningSafetyTest {
     public static void main(String[] args) {
         descriptiveVolumeOpeningFallsThroughToCortex();
+        descriptiveCommandShapedVolumeOpeningFallsThroughToCortex();
         descriptiveCalendarOpeningFallsThroughToCortex();
         descriptiveNotificationOpeningFallsThroughToCortex();
         descriptiveFlashlightCommandOpeningFallsThroughToCortex();
@@ -21,6 +22,16 @@ public final class DescriptiveVolumeOpeningSafetyTest {
         check(cortexCalls.get() == 1, "descriptive volume-opening language must reach cortex");
         check(response.kind() == BrainResponse.Kind.CONVERSATION,
                 "descriptive volume-opening language must not lower device volume");
+    }
+
+    private static void descriptiveCommandShapedVolumeOpeningFallsThroughToCortex() {
+        AtomicInteger cortexCalls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(cortexCalls);
+        BrainResponse response = core.handle("Turn the volume up can be useful in a noisy room.");
+
+        check(cortexCalls.get() == 1, "descriptive command-shaped volume language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "descriptive command-shaped volume language must not change device volume");
     }
 
     private static void descriptiveCalendarOpeningFallsThroughToCortex() {
