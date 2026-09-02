@@ -1,0 +1,39 @@
+name: Apply Brain Notification Confidence Fix
+
+on:
+  push:
+    branches:
+      - brain-actions/notification-confidence-20260902
+    paths:
+      - '.github/workflows/brain-notification-confidence-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: brain-actions/notification-confidence-20260902
+      - name: Apply minimal notification confidence correction
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('brain-core/src/main/java/com/jarvis/brain/BrainEngine.java')
+          source = path.read_text()
+          old = '        if (value.matches("what notifications?\\\\s+(?:can|could|should|would)\\\\s+(?!i\\\\b|we\\\\b|you\\\\b).+")) return false;'
+          new = '        if (value.matches("what notifications?\\\\s+(?:is|are|was|were|can|could|should|would)\\\\s+(?!i\\\\b|we\\\\b|you\\\\b|on\\\\b|from\\\\b|there\\\\b|waiting\\\\b|unread\\\\b).+")) return false;'
+          if source.count(old) != 1:
+              raise SystemExit(f'expected exactly one notification descriptive guard, found {source.count(old)}')
+          path.write_text(source.replace(old, new, 1))
+          PY
+      - name: Commit production correction and remove helper
+        run: |
+          git config user.name 'jarvis-brain-actions'
+          git config user.email 'actions@users.noreply.github.com'
+          git add brain-core/src/main/java/com/jarvis/brain/BrainEngine.java
+          git rm .github/workflows/brain-notification-confidence-fix.yml
+          git commit -m 'fix: gate notification queries to high-confidence command shapes'
+          git push origin HEAD:brain-actions/notification-confidence-20260902
