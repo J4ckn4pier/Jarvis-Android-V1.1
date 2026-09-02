@@ -531,7 +531,9 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         switch (error) {
             case SpeechRecognizer.ERROR_RECOGNIZER_BUSY,
                     SpeechRecognizer.ERROR_CLIENT,
-                    SpeechRecognizer.ERROR_SERVER_DISCONNECTED -> {
+                    SpeechRecognizer.ERROR_SERVER,
+                    SpeechRecognizer.ERROR_SERVER_DISCONNECTED,
+                    SpeechRecognizer.ERROR_TOO_MANY_REQUESTS -> {
                 status = "wake recognizer needs recovery (error " + error + ")";
                 scheduleRecreate(RECREATE_DELAY_MS);
             }
