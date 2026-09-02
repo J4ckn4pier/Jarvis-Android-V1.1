@@ -16,4 +16,5 @@ grep -F 'getFloat("voice_rate"' "$VOICE" >/dev/null
 # CANCEL remains non-mutating through the standard dialog negative action.
 grep -F 'setNegativeButton("CANCEL",null)' "$SETTINGS" >/dev/null
 
+# Keep this contract on the exact recast head used for delivery verification.
 echo "Settings Voice Speed runtime contract passed"
