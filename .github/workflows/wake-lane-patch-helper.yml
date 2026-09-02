@@ -1,16 +1,12 @@
 name: Wake Lane Patch Helper
 
-on:
-  push:
-    branches:
-      - automation/samsung-tts-listener-error-recovery-20260902-r2
+on: [push]
 
 permissions:
   contents: write
 
 jobs:
   patch:
-    if: github.actor != 'github-actions[bot]'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
@@ -18,8 +14,8 @@ jobs:
           ref: automation/samsung-tts-listener-error-recovery-20260902-r2
           fetch-depth: 1
       - name: Apply minimal Samsung TTS listener recovery patch
-        shell: python
         run: |
+          python3 - <<'PY'
           from pathlib import Path
           path = Path('android/app/src/main/java/com/jarvis/mobile/assistant/JarvisVoiceSession.java')
           source = path.read_text()
@@ -39,6 +35,7 @@ jobs:
           if source.count(before_tail) != 1:
               raise SystemExit(f'expected exactly one listener registration tail, found {source.count(before_tail)}')
           path.write_text(source.replace(before_tail, after_tail, 1))
+          PY
       - name: Commit source patch and remove helper
         run: |
           git config user.name "jarvis-wake-ci"
