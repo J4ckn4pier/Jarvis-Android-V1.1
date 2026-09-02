@@ -157,8 +157,13 @@ public final class BrainEngine {
     }
 
     private static boolean isHighConfidenceCallRecipient(String recipient) {
-        String value = recipient == null ? "" : recipient.trim().toLowerCase(Locale.ROOT);
+        String raw = recipient == null ? "" : recipient.trim();
+        if (raw.isEmpty()) return false;
+        String value = raw.toLowerCase(Locale.ROOT);
         if (value.startsWith("me ") || value.startsWith("it ")) return false;
+        if (value.matches("mom|mum|mother|dad|father|brother|sister|wife|husband|partner|grandma|grandmother|grandpa|grandfather")) return true;
+        char first = raw.charAt(0);
+        if (!(Character.isUpperCase(first) || Character.isDigit(first) || first == '+')) return false;
         String[] words = value.split("\\s+");
         for (int i = 1; i < words.length; i++) {
             if (looksLikeDescriptiveContinuation(String.join(" ", java.util.Arrays.copyOfRange(words, i, words.length)))) return false;
