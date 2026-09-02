@@ -469,8 +469,11 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         main.removeCallbacks(offlineSupportRetry);
         main.removeCallbacks(restart);
         main.removeCallbacks(recreateAndRestart);
-        if (recognizer != null) {
-            try { recognizer.cancel(); } catch (RuntimeException ignored) { }
+        SpeechRecognizer handoffRecognizer = recognizer;
+        recognizer = null;
+        if (handoffRecognizer != null) {
+            try { handoffRecognizer.cancel(); } catch (RuntimeException ignored) { }
+            try { handoffRecognizer.destroy(); } catch (RuntimeException ignored) { }
         }
         status = "wake detected; microphone handed to assistant session";
     }
