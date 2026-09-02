@@ -607,19 +607,14 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     }
 
     private void recoverRecognitionStartFailure(RuntimeException recognitionFailure) {
-        Log.w(VOICE_RECOGNIZER_TAG, "Active recognizer failed to start; retrying", recognitionFailure);
+        Log.w(VOICE_RECOGNIZER_TAG, "Active recognizer failed to start; rebuilding with service backoff", recognitionFailure);
         recognitionGeneration++;
         invalidateRecognitionTerminalWatchdog();
         invalidateRecognitionReadyWatchdog();
-        SpeechRecognizer failedRecognizer = speechRecognizer;
-        speechRecognizer = null;
-        if (failedRecognizer != null) {
-            try { failedRecognizer.cancel(); } catch (RuntimeException ignored) { }
-            try { failedRecognizer.destroy(); } catch (RuntimeException ignored) { }
-        }
+        releaseSpeechRecognizerSafely();
         setActive(false);
         if (output != null) output.setText("Listening paused briefly; I’ll reopen it.");
-        scheduleNextListen();
+        scheduleRecognitionServiceRecovery();
     }
 
     private void execute(String command, double confidence) {
