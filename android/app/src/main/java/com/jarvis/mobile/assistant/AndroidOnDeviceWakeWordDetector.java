@@ -388,8 +388,8 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         }
         try {
             listening = true;
-            recognizer.startListening(intent);
             main.postDelayed(readyWatchdog, READY_WATCHDOG_MS);
+            recognizer.startListening(intent);
         } catch (RuntimeException failure) {
             listening = false;
             status = "Android wake listen failed: " + failure.getClass().getSimpleName();
