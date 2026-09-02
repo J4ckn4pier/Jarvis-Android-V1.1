@@ -12,6 +12,8 @@ public final class DescriptiveWebSearchOpeningSafetyTest {
         descriptiveDirectionsDestinationFallsThroughToCortex();
         descriptiveTimerOpeningFallsThroughToCortex();
         descriptiveAlarmOpeningFallsThroughToCortex();
+        descriptiveCallOpeningFallsThroughToCortex();
+        directCallToKnownRecipientStaysDeterministic();
         System.out.println("DescriptiveWebSearchOpeningSafetyTest passed");
     }
 
@@ -85,6 +87,32 @@ public final class DescriptiveWebSearchOpeningSafetyTest {
         check(calls.get() == 1, "descriptive alarm-opening language must reach cortex");
         check(response.kind() == BrainResponse.Kind.CONVERSATION,
                 "descriptive alarm-opening language must not set an alarm");
+    }
+
+    private static void descriptiveCallOpeningFallsThroughToCortex() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+
+        BrainResponse response = core.handle("Call quality matters for remote work.");
+
+        check(calls.get() == 1, "descriptive call-opening language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "descriptive call-opening language must not prepare a phone call");
+    }
+
+    private static void directCallToKnownRecipientStaysDeterministic() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+
+        BrainResponse response = core.handle("Call mom");
+
+        check(calls.get() == 0, "direct call to a known recipient must not fall through to cortex");
+        check(response.kind() == BrainResponse.Kind.ACTION_PLAN,
+                "direct call to a known recipient must create an action plan");
+        check(response.plan() != null && response.plan().steps().size() == 1,
+                "direct call must contain exactly one action");
+        check("call_contact".equals(response.plan().steps().get(0).tool()),
+                "direct call must use call_contact");
     }
 
     private static AssistantCore coreWithRouter(AtomicInteger calls) {
