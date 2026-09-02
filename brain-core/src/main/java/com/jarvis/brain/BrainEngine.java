@@ -220,6 +220,7 @@ public final class BrainEngine {
         String value = lower.trim();
         if (value.matches("calendar\\s+(?:today|tomorrow)\\s+(?:is|are|was|were|can|could|should|would|means|refers)\\b.*")) return false;
         if (value.matches("(?:show|check|read)\\s+(?:(?:me\\s+)?(?:my\\s+|the\\s+)?)?calendar(?:\\s+(?:today|tomorrow))?\\s+(?:is|are|was|were|can|could|should|would|means|refers)\\b.*")) return false;
+        if (value.matches("(?:what(?:'s| is)\\s+on\\s+(?:my|the)\\s+calendar|what\\s+do\\s+i\\s+have\\s+on\\s+my\\s+calendar)(?:\\s+(?:today|tomorrow))?\\s+(?:is|are|was|were|can|could|should|would|means|refers)\\b.*")) return false;
         return value.startsWith("what's on my calendar") || value.startsWith("what is on my calendar")
                 || value.startsWith("what do i have on my calendar") || value.startsWith("what's on the calendar")
                 || value.startsWith("what is on the calendar") || value.startsWith("show my calendar")
