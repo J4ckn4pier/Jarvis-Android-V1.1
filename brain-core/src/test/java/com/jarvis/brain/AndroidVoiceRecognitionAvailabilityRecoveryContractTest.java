@@ -13,6 +13,12 @@ public final class AndroidVoiceRecognitionAvailabilityRecoveryContractTest {
         check(probeFailurePath.contains("scheduleRecognitionServiceRecovery();"), "Samsung/OEM recognition availability probe failure must enter bounded speech-service recovery backoff");
         check(!probeFailurePath.contains("scheduleNextListen();"), "recognition availability probe failure must not hammer the speech service through the normal 180ms relisten loop");
 
+        String passiveStartMethod = between(wakeDetector, "@Override public boolean start(Runnable wakeCallback) {", "@TargetApi(Build.VERSION_CODES.TIRAMISU)\n    private boolean beginSystemOfflineVerification() {");
+        check(passiveStartMethod.contains("microphonePermissionGrantedSafely()"), "passive Samsung wake startup must use an exception-safe microphone permission probe before recognizer acquisition");
+        check(!passiveStartMethod.contains("context.checkSelfPermission(Manifest.permission.RECORD_AUDIO)"), "passive wake startup must not call the OEM permission framework directly without recovery protection");
+        check(passiveStartMethod.contains("recognitionAvailableSafely()"), "passive Samsung wake startup must use an exception-safe recognizer availability probe");
+        check(!passiveStartMethod.contains("isAvailable(context)"), "passive wake startup must not call SpeechRecognizer availability directly without OEM exception protection");
+
         String wakeHandoff = between(wakeDetector, "private void stopListeningForWakeHandoff() {", "private void stopInternal() {");
         check(wakeHandoff.contains("SpeechRecognizer handoffRecognizer = recognizer;") && wakeHandoff.contains("recognizer = null;"), "passive wake handoff must detach the retired recognizer before opening the Assistant session");
         check(wakeHandoff.contains("handoffRecognizer.cancel()"), "passive wake handoff must cancel recognition before opening the Assistant session");
