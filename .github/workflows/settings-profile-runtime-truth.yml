@@ -1,0 +1,38 @@
+name: Settings Profile Runtime Truth
+
+on:
+  pull_request:
+    branches:
+      - feature/product-local-cortex
+    paths:
+      - 'android/settings_profile_runtime_truth_test.py'
+      - 'android/app/src/main/java/com/jarvis/mobile/SettingsActivity.java'
+      - 'android/app/src/main/java/**/*.java'
+      - '.github/workflows/settings-profile-runtime-truth.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  profile-runtime-truth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify visible Profile setting has a production runtime consumer
+        working-directory: android
+        run: python3 settings_profile_runtime_truth_test.py
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Compile Settings production sources
+        working-directory: android
+        run: gradle :app:compileDebugJavaWithJavac --stacktrace
