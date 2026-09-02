@@ -27,6 +27,16 @@ public final class AndroidVoicePermissionRevocationContractTest {
         check(session.contains("Boolean microphonePermissionGranted = microphonePermissionGrantedSafely();")
                         && session.contains("if (microphonePermissionGranted == null)"),
                 "an indeterminate microphone-permission probe must recover without crashing or pretending permission was denied");
+
+        int probeStart = session.indexOf("if (microphonePermissionGranted == null)");
+        int probeEnd = session.indexOf("if (!microphonePermissionGranted)", probeStart + 1);
+        String probeRecoveryBody = probeStart >= 0
+                ? session.substring(probeStart, probeEnd > probeStart ? probeEnd : session.length())
+                : "";
+        check(probeRecoveryBody.contains("scheduleRecognitionServiceRecovery();")
+                        && !probeRecoveryBody.contains("scheduleNextListen();"),
+                "Samsung/OEM microphone-permission probe failures must use bounded recovery instead of hammering package/speech services every 180ms");
+
         check(session.contains("handleRecognitionResultsSafely(results)"),
                 "active Assistant final-result Bundles must cross a Samsung/OEM exception boundary before command execution");
         check(session.contains("handleRecognitionPartialSafely(partialResults)"),
