@@ -1,0 +1,40 @@
+name: Apply Settings Voice Speed Fix
+
+on:
+  push:
+    branches:
+      - automation/settings-voice-speed-runtime-run18
+    paths:
+      - '.github/workflows/settings-voice-speed-apply.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: automation/settings-voice-speed-runtime-run18
+      - name: Make visible voice setting truthful
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('android/app/src/main/java/com/jarvis/mobile/SettingsActivity.java')
+          text = path.read_text()
+          old_row = 'body.addView(row("Voice Model", voiceModelSummary(), this::showVoiceModelPicker));'
+          new_row = 'body.addView(row("Voice Speed", voiceModelSummary(), this::showVoiceModelPicker));'
+          old_title = 'new AlertDialog.Builder(this).setTitle("Voice Model").setSingleChoiceItems(labels,selected,null)'
+          new_title = 'new AlertDialog.Builder(this).setTitle("Voice Speed").setSingleChoiceItems(labels,selected,null)'
+          if old_row not in text or old_title not in text:
+              raise SystemExit('expected Voice Model surface not found; refusing blind rewrite')
+          path.write_text(text.replace(old_row,new_row,1).replace(old_title,new_title,1))
+          PY
+      - name: Commit production correction
+        run: |
+          git config user.name 'jarvis-settings-automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git add android/app/src/main/java/com/jarvis/mobile/SettingsActivity.java
+          git commit -m 'fix(settings): make voice speed surface truthful'
+          git push origin HEAD:automation/settings-voice-speed-runtime-run18
