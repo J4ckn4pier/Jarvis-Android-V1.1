@@ -880,7 +880,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         TextToSpeech engine = textToSpeech;
         if (engine == null) return;
         try {
-            engine.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+            int listenerResult = engine.setOnUtteranceProgressListener(new UtteranceProgressListener() {
                 @Override public void onStart(String utteranceId) {
                     if (!isCurrentSpeechCallback(utteranceId)) return;
                     invalidateTtsStartWatchdog();
@@ -895,6 +895,11 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
                     if (output != null) output.post(() -> finishSpeechCallback(utteranceId));
                 }
             });
+            if (listenerResult == TextToSpeech.ERROR) {
+                Log.w(VOICE_RECOGNIZER_TAG, "TTS progress-listener attachment returned ERROR; retiring speech engine");
+                invalidateSpeechCallback();
+                releaseTextToSpeechSafely();
+            }
         } catch (RuntimeException listenerFailure) {
             Log.w(VOICE_RECOGNIZER_TAG, "TTS progress-listener attachment failed; retiring speech engine", listenerFailure);
             invalidateSpeechCallback();
