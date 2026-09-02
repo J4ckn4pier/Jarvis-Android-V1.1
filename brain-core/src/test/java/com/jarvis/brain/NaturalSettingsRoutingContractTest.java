@@ -10,6 +10,10 @@ public final class NaturalSettingsRoutingContractTest {
         check("open_jarvis_settings".equals(plan.steps().get(0).tool()),
                 "settings request must open JARVIS settings, not guess an installed app or require a provider");
         check(!plan.steps().get(0).consequential(), "opening JARVIS settings must not require approval");
+
+        check(interpreter.interpret("Open settings can expose advanced controls.").isEmpty(),
+                "command-shaped descriptive settings language must fall through to cortex reasoning");
+
         UserFacingSettingsContractTest.main(args);
         System.out.println("NaturalSettingsRoutingContractTest passed");
     }

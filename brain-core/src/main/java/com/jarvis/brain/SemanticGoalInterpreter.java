@@ -92,6 +92,7 @@ public final class SemanticGoalInterpreter {
 
     private static boolean isJarvisSettingsRequest(String lower) {
         if (!lower.contains("settings")) return false;
+        if (lower.matches("(?:settings|open settings|open the settings|open jarvis settings|show settings|show me settings|show jarvis settings|go to settings)\\s+(?:is|are|was|were|can|could|should|would|means|refers)\\b.*")) return false;
         if (startsAsRequest(lower,
                 "settings", "open settings", "open the settings", "open jarvis settings",
                 "show settings", "show me settings", "show jarvis settings", "go to settings")) return true;
@@ -101,6 +102,8 @@ public final class SemanticGoalInterpreter {
     }
 
     private static boolean isDialer(String lower) {
+        if (lower.matches("(?:phone|phone app|dialer|open phone|open the phone|open my phone|open dialer|open the dialer)\\s+(?:is|are|was|were|can|could|should|would|means|refers)\\b.*")) return false;
+        if (lower.matches("phone calls?\\s+(?:is|are|was|were|can|could|should|would|means|refers)\\b.*")) return false;
         if (startsAsRequest(lower, "open ") && lower.contains("use to make") && lower.contains("phone call")) return true;
         return startsAsRequest(lower,
                 "open phone", "open the phone", "open my phone", "open dialer", "open the dialer",
@@ -150,6 +153,7 @@ public final class SemanticGoalInterpreter {
         if (!lower.contains("volume") && !lower.contains("sound")) return null;
         if (!startsAsRequest(lower, "turn ", "lower ", "raise ", "mute ", "unmute ", "make ", "volume ", "sound ")) return null;
         if (lower.matches("(?:volume|sound)(?:\\s+control)?\\s+(?:is|are|was|were|can|could|should|would|means|refers)\\b.*")) return null;
+        if (lower.matches("(?:(?:turn\\s+(?:the\\s+)?(?:volume|sound)\\s+(?:up|down))|(?:lower|raise)\\s+(?:the\\s+)?(?:volume|sound)|(?:mute|unmute)\\s+(?:the\\s+)?(?:volume|sound)|make\\s+(?:the\\s+)?(?:volume|sound)\\s+(?:louder|quieter)|(?:volume|sound)\\s+(?:up|down))\\s+(?:is|are|was|were|can|could|should|would|means|refers)\\b.*")) return null;
         if (lower.contains("unmute")) return "unmute";
         if (lower.contains("mute")) return "mute";
         if (lower.contains("down") || lower.contains("lower") || lower.contains("quieter")) return "down";
