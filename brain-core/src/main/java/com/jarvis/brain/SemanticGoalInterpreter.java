@@ -153,6 +153,7 @@ public final class SemanticGoalInterpreter {
         if (!lower.contains("volume") && !lower.contains("sound")) return null;
         if (!startsAsRequest(lower, "turn ", "lower ", "raise ", "mute ", "unmute ", "make ", "volume ", "sound ")) return null;
         if (lower.matches("(?:volume|sound)(?:\\s+control)?\\s+(?:is|are|was|were|can|could|should|would|means|refers)\\b.*")) return null;
+        if (lower.matches("(?:(?:turn\\s+(?:the\\s+)?(?:volume|sound)\\s+(?:up|down))|(?:lower|raise)\\s+(?:the\\s+)?(?:volume|sound)|(?:mute|unmute)\\s+(?:the\\s+)?(?:volume|sound)|make\\s+(?:the\\s+)?(?:volume|sound)\\s+(?:louder|quieter)|(?:volume|sound)\\s+(?:up|down))\\s+(?:is|are|was|were|can|could|should|would|means|refers)\\b.*")) return null;
         if (lower.contains("unmute")) return "unmute";
         if (lower.contains("mute")) return "mute";
         if (lower.contains("down") || lower.contains("lower") || lower.contains("quieter")) return "down";
