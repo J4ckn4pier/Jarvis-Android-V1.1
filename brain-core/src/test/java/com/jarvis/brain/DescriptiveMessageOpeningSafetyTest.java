@@ -7,6 +7,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class DescriptiveMessageOpeningSafetyTest {
     public static void main(String[] args) {
         descriptiveMessageFallsThrough();
+        descriptiveMessageNounPhraseFallsThrough();
         descriptiveNotificationQuestionFallsThrough();
         System.out.println("DescriptiveMessageOpeningSafetyTest passed");
     }
@@ -20,6 +21,17 @@ public final class DescriptiveMessageOpeningSafetyTest {
         check(calls.get() == 1, "descriptive message language must reach cortex");
         check(response.kind() == BrainResponse.Kind.CONVERSATION,
                 "descriptive message language must not prepare a message action");
+    }
+
+    private static void descriptiveMessageNounPhraseFallsThrough() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+
+        BrainResponse response = core.handle("Message encryption improves privacy for private conversations.");
+
+        check(calls.get() == 1, "descriptive message noun phrase must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "descriptive message noun phrase must not prepare a message action");
     }
 
     private static void descriptiveNotificationQuestionFallsThrough() {
