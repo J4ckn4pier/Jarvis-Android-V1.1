@@ -45,6 +45,8 @@ import java.util.function.Supplier;
 public class JarvisVoiceSession extends VoiceInteractionSession implements TextToSpeech.OnInitListener {
     private static final long CONVERSATION_WINDOW_MILLIS = 10 * 60 * 1000L;
     private static final long NEXT_LISTEN_DELAY_MILLIS = 180L;
+    private static final long RECOGNIZER_SERVICE_RETRY_BASE_MILLIS = 350L;
+    private static final long RECOGNIZER_SERVICE_RETRY_MAX_MILLIS = 4000L;
     private static final long ACTIVE_END_OF_SPEECH_TIMEOUT_MILLIS = 3000L;
     private static final long ACTIVE_RECOGNIZER_READY_TIMEOUT_MILLIS = 4000L;
     private static final long TTS_START_CALLBACK_TIMEOUT_MILLIS = 4000L;
@@ -81,6 +83,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private volatile long ttsStartWatchdogGeneration;
     private long ttsTerminalWatchdogGeneration;
     private long listenScheduleGeneration;
+    private int recognizerServiceFailureCount;
     private volatile String activeUtteranceId = "";
     private String lastCommand = "";
     private String lastPartial = "";
@@ -222,6 +225,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     @Override public void onHide() {
         sessionGeneration++;
         recognitionGeneration++;
+        recognizerServiceFailureCount = 0;
         invalidateRecognitionTerminalWatchdog();
         invalidateRecognitionReadyWatchdog();
         sessionVisible = false;
@@ -292,6 +296,23 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
             if (conversationWindowOpen()) startListening();
             else setActive(false);
         }, NEXT_LISTEN_DELAY_MILLIS);
+    }
+
+    private void scheduleRecognitionServiceRecovery() {
+        int failureCount = ++recognizerServiceFailureCount;
+        int shift = Math.min(4, Math.max(0, failureCount - 1));
+        long retryDelay = Math.min(RECOGNIZER_SERVICE_RETRY_MAX_MILLIS,
+                RECOGNIZER_SERVICE_RETRY_BASE_MILLIS * (1L << shift));
+        long scheduledGeneration = ++listenScheduleGeneration;
+        if (!viewReady || !conversationWindowOpen() || output == null) {
+            setActive(false);
+            return;
+        }
+        output.postDelayed(() -> {
+            if (scheduledGeneration != listenScheduleGeneration) return;
+            if (conversationWindowOpen()) startListening();
+            else setActive(false);
+        }, retryDelay);
     }
 
     private void invalidateRecognitionTerminalWatchdog() {
@@ -441,6 +462,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
 
                 @Override public void onReadyForSpeech(Bundle params) {
                     if (stale()) return;
+                    recognizerServiceFailureCount = 0;
                     invalidateRecognitionReadyWatchdog();
                     output.setText("Listening…");
                     setActive(true);
@@ -471,6 +493,18 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
                     if (!claimTerminal()) return;
                     if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
                         handleRecognitionPermissionLoss();
+                        return;
+                    }
+                    if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY
+                            || error == SpeechRecognizer.ERROR_SERVER) {
+                        Log.w(VOICE_RECOGNIZER_TAG, "Active recognizer service failure " + error + "; rebuilding with backoff");
+                        recognitionGeneration++;
+                        invalidateRecognitionTerminalWatchdog();
+                        invalidateRecognitionReadyWatchdog();
+                        releaseSpeechRecognizerSafely();
+                        output.setText("Listening paused briefly; I’ll reopen it.");
+                        setActive(false);
+                        scheduleRecognitionServiceRecovery();
                         return;
                     }
                     output.setText(error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
@@ -875,6 +909,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         destroyed = true;
         sessionGeneration++;
         recognitionGeneration++;
+        recognizerServiceFailureCount = 0;
         invalidateRecognitionTerminalWatchdog();
         invalidateRecognitionReadyWatchdog();
         sessionVisible = false;
