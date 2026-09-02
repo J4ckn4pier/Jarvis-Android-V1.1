@@ -179,7 +179,8 @@ public final class BrainEngine {
             return !value.matches("navigate(?:\\s+to)?\\s+.+\\s+(?:is|are|were|was|can|could|should|would|mean|means|refer|refers)\\b.*");
         }
         if (!value.startsWith("directions ")) return false;
-        return !value.matches("directions\\s+(?:are|is|were|was|can|could|should|would|mean|means|refer|refers)\\b.*");
+        if (value.matches("directions\\s+(?:are|is|were|was|can|could|should|would|mean|means|refer|refers)\\b.*")) return false;
+        return !value.matches("directions(?:\\s+to)?\\s+.+\\s+(?:is|are|were|was|can|could|should|would|mean|means|refer|refers)\\b.*");
     }
 
     private static boolean isDirectMediaPlayRequest(String lower) {
