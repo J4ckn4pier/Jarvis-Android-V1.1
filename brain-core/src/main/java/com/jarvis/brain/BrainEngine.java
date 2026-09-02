@@ -233,7 +233,7 @@ public final class BrainEngine {
         if (!lower.contains("notification")) return false;
         String value = lower.trim();
         if (value.matches("(?:read|show|check)\\s+(?:my\\s+)?notifications?\\s+(?:is|are|was|were|can|could|should|would|means|refers)\\b.*")) return false;
-        if (value.matches("what notifications?\\s+(?:can|could|should|would)\\s+(?!i\\b|we\\b|you\\b).+")) return false;
+        if (value.matches("what notifications?\\s+(?:is|are|was|were|can|could|should|would)\\s+(?!i\\b|we\\b|you\\b|on\\b|from\\b|there\\b|waiting\\b|unread\\b).+")) return false;
         return value.startsWith("what notification") || value.startsWith("what notifications")
                 || value.startsWith("what are my notification") || value.startsWith("what are my notifications")
                 || value.startsWith("show notification") || value.startsWith("show notifications")
