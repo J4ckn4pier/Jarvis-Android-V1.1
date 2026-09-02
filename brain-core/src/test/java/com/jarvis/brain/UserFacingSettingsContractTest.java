@@ -43,6 +43,13 @@ public final class UserFacingSettingsContractTest {
                 "the real assistant session must enforce the saved lock-screen preference against Android keyguard state");
         check(voiceSession.contains("lockScreenAssistantAllowed()"),
                 "lock-screen access enforcement must be explicit and reviewable in the production voice session");
+        String widgetSettings = settings.substring(settings.indexOf("private void showWidgetLockSettings()"), settings.indexOf("private void requestQuickAccessWidget()"));
+        int widgetSave = widgetSettings.indexOf("setPositiveButton(\"SAVE\"");
+        int widgetPersist = widgetSettings.indexOf("preferences.edit().putBoolean(\"lock_screen_assistant_enabled\"");
+        check(widgetSave >= 0 && widgetSettings.contains("setNegativeButton(\"CANCEL\",null)"),
+                "Widgets & Lock Screen must expose explicit SAVE/CANCEL semantics for its runtime preference");
+        check(widgetPersist > widgetSave,
+                "lock-screen runtime preference must not persist while the dialog is still being edited; only SAVE may commit it");
         check(manifest.contains(".widgets.QuickActivationWidget") && quickWidget.contains("AppWidgetProvider"),
                 "Widgets & Lock Screen may only advertise widget setup when a real Android home-screen widget exists");
         check(settings.contains("requestPinAppWidget") && settings.contains("QuickActivationWidget.class"),

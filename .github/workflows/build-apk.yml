@@ -2,7 +2,7 @@ name: Build and Test JARVIS Prefrontal APK
 
 on:
   push:
-    branches: [main, brain-first-v1, feature/product-local-cortex]
+    branches: [main, brain-first-v1, feature/product-local-cortex, feature/claude-ui-delivery-refresh-2026-09-01]
   pull_request:
     branches: [main]
   workflow_dispatch:
