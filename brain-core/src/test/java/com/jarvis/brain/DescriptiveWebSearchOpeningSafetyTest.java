@@ -14,6 +14,8 @@ public final class DescriptiveWebSearchOpeningSafetyTest {
         descriptiveAlarmOpeningFallsThroughToCortex();
         descriptiveCallOpeningFallsThroughToCortex();
         directCallToKnownRecipientStaysDeterministic();
+        descriptiveCalendarOpeningFallsThroughToCortex();
+        directCalendarQueryStaysDeterministic();
         System.out.println("DescriptiveWebSearchOpeningSafetyTest passed");
     }
 
@@ -113,6 +115,32 @@ public final class DescriptiveWebSearchOpeningSafetyTest {
                 "direct call must contain exactly one action");
         check("call_contact".equals(response.plan().steps().get(0).tool()),
                 "direct call must use call_contact");
+    }
+
+    private static void descriptiveCalendarOpeningFallsThroughToCortex() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+
+        BrainResponse response = core.handle("What's on my calendar can reveal a lot about my routine.");
+
+        check(calls.get() == 1, "descriptive calendar-opening language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "descriptive calendar-opening language must not query the calendar");
+    }
+
+    private static void directCalendarQueryStaysDeterministic() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+
+        BrainResponse response = core.handle("What's on my calendar tomorrow?");
+
+        check(calls.get() == 0, "direct calendar query must not fall through to cortex");
+        check(response.kind() == BrainResponse.Kind.ACTION_PLAN,
+                "direct calendar query must create an action plan");
+        check(response.plan() != null && response.plan().steps().size() == 1,
+                "direct calendar query must contain exactly one action");
+        check("calendar_query".equals(response.plan().steps().get(0).tool()),
+                "direct calendar query must use calendar_query");
     }
 
     private static AssistantCore coreWithRouter(AtomicInteger calls) {
