@@ -1,0 +1,44 @@
+name: Apply Settings Backup Runtime Fix Run 11
+
+on:
+  push:
+    branches:
+      - automation/settings-backup-runtime-run11-1504
+    paths:
+      - '.github/workflows/settings-backup-apply-run11.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: automation/settings-backup-runtime-run11-1504
+      - name: Remove unsupported Backup & Sync surface
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('android/app/src/main/java/com/jarvis/mobile/SettingsActivity.java')
+          text = path.read_text()
+          targets = [
+              'import com.jarvis.mobile.remote.RemoteGoalStateStore;\n',
+              '        body.addView(row("Backup & Sync", backupSummary(), this::showBackupSyncSettings));\n',
+              '    private void showBackupSyncSettings(){boolean remoteConfigured=new RemoteGoalStateStore(this).loadConnection()!=null;String message=remoteConfigured?"Remote JARVIS is configured. Choose whether this phone may use that connection for synchronization-capable features.":"No remote JARVIS connection is configured. Local memory remains on this phone until you explicitly configure one.";boolean enabled=preferences.getBoolean("backup_sync_enabled",false);int initial=enabled&&remoteConfigured?1:0;new AlertDialog.Builder(this).setTitle("Backup & Sync").setMessage(message).setSingleChoiceItems(new String[]{"Local only","Allow configured remote sync"},initial,null).setPositiveButton(remoteConfigured?"SAVE":"CONFIGURE CONNECTION",(dialog,which)->{if(remoteConfigured){AlertDialog d=(AlertDialog)dialog;int selected=d.getListView().getCheckedItemPosition();if(selected<0)selected=initial;preferences.edit().putBoolean("backup_sync_enabled",selected==1).apply();}else{startActivity(new Intent(this,DeveloperSettingsActivity.class));}render();}).setNegativeButton("CANCEL",null).show();}\n',
+              '    private String backupSummary(){if(!preferences.getBoolean("backup_sync_enabled",false))return "Local only";return new RemoteGoalStateStore(this).loadConnection()==null?"Local only — remote connection not configured":"Configured remote sync allowed";}\n',
+          ]
+          for target in targets:
+              if target not in text:
+                  raise SystemExit('expected Backup & Sync baseline text not found; refusing blind rewrite')
+              text = text.replace(target, '', 1)
+          path.write_text(text)
+          PY
+      - name: Commit production correction
+        run: |
+          git config user.name 'jarvis-settings-automation'
+          git config user.email 'actions@users.noreply.github.com'
+          git add android/app/src/main/java/com/jarvis/mobile/SettingsActivity.java
+          git commit -m 'fix(settings): remove unsupported backup sync control'
+          git push origin HEAD:automation/settings-backup-runtime-run11-1504
