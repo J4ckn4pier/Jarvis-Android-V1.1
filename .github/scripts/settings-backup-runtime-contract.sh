@@ -15,3 +15,4 @@ if grep -F 'row("Backup & Sync"' "$SETTINGS" >/dev/null; then
 fi
 
 echo "Settings Backup & Sync runtime-truth contract passed"
+# Exact-head verification trigger after the production correction.
