@@ -39,7 +39,7 @@ public final class DescriptiveWebSearchOpeningSafetyTest {
                 "explicit web-search command must contain exactly one action");
         check("web_search".equals(response.plan().steps().get(0).tool()),
                 "explicit web-search command must use web_search");
-        check("what to do when a car won't start".equals(response.plan().steps().get(0).args().get("query")),
+        check("what to do when a car won't start".equals(response.plan().steps().get(0).arguments().get("query")),
                 "web-search query must preserve natural query clauses");
     }
 
