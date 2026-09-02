@@ -37,6 +37,13 @@ public final class UserFacingSettingsContractTest {
         check(manifest.contains(".DeveloperSettingsActivity"), "developer settings must remain declared rather than deleted");
         check(manifest.contains(".SettingsActivity") && manifest.contains("@style/AppTheme"), "user Settings must use the canonical dark JARVIS theme");
 
+        check(settings.contains("Free/local AI needs setup"),
+                "AI Providers summary must not report an incomplete free/local provider as configured");
+        check(settings.contains("OpenAI provider needs setup"),
+                "AI Providers summary must not report an incomplete OpenAI provider as connected");
+        check(settings.contains("Anthropic needs setup"),
+                "AI Providers summary must not report an incomplete Anthropic provider as connected");
+
         check(settings.contains("lock_screen_assistant_enabled"),
                 "Widgets & Lock Screen must persist the user-visible lock-screen assistant preference");
         check(voiceSession.contains("lock_screen_assistant_enabled") && voiceSession.contains("KeyguardManager"),
