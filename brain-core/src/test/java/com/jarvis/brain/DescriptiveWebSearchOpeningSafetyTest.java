@@ -16,6 +16,8 @@ public final class DescriptiveWebSearchOpeningSafetyTest {
         directCallToKnownRecipientStaysDeterministic();
         descriptiveCalendarOpeningFallsThroughToCortex();
         directCalendarQueryStaysDeterministic();
+        descriptiveNotificationOpeningFallsThroughToCortex();
+        directNotificationQueryStaysDeterministic();
         System.out.println("DescriptiveWebSearchOpeningSafetyTest passed");
     }
 
@@ -141,6 +143,32 @@ public final class DescriptiveWebSearchOpeningSafetyTest {
                 "direct calendar query must contain exactly one action");
         check("calendar_query".equals(response.plan().steps().get(0).tool()),
                 "direct calendar query must use calendar_query");
+    }
+
+    private static void descriptiveNotificationOpeningFallsThroughToCortex() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+
+        BrainResponse response = core.handle("What notifications are useful for staying organized?");
+
+        check(calls.get() == 1, "descriptive notification-opening language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "descriptive notification-opening language must not query device notifications");
+    }
+
+    private static void directNotificationQueryStaysDeterministic() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+
+        BrainResponse response = core.handle("What notifications do I have?");
+
+        check(calls.get() == 0, "direct notification query must not fall through to cortex");
+        check(response.kind() == BrainResponse.Kind.ACTION_PLAN,
+                "direct notification query must create an action plan");
+        check(response.plan() != null && response.plan().steps().size() == 1,
+                "direct notification query must contain exactly one action");
+        check("notification_query".equals(response.plan().steps().get(0).tool()),
+                "direct notification query must use notification_query");
     }
 
     private static AssistantCore coreWithRouter(AtomicInteger calls) {
