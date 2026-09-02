@@ -49,6 +49,11 @@ public final class AndroidVoiceRecognitionAvailabilityRecoveryContractTest {
         check(!wakeDetector.contains("@Override public void onEvent(int eventType, Bundle params) { cancelReadyWatchdog(); }"),
                 "generic Samsung/OEM recognizer events must not cancel the passive ready watchdog before microphone readiness is proven");
 
+        int passiveStart = wakeDetector.indexOf("recognizer.startListening(intent);");
+        int passiveWatchdogArm = wakeDetector.indexOf("mainHandler.postDelayed(readyWatchdog, READY_TIMEOUT_MS);");
+        check(passiveStart >= 0 && passiveWatchdogArm >= 0 && passiveWatchdogArm < passiveStart,
+                "passive Samsung wake must arm its ready watchdog before startListening so an immediate OEM callback cannot arrive before the watchdog exists and leave a stale timeout that destroys a healthy wake recognizer");
+
         int activeStart = session.indexOf("speechRecognizer.startListening(intent);");
         int activeWatchdogArm = session.indexOf("scheduleRecognitionReadyWatchdog(listeningGeneration);");
         check(activeStart >= 0 && activeWatchdogArm >= 0 && activeWatchdogArm < activeStart,
