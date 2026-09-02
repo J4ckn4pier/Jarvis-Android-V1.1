@@ -4,7 +4,7 @@ on:
   push:
     branches: [main, brain-first-v1, feature/product-local-cortex]
   pull_request:
-    branches: [main]
+    branches: [main, feature/product-local-cortex]
   workflow_dispatch:
 
 jobs:
