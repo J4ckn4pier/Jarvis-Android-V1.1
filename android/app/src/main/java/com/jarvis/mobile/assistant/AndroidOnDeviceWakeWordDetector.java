@@ -555,7 +555,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         cancelReadyWatchdog();
         inspectSafely(partialResults, false);
     }
-    @Override public void onEvent(int eventType, Bundle params) { cancelReadyWatchdog(); }
+    @Override public void onEvent(int eventType, Bundle params) { }
 
     private void inspectSafely(Bundle bundle, boolean terminal) {
         try {
