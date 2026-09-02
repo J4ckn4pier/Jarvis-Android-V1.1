@@ -432,7 +432,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         if (recognitionAvailable == null) {
             if (output != null) output.setText("Listening paused briefly; I’ll reopen it.");
             setActive(false);
-            scheduleNextListen();
+            scheduleRecognitionServiceRecovery();
             return;
         }
         if (!recognitionAvailable) {
