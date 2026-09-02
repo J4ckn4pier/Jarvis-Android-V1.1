@@ -50,7 +50,8 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private static final long ACTIVE_END_OF_SPEECH_TIMEOUT_MILLIS = 3000L;
     private static final long ACTIVE_RECOGNIZER_READY_TIMEOUT_MILLIS = 4000L;
     private static final long TTS_START_CALLBACK_TIMEOUT_MILLIS = 4000L;
-    private static final long TTS_TERMINAL_CALLBACK_TIMEOUT_MILLIS = 60000L;
+    private static final long TTS_TERMINAL_CALLBACK_TIMEOUT_MIN_MILLIS = 8000L;
+    private static final long TTS_TERMINAL_CALLBACK_TIMEOUT_MAX_MILLIS = 60000L;
     private static final String TEST_TAG = "JARVIS_ASSISTANT_TEST";
     private static final String SHARED_BRAIN_TAG = "JARVIS_SHARED_BRAIN_ACTIVE";
     private static final String RUNTIME_FAILURE_TAG = "JARVIS_RUNTIME_FAILURE";
@@ -689,7 +690,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
             boolean accepted = engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId) == TextToSpeech.SUCCESS;
             if (accepted) {
                 scheduleTtsStartWatchdog(utteranceId);
-                scheduleTtsTerminalWatchdog(utteranceId);
+                scheduleTtsTerminalWatchdog(utteranceId, text);
             }
             return accepted;
         } catch (RuntimeException speechFailure) {
@@ -733,14 +734,21 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         ttsTerminalWatchdogGeneration++;
     }
 
-    private void scheduleTtsTerminalWatchdog(String utteranceId) {
+    private long ttsTerminalCallbackTimeoutMillis(String text) {
+        long textLength = text == null ? 0L : text.length();
+        long estimatedSpeechMillis = 4000L + textLength * 75L;
+        return Math.min(TTS_TERMINAL_CALLBACK_TIMEOUT_MAX_MILLIS,
+                Math.max(TTS_TERMINAL_CALLBACK_TIMEOUT_MIN_MILLIS, estimatedSpeechMillis));
+    }
+
+    private void scheduleTtsTerminalWatchdog(String utteranceId, String text) {
         long watchdogGeneration = ++ttsTerminalWatchdogGeneration;
         TextView surface = output;
         if (surface == null) return;
         surface.postDelayed(() -> {
             if (watchdogGeneration != ttsTerminalWatchdogGeneration) return;
             handleTtsTerminalTimeout(utteranceId);
-        }, TTS_TERMINAL_CALLBACK_TIMEOUT_MILLIS);
+        }, ttsTerminalCallbackTimeoutMillis(text));
     }
 
     private void handleTtsTerminalTimeout(String utteranceId) {
