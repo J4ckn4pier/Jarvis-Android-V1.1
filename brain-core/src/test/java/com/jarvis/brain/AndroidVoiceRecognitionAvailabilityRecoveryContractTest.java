@@ -31,6 +31,21 @@ public final class AndroidVoiceRecognitionAvailabilityRecoveryContractTest {
         check(wakeHandoff.contains("handoffRecognizer.destroy()"),
                 "Samsung/OEM passive wake handoff must destroy the recognizer so it cannot retain microphone ownership while active listening starts");
 
+        String passiveErrorRecovery = between(
+                wakeDetector,
+                "@Override public void onError(int error) {",
+                "@Override public void onResults(Bundle results) {");
+        String recreateCases = between(
+                passiveErrorRecovery,
+                "case SpeechRecognizer.ERROR_RECOGNIZER_BUSY,",
+                "default -> {");
+        check(recreateCases.contains("SpeechRecognizer.ERROR_SERVER,"),
+                "passive Samsung wake must rebuild the recognizer after ERROR_SERVER instead of restarting the same potentially wedged service client");
+        check(recreateCases.contains("SpeechRecognizer.ERROR_TOO_MANY_REQUESTS"),
+                "passive Samsung wake must rebuild/back off after ERROR_TOO_MANY_REQUESTS instead of retrying the same recognizer every 500ms");
+        check(recreateCases.contains("scheduleRecreate(RECREATE_DELAY_MS);"),
+                "passive speech-service failures must use recognizer recreation recovery");
+
         System.out.println("AndroidVoiceRecognitionAvailabilityRecoveryContractTest: PASS");
     }
 
