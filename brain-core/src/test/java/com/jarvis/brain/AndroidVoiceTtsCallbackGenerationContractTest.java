@@ -70,8 +70,15 @@ public final class AndroidVoiceTtsCallbackGenerationContractTest {
 
         check(session.contains("TTS_TERMINAL_CALLBACK_TIMEOUT_MILLIS"),
                 "accepted Samsung/OEM TTS playback must have a bounded terminal-callback watchdog");
-        check(session.contains("scheduleTtsTerminalWatchdog(utteranceId)"),
-                "successful TTS submission must arm a watchdog in case Samsung never sends onDone/onError");
+        check(session.contains("scheduleTtsTerminalWatchdog(utteranceId, text)"),
+                "successful TTS submission must arm a text-aware watchdog in case Samsung starts speech but never sends onDone/onError");
+        check(session.contains("private long ttsTerminalCallbackTimeoutMillis(String text)"),
+                "Samsung TTS terminal recovery must estimate a bounded timeout from utterance length rather than strand a short conversational turn for a fixed minute");
+        check(session.contains("TTS_TERMINAL_CALLBACK_TIMEOUT_MIN_MILLIS")
+                        && session.contains("TTS_TERMINAL_CALLBACK_TIMEOUT_MAX_MILLIS")
+                        && session.contains("Math.min(TTS_TERMINAL_CALLBACK_TIMEOUT_MAX_MILLIS")
+                        && session.contains("Math.max(TTS_TERMINAL_CALLBACK_TIMEOUT_MIN_MILLIS"),
+                "text-aware Samsung TTS terminal recovery must remain bounded by explicit minimum and maximum watchdog limits");
         check(session.contains("handleTtsTerminalTimeout(utteranceId)"),
                 "a missing Samsung TTS terminal callback must enter an explicit recovery path");
         check(session.contains("invalidateTtsTerminalWatchdog()"),
