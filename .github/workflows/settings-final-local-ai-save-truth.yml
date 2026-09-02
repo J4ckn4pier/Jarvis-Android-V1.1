@@ -1,0 +1,49 @@
+name: Settings Final Local AI Save Truth
+
+on:
+  push:
+    branches: [settings-final-local-ai-save-truth]
+  workflow_dispatch:
+
+jobs:
+  local-ai-save-truth:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify Local AI SAVE/CANCEL and failure truth
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          src = Path('android/app/src/main/java/com/jarvis/mobile/SettingsActivity.java').read_text()
+          required = [
+              'Free Local AI (Ollama)',
+              'No OpenAI or Google provider credential is required.',
+              'LocalAiEndpointPolicy.allows(endpointValue)',
+              'new SecureSecretStore(this).remove("provider_api_key")',
+              'AlertDialog localAiDialog=',
+              'setPositiveButton("SAVE",null)',
+              'localAiDialog.setOnShowListener',
+              'localAiDialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener',
+              'localAiDialog.dismiss()',
+              'setNegativeButton("CANCEL",null)',
+          ]
+          missing = [token for token in required if token not in src]
+          if missing:
+              raise SystemExit('Local AI Settings runtime-truth contract missing: ' + ', '.join(missing))
+          print('Local AI SAVE/CANCEL + keyless endpoint-policy contract: OK')
+          PY
+      - uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: android-actions/setup-android@v3
+      - name: Install Android 16 SDK
+        run: |
+          yes | sdkmanager --licenses >/dev/null || true
+          sdkmanager "platforms;android-36" "build-tools;36.0.0" "platform-tools"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Compile Settings production code
+        working-directory: android
+        run: gradle --rerun-tasks :app:compileDebugJavaWithJavac --stacktrace
