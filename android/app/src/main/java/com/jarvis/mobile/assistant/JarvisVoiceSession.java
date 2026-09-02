@@ -527,7 +527,6 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
                 }
                 @Override public void onEvent(int eventType, Bundle params) {
                     if (stale()) return;
-                    invalidateRecognitionReadyWatchdog();
                 }
             });
             Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
