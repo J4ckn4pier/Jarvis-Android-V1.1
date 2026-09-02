@@ -1,7 +1,9 @@
 package com.jarvis.mobile.assistant;
 
+import android.Manifest;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
@@ -129,8 +131,16 @@ public class JarvisVoiceInteractionService extends VoiceInteractionService {
                 : "JARVIS_PASSIVE_WAKE_DISABLED reason=" + detectorStatus);
     }
 
-    private static boolean transientWakeStartupFailure(String status) {
+    private boolean transientWakeStartupFailure(String status) {
         if (status == null) return false;
+        if (status.startsWith("microphone permission missing")) {
+            try {
+                return checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+            } catch (RuntimeException permissionProbeFailure) {
+                Log.w(WAKE_TAG, "JARVIS_PASSIVE_WAKE_PERMISSION_RECHECK_FAILED", permissionProbeFailure);
+                return true;
+            }
+        }
         return status.startsWith("could not create Android recognizer")
                 || status.startsWith("could not verify Android offline recognizer")
                 || status.startsWith("Android speech recognition unavailable");

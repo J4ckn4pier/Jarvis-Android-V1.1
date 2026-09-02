@@ -8,6 +8,7 @@ public final class AndroidVoiceRecognitionAvailabilityRecoveryContractTest {
     public static void main(String[] args) throws Exception {
         String session = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/assistant/JarvisVoiceSession.java"));
         String wakeDetector = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/assistant/AndroidOnDeviceWakeWordDetector.java"));
+        String voiceService = Files.readString(Path.of("../android/app/src/main/java/com/jarvis/mobile/assistant/JarvisVoiceInteractionService.java"));
 
         String probeFailurePath = between(session, "if (recognitionAvailable == null) {", "if (!recognitionAvailable) {");
         check(probeFailurePath.contains("scheduleRecognitionServiceRecovery();"), "Samsung/OEM recognition availability probe failure must enter bounded speech-service recovery backoff");
@@ -18,6 +19,12 @@ public final class AndroidVoiceRecognitionAvailabilityRecoveryContractTest {
         check(!passiveStartMethod.contains("context.checkSelfPermission(Manifest.permission.RECORD_AUDIO)"), "passive wake startup must not call the OEM permission framework directly without recovery protection");
         check(passiveStartMethod.contains("recognitionAvailableSafely()"), "passive Samsung wake startup must use an exception-safe recognizer availability probe");
         check(!passiveStartMethod.contains("isAvailable(context)"), "passive wake startup must not call SpeechRecognizer availability directly without OEM exception protection");
+
+        String transientWakeStartupFailure = between(voiceService, "private boolean transientWakeStartupFailure(String status) {", "@Override public void onShutdown() {");
+        check(transientWakeStartupFailure.contains("status.startsWith(\"microphone permission missing\")"), "voice service must distinguish passive microphone permission startup failures");
+        check(transientWakeStartupFailure.contains("checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED"), "voice service must retry only when the detector reported missing permission even though Android now reports RECORD_AUDIO granted");
+        check(transientWakeStartupFailure.contains("JARVIS_PASSIVE_WAKE_PERMISSION_RECHECK_FAILED"), "a Samsung/OEM exception while rechecking permission must be treated as transient and logged");
+        check(transientWakeStartupFailure.contains("return true;"), "transient Samsung/OEM permission-framework failure must enter bounded passive-wake retry");
 
         String wakeHandoff = between(wakeDetector, "private void stopListeningForWakeHandoff() {", "private void stopInternal() {");
         check(wakeHandoff.contains("SpeechRecognizer handoffRecognizer = recognizer;") && wakeHandoff.contains("recognizer = null;"), "passive wake handoff must detach the retired recognizer before opening the Assistant session");
