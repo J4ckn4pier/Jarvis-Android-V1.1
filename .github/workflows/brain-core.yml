@@ -30,45 +30,24 @@ jobs:
           from pathlib import Path
           path = Path('android/app/src/main/java/com/jarvis/mobile/assistant/JarvisVoiceSession.java')
           source = path.read_text()
-          old = '''            engine.setOnUtteranceProgressListener(new UtteranceProgressListener() {
-                @Override public void onStart(String utteranceId) {
-                    if (!isCurrentSpeechCallback(utteranceId)) return;
-                    invalidateTtsStartWatchdog();
-                }
-                @Override public void onDone(String utteranceId) {
-                    if (output != null) output.post(() -> finishSpeechCallback(utteranceId));
-                }
-                @Override public void onError(String utteranceId) {
-                    if (output != null) output.post(() -> finishSpeechCallback(utteranceId));
-                }
-                @Override public void onStop(String utteranceId, boolean interrupted) {
-                    if (output != null) output.post(() -> finishSpeechCallback(utteranceId));
-                }
-            });'''
-          new = '''            int listenerResult = engine.setOnUtteranceProgressListener(new UtteranceProgressListener() {
-                @Override public void onStart(String utteranceId) {
-                    if (!isCurrentSpeechCallback(utteranceId)) return;
-                    invalidateTtsStartWatchdog();
-                }
-                @Override public void onDone(String utteranceId) {
-                    if (output != null) output.post(() -> finishSpeechCallback(utteranceId));
-                }
-                @Override public void onError(String utteranceId) {
-                    if (output != null) output.post(() -> finishSpeechCallback(utteranceId));
-                }
-                @Override public void onStop(String utteranceId, boolean interrupted) {
-                    if (output != null) output.post(() -> finishSpeechCallback(utteranceId));
-                }
-            });
+          start = "            engine.setOnUtteranceProgressListener(new UtteranceProgressListener() {"
+          replacement_start = "            int listenerResult = engine.setOnUtteranceProgressListener(new UtteranceProgressListener() {"
+          end = "            });\n        } catch (RuntimeException listenerFailure) {"
+          replacement_end = '''            });
             if (listenerResult == TextToSpeech.ERROR) {
                 Log.w(VOICE_RECOGNIZER_TAG, "TTS progress-listener attachment returned ERROR; retiring speech engine");
                 invalidateSpeechCallback();
                 releaseTextToSpeechSafely();
-            }'''
-          if new not in source:
-              if old not in source:
-                  raise SystemExit('expected listener block not found; refusing broad edit')
-              path.write_text(source.replace(old, new, 1))
+            }
+        } catch (RuntimeException listenerFailure) {'''
+          if replacement_start not in source:
+              if source.count(start) != 1:
+                  raise SystemExit(f'expected exactly one listener start, found {source.count(start)}; refusing broad edit')
+              if source.count(end) != 1:
+                  raise SystemExit(f'expected exactly one listener end, found {source.count(end)}; refusing broad edit')
+              source = source.replace(start, replacement_start, 1)
+              source = source.replace(end, replacement_end, 1)
+              path.write_text(source)
           PY
           if ! git diff --quiet; then
             git config user.name "JARVIS Delivery Automation"
