@@ -45,6 +45,15 @@ public final class AndroidVoicePermissionRevocationContractTest {
                         && session.contains("recognizerServiceFailureCount"),
                 "service-level recognition failures must retire the current recognizer and track consecutive failures for bounded backoff");
 
+        int startRecovery = session.indexOf("private void recoverRecognitionStartFailure(RuntimeException recognitionFailure)");
+        int nextMethod = session.indexOf("\n    private ", startRecovery + 1);
+        String startRecoveryBody = startRecovery >= 0
+                ? session.substring(startRecovery, nextMethod > startRecovery ? nextMethod : session.length())
+                : "";
+        check(startRecoveryBody.contains("scheduleRecognitionServiceRecovery();")
+                        && !startRecoveryBody.contains("scheduleNextListen();"),
+                "Samsung recognizer factory/start RuntimeExceptions must use bounded service backoff instead of the generic 180ms relisten loop");
+
         System.out.println("AndroidVoicePermissionRevocationContractTest: PASS");
     }
 
