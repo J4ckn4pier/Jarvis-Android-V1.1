@@ -33,8 +33,8 @@ public final class AndroidVoiceRecognitionAvailabilityRecoveryContractTest {
 
         String passiveErrorRecovery = between(
                 wakeDetector,
-                "@Override public void onError(int error) {",
-                "@Override public void onResults(Bundle results) {");
+                "@Override public void onError(int error) {\n        cancelReadyWatchdog();",
+                "@Override public void onResults(Bundle results) {\n        cancelReadyWatchdog();");
         String recreateCases = between(
                 passiveErrorRecovery,
                 "case SpeechRecognizer.ERROR_RECOGNIZER_BUSY,",
