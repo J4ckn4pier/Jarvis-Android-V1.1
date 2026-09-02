@@ -20,7 +20,7 @@ public final class KnownBlockerWorkflowSeparationContractTest {
                 "APK workflow must still execute the shared regression suite");
         check(build.contains("pull_request:"),
                 "APK workflow must verify pull-request branch updates, not only direct pushes");
-        check(build.contains("branches: [main") && build.contains("feature/product-local-cortex"),
+        check(build.contains("pull_request:\n    branches: [main, feature/product-local-cortex]"),
                 "APK pull-request verification must retain main integration coverage and verify the current product integration branch");
         check(build.contains("name: Preserve Android failure evidence"),
                 "APK workflow must preserve emulator evidence when Android verification fails");
