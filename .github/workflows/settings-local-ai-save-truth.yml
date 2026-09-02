@@ -1,0 +1,36 @@
+name: Settings Local AI Save Truth
+
+on:
+  pull_request:
+    branches:
+      - feature/product-local-cortex
+    paths:
+      - '.github/scripts/settings-local-ai-save-contract.sh'
+      - 'android/app/src/main/java/com/jarvis/mobile/SettingsActivity.java'
+      - '.github/workflows/settings-local-ai-save-truth.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  local-ai-save-truth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify Local AI invalid SAVE stays repairable
+        run: sh .github/scripts/settings-local-ai-save-contract.sh
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Compile Settings production sources
+        working-directory: android
+        run: gradle :app:compileDebugJavaWithJavac --stacktrace
