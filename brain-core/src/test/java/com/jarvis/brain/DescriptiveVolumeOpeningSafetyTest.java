@@ -14,6 +14,7 @@ public final class DescriptiveVolumeOpeningSafetyTest {
         descriptiveFlashlightCommandOpeningFallsThroughToCortex();
         unrelatedTurnOpeningMentioningFlashlightFallsThroughToCortex();
         descriptiveNamedMediaOpeningFallsThroughToCortex();
+        directNamedMediaRequestStillUsesReflex();
         System.out.println("DescriptiveVolumeOpeningSafetyTest passed");
     }
 
@@ -95,6 +96,19 @@ public final class DescriptiveVolumeOpeningSafetyTest {
         check(cortexCalls.get() == 1, "descriptive named-media opening must reach cortex");
         check(response.kind() == BrainResponse.Kind.CONVERSATION,
                 "descriptive named-media opening must not start media playback");
+    }
+
+    private static void directNamedMediaRequestStillUsesReflex() {
+        AtomicInteger cortexCalls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(cortexCalls);
+        BrainResponse response = core.handle("Play Beethoven");
+
+        check(cortexCalls.get() == 0, "direct named-media command should remain a high-confidence reflex");
+        check(response.kind() == BrainResponse.Kind.ACTION_PLAN,
+                "direct named-media command should still create an action plan");
+        check(response.plan() != null && !response.plan().steps().isEmpty()
+                        && "media_play".equals(response.plan().steps().get(0).tool()),
+                "direct named-media command should still plan media_play");
     }
 
     private static AssistantCore coreWithRouter(AtomicInteger cortexCalls) {
