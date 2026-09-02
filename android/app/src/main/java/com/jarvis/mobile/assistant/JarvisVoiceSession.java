@@ -338,7 +338,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         releaseSpeechRecognizerSafely();
         setActive(false);
         if (output != null) output.setText("Listening paused briefly; I’ll reopen it.");
-        scheduleNextListen();
+        scheduleRecognitionServiceRecovery();
     }
 
     private void invalidateRecognitionReadyWatchdog() {
@@ -364,7 +364,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         releaseSpeechRecognizerSafely();
         setActive(false);
         if (output != null) output.setText("Listening paused briefly; I’ll reopen it.");
-        scheduleNextListen();
+        scheduleRecognitionServiceRecovery();
     }
 
     private Boolean microphonePermissionGrantedSafely() {
@@ -432,7 +432,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         if (recognitionAvailable == null) {
             if (output != null) output.setText("Listening paused briefly; I’ll reopen it.");
             setActive(false);
-            scheduleNextListen();
+            scheduleRecognitionServiceRecovery();
             return;
         }
         if (!recognitionAvailable) {
