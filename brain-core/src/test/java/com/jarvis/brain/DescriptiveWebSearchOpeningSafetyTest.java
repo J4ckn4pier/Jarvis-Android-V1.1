@@ -18,6 +18,8 @@ public final class DescriptiveWebSearchOpeningSafetyTest {
         directCalendarQueryStaysDeterministic();
         descriptiveNotificationOpeningFallsThroughToCortex();
         directNotificationQueryStaysDeterministic();
+        conditionalMessageRequestFallsThroughToCortex();
+        directMessageToKnownRecipientStaysDeterministic();
         System.out.println("DescriptiveWebSearchOpeningSafetyTest passed");
     }
 
@@ -169,6 +171,32 @@ public final class DescriptiveWebSearchOpeningSafetyTest {
                 "direct notification query must contain exactly one action");
         check("notification_query".equals(response.plan().steps().get(0).tool()),
                 "direct notification query must use notification_query");
+    }
+
+    private static void conditionalMessageRequestFallsThroughToCortex() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+
+        BrainResponse response = core.handle("Message Mom when I get home.");
+
+        check(calls.get() == 1, "conditional message request must reach cortex instead of sending the condition as message text");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "conditional message request must not prepare an immediate send_message action");
+    }
+
+    private static void directMessageToKnownRecipientStaysDeterministic() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+
+        BrainResponse response = core.handle("Text mom I'm on my way.");
+
+        check(calls.get() == 0, "direct message to a known recipient must not fall through to cortex");
+        check(response.kind() == BrainResponse.Kind.ACTION_PLAN,
+                "direct message to a known recipient must create an action plan");
+        check(response.plan() != null && response.plan().steps().size() == 1,
+                "direct message must contain exactly one action");
+        check("send_message".equals(response.plan().steps().get(0).tool()),
+                "direct message must use send_message");
     }
 
     private static AssistantCore coreWithRouter(AtomicInteger calls) {
