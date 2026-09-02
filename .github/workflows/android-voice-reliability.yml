@@ -6,16 +6,9 @@ on:
       - 'android/app/src/main/java/com/jarvis/mobile/assistant/**'
       - 'brain-core/src/test/java/com/jarvis/brain/AndroidVoiceRecognitionAvailabilityRecoveryContractTest.java'
       - '.github/workflows/android-voice-reliability.yml'
-  push:
-    branches:
-      - feature/product-local-cortex
-    paths:
-      - 'android/app/src/main/java/com/jarvis/mobile/assistant/**'
-      - 'brain-core/src/test/java/com/jarvis/brain/AndroidVoiceRecognitionAvailabilityRecoveryContractTest.java'
-      - '.github/workflows/android-voice-reliability.yml'
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   recognition-availability-recovery:
@@ -23,17 +16,35 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v5
-      - name: Set up Java 17
-        uses: actions/setup-java@v5
         with:
-          distribution: temurin
-          java-version: '17'
-      - name: Compile brain and Android voice contract sources
-        working-directory: brain-core
+          ref: automation/samsung-tts-listener-error-recovery-20260902-r3
+          fetch-depth: 2
+      - name: Apply isolated Samsung TTS listener recovery patch
         run: |
-          rm -rf out
-          mkdir -p out
-          javac -d out $(find src/main/java src/test/java -name '*.java' | sort)
-      - name: Verify Samsung recognition availability recovery
-        working-directory: brain-core
-        run: java -cp out com.jarvis.brain.AndroidVoiceRecognitionAvailabilityRecoveryContractTest
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('android/app/src/main/java/com/jarvis/mobile/assistant/JarvisVoiceSession.java')
+          s = p.read_text()
+          before = '            engine.setOnUtteranceProgressListener(new UtteranceProgressListener() {'
+          after = '            int listenerStatus = engine.setOnUtteranceProgressListener(new UtteranceProgressListener() {'
+          if s.count(before) != 1:
+              raise SystemExit(f'expected one listener registration, got {s.count(before)}')
+          s = s.replace(before, after, 1)
+          tail = '            });\n        } catch (RuntimeException listenerFailure) {'
+          replacement = '''            });
+            if (listenerStatus == TextToSpeech.ERROR) {
+                Log.w(VOICE_RECOGNIZER_TAG, "TTS progress-listener attachment returned ERROR; retiring speech engine");
+                invalidateSpeechCallback();
+                releaseTextToSpeechSafely();
+            }
+        } catch (RuntimeException listenerFailure) {'''
+          if s.count(tail) != 1:
+              raise SystemExit(f'expected one listener tail, got {s.count(tail)}')
+          p.write_text(s.replace(tail, replacement, 1))
+          PY
+          git checkout HEAD^ -- .github/workflows/android-voice-reliability.yml
+          git config user.name "jarvis-wake-ci"
+          git config user.email "jarvis-wake-ci@users.noreply.github.com"
+          git add android/app/src/main/java/com/jarvis/mobile/assistant/JarvisVoiceSession.java .github/workflows/android-voice-reliability.yml
+          git commit -m "fix(android): retire TTS engine when listener attachment returns ERROR"
+          git push origin HEAD:automation/samsung-tts-listener-error-recovery-20260902-r3
