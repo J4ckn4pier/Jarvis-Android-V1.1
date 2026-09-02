@@ -420,7 +420,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         if (microphonePermissionGranted == null) {
             if (output != null) output.setText("Listening paused briefly; I’ll reopen it.");
             setActive(false);
-            scheduleNextListen();
+            scheduleRecognitionServiceRecovery();
             return;
         }
         if (!microphonePermissionGranted) {
