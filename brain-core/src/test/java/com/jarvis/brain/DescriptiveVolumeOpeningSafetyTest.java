@@ -13,6 +13,7 @@ public final class DescriptiveVolumeOpeningSafetyTest {
         descriptiveNotificationOpeningFallsThroughToCortex();
         descriptiveFlashlightCommandOpeningFallsThroughToCortex();
         unrelatedTurnOpeningMentioningFlashlightFallsThroughToCortex();
+        descriptiveNamedMediaOpeningFallsThroughToCortex();
         System.out.println("DescriptiveVolumeOpeningSafetyTest passed");
     }
 
@@ -84,6 +85,16 @@ public final class DescriptiveVolumeOpeningSafetyTest {
         check(cortexCalls.get() == 1, "unrelated turn-opening language mentioning flashlight must reach cortex");
         check(response.kind() == BrainResponse.Kind.CONVERSATION,
                 "unrelated turn-opening language mentioning flashlight must not change flashlight state");
+    }
+
+    private static void descriptiveNamedMediaOpeningFallsThroughToCortex() {
+        AtomicInteger cortexCalls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(cortexCalls);
+        BrainResponse response = core.handle("Play Beethoven can improve focus while studying.");
+
+        check(cortexCalls.get() == 1, "descriptive named-media opening must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "descriptive named-media opening must not start media playback");
     }
 
     private static AssistantCore coreWithRouter(AtomicInteger cortexCalls) {
