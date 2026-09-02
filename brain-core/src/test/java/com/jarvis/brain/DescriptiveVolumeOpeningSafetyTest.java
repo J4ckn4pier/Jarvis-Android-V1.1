@@ -12,6 +12,7 @@ public final class DescriptiveVolumeOpeningSafetyTest {
         descriptiveCommandShapedCalendarOpeningFallsThroughToCortex();
         descriptiveNotificationOpeningFallsThroughToCortex();
         descriptiveFlashlightCommandOpeningFallsThroughToCortex();
+        descriptiveTimerCommandOpeningFallsThroughToCortex();
         System.out.println("DescriptiveVolumeOpeningSafetyTest passed");
     }
 
@@ -73,6 +74,16 @@ public final class DescriptiveVolumeOpeningSafetyTest {
         check(cortexCalls.get() == 1, "descriptive flashlight command-shaped language must reach cortex");
         check(response.kind() == BrainResponse.Kind.CONVERSATION,
                 "descriptive flashlight command-shaped language must not change flashlight state");
+    }
+
+    private static void descriptiveTimerCommandOpeningFallsThroughToCortex() {
+        AtomicInteger cortexCalls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(cortexCalls);
+        BrainResponse response = core.handle("Set a timer for 10 minutes because focused work sessions are easier to manage.");
+
+        check(cortexCalls.get() == 1, "descriptive timer command-shaped language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "descriptive timer command-shaped language must not start a device timer");
     }
 
     private static AssistantCore coreWithRouter(AtomicInteger cortexCalls) {
