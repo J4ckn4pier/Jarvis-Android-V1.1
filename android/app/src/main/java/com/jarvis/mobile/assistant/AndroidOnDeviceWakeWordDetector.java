@@ -101,11 +101,11 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
             status = "wake callback missing";
             return false;
         }
-        if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+        if (!microphonePermissionGrantedSafely()) {
             status = "microphone permission missing";
             return false;
         }
-        if (!isAvailable(context)) {
+        if (!recognitionAvailableSafely()) {
             status = "Android speech recognition unavailable";
             return false;
         }
@@ -197,7 +197,6 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
             scheduleOfflineSupportRetry();
         }
     }
-
     private void scheduleOfflineSupportRetry() {
         if (!running || wakeDispatched) return;
         cancelEndOfSpeechWatchdog();
@@ -314,6 +313,16 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
         };
     }
 
+    private boolean microphonePermissionGrantedSafely() {
+        try {
+            return context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+        } catch (RuntimeException permissionFailure) {
+            status = "microphone permission check failed: " + permissionFailure.getClass().getSimpleName();
+            Log.w(TAG, "JARVIS_WAKE_PERMISSION_CHECK_FAILED", permissionFailure);
+            return false;
+        }
+    }
+
     private boolean recognitionAvailableSafely() {
         try {
             return isAvailable(context);
@@ -348,7 +357,7 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
             recognizer = null;
         }
         if (!running || !recognitionAvailableSafely()) return false;
-        if (context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+        if (!microphonePermissionGrantedSafely()) {
             status = "microphone permission missing";
             running = false;
             return false;
@@ -397,7 +406,6 @@ final class AndroidOnDeviceWakeWordDetector implements WakeWordDetectorPort, Rec
             scheduleRecreate(RECREATE_DELAY_MS);
         }
     }
-
     private void scheduleRestart(long delayMs) {
         if (!running || wakeDispatched) return;
         cancelEndOfSpeechWatchdog();
