@@ -136,7 +136,8 @@ public final class BrainEngine {
         if (isDirectTranslateRequest(lower)) return action("Translate", "translate", Map.of("request", input.substring(10).trim()), false, acceptedWithoutWake, context);
         Matcher text = Pattern.compile("(?i)^(?:text|message)\\s+([^,]+?)\\s+(.+)$").matcher(input);
         if (text.matches() && isHighConfidenceMessageRecipient(text.group(1))
-                && !looksLikeDescriptiveContinuation(text.group(2).trim().toLowerCase(Locale.ROOT))) {
+                && !looksLikeDescriptiveContinuation(text.group(2).trim().toLowerCase(Locale.ROOT))
+                && !looksLikeConditionalActionClause(text.group(2).trim().toLowerCase(Locale.ROOT))) {
             return action("Send message", "send_message", Map.of("recipient", text.group(1).trim(), "message", text.group(2).trim()), true, acceptedWithoutWake, context);
         }
         return null;
@@ -144,6 +145,10 @@ public final class BrainEngine {
 
     private static boolean looksLikeDescriptiveContinuation(String suffix) {
         return suffix.matches("(?:is|are|was|were|can|could|should|would|means|mean|refers|refer)\\b.*");
+    }
+
+    private static boolean looksLikeConditionalActionClause(String suffix) {
+        return suffix.matches("(?:if|unless|when|whenever|after|before|once)\\b.*");
     }
 
     private static boolean isHighConfidenceMessageRecipient(String recipient) {
