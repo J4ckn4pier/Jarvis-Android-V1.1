@@ -157,7 +157,36 @@ public class SettingsActivity extends Activity {
 
     private String providerSummary(){String status=CortexProviderFactory.status(this).toLowerCase(Locale.ROOT);if(status.contains("openai-compatible")&&status.contains("configured"))return "Free/local AI configured";if(status.contains("anthropic"))return "Anthropic connected";if(status.contains("openai"))return "OpenAI provider connected";return "Deterministic local fallback";}
     private void showProviderConnections(){String[] choices={"Free Local AI (Ollama)","CONNECT / CHANGE API provider","DISCONNECT / deterministic local fallback"};new AlertDialog.Builder(this).setTitle("AI Providers").setMessage(providerSummary()+"\n\nFree Local AI uses a model running on a computer you control and has no mandatory per-message token bill.").setItems(choices,(dialog,which)->{if(which==0)showLocalAiSetup();else if(which==1)startActivity(new Intent(this,DeveloperSettingsActivity.class));else disconnectProvider();}).setNegativeButton("CANCEL",null).show();}
-    private void showLocalAiSetup(){SharedPreferences cortex=getSharedPreferences("jarvis_cortex",MODE_PRIVATE);LinearLayout form=new LinearLayout(this);form.setOrientation(LinearLayout.VERTICAL);form.setPadding(dp(20),dp(4),dp(20),0);EditText endpoint=new EditText(this);endpoint.setHint("Local AI server");endpoint.setSingleLine(true);endpoint.setText(cortex.getString("endpoint",DEFAULT_LOCAL_AI_ENDPOINT));endpoint.setContentDescription("Local AI server");EditText model=new EditText(this);model.setHint("Model");model.setSingleLine(true);model.setText(cortex.getString("model",DEFAULT_LOCAL_AI_MODEL));model.setContentDescription("Local AI model");form.addView(endpoint);form.addView(model);new AlertDialog.Builder(this).setTitle("Free Local AI (Ollama)").setMessage("Run Ollama on a computer you control, keep the phone and computer on the same network, and use that computer's .local hostname. No OpenAI or Google provider credential is required.").setView(form).setPositiveButton("SAVE",(dialog,which)->{String endpointValue=endpoint.getText().toString().trim();String modelValue=model.getText().toString().trim();if(endpointValue.isEmpty())endpointValue=DEFAULT_LOCAL_AI_ENDPOINT;if(modelValue.isEmpty())modelValue=DEFAULT_LOCAL_AI_MODEL;if(!LocalAiEndpointPolicy.allows(endpointValue)){Toast.makeText(this,"Use HTTPS or a local .local JARVIS/Ollama endpoint.",Toast.LENGTH_LONG).show();return;}cortex.edit().putString("mode",CortexProviderFactory.MODE_OPENAI_COMPATIBLE).putString("endpoint",endpointValue).putString("model",modelValue).apply();new SecureSecretStore(this).remove("provider_api_key");Toast.makeText(this,"Free local AI selected. JARVIS will use it when that computer is reachable.",Toast.LENGTH_LONG).show();render();}).setNegativeButton("CANCEL",null).show();}
+    private void showLocalAiSetup(){
+        SharedPreferences cortex=getSharedPreferences("jarvis_cortex",MODE_PRIVATE);
+        LinearLayout form=new LinearLayout(this);form.setOrientation(LinearLayout.VERTICAL);form.setPadding(dp(20),dp(4),dp(20),0);
+        EditText endpoint=new EditText(this);endpoint.setHint("Local AI server");endpoint.setSingleLine(true);endpoint.setText(cortex.getString("endpoint",DEFAULT_LOCAL_AI_ENDPOINT));endpoint.setContentDescription("Local AI server");
+        EditText model=new EditText(this);model.setHint("Model");model.setSingleLine(true);model.setText(cortex.getString("model",DEFAULT_LOCAL_AI_MODEL));model.setContentDescription("Local AI model");
+        form.addView(endpoint);form.addView(model);
+        AlertDialog dialog=new AlertDialog.Builder(this)
+                .setTitle("Free Local AI (Ollama)")
+                .setMessage("Run Ollama on a computer you control, keep the phone and computer on the same network, and use that computer's .local hostname. No OpenAI or Google provider credential is required.")
+                .setView(form)
+                .setPositiveButton("SAVE",null)
+                .setNegativeButton("CANCEL",null)
+                .create();
+        dialog.setOnShowListener(ignored->dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener(button->{
+            String endpointValue=endpoint.getText().toString().trim();
+            String modelValue=model.getText().toString().trim();
+            if(endpointValue.isEmpty())endpointValue=DEFAULT_LOCAL_AI_ENDPOINT;
+            if(modelValue.isEmpty())modelValue=DEFAULT_LOCAL_AI_MODEL;
+            if(!LocalAiEndpointPolicy.allows(endpointValue)){
+                Toast.makeText(this,"Use HTTPS, localhost/loopback, or a local .local JARVIS/Ollama endpoint.",Toast.LENGTH_LONG).show();
+                return;
+            }
+            cortex.edit().putString("mode",CortexProviderFactory.MODE_OPENAI_COMPATIBLE).putString("endpoint",endpointValue).putString("model",modelValue).apply();
+            new SecureSecretStore(this).remove("provider_api_key");
+            Toast.makeText(this,"Free local AI selected. JARVIS will use it when that computer is reachable.",Toast.LENGTH_LONG).show();
+            dialog.dismiss();
+            render();
+        }));
+        dialog.show();
+    }
     private void disconnectProvider(){getSharedPreferences("jarvis_cortex",MODE_PRIVATE).edit().putString("mode",CortexProviderFactory.MODE_LOCAL).apply();new SecureSecretStore(this).remove("provider_api_key");Toast.makeText(this,"AI provider disconnected. JARVIS is using its deterministic local fallback.",Toast.LENGTH_SHORT).show();render();}
     private boolean isAssistantRoleHeld(){RoleManager manager=getSystemService(RoleManager.class);return manager!=null&&manager.isRoleAvailable(RoleManager.ROLE_ASSISTANT)&&manager.isRoleHeld(RoleManager.ROLE_ASSISTANT);}
     private String assistantSummary(){return isAssistantRoleHeld()?"JARVIS is the default assistant":"Required for passive wake — tap to enable";}
