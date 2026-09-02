@@ -29,7 +29,6 @@ import com.jarvis.mobile.brain.AndroidDefaultAppPreferencePersistence;
 import com.jarvis.mobile.brain.providers.CortexProviderFactory;
 import com.jarvis.mobile.brain.providers.LocalAiEndpointPolicy;
 import com.jarvis.mobile.brain.providers.SecureSecretStore;
-import com.jarvis.mobile.remote.RemoteGoalStateStore;
 import com.jarvis.mobile.widgets.QuickActivationWidget;
 
 import java.util.ArrayList;
@@ -65,7 +64,6 @@ public class SettingsActivity extends Activity {
         body.addView(section("JARVIS & APPS"));
         body.addView(row("App Permissions", permissionSummary(), this::showPermissionChoices));
         body.addView(row("AI Providers", providerSummary(), this::showProviderConnections));
-        body.addView(row("Backup & Sync", backupSummary(), this::showBackupSyncSettings));
         body.addView(row("Profile", preferences.getString("profile_name", "Sir"), this::showProfileEditor));
         body.addView(row("Default Apps", defaultAppsSummary(), this::showDefaultAppSettings));
         body.addView(row("Personality", preferences.getString("personality_label", "Humble Butler"), this::showPersonalityPicker));
@@ -112,7 +110,6 @@ public class SettingsActivity extends Activity {
     }
 
     private void showPermissionChoices(){String[] items={"App permissions","Notification access","Screen controls (Accessibility)"};new AlertDialog.Builder(this).setTitle("JARVIS Permissions").setItems(items,(dialog,which)->{if(which==0)launchAppDetails();else if(which==1)launch(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS);else launch(Settings.ACTION_ACCESSIBILITY_SETTINGS);}).setNegativeButton("CANCEL",null).show();}
-    private void showBackupSyncSettings(){boolean remoteConfigured=new RemoteGoalStateStore(this).loadConnection()!=null;String message=remoteConfigured?"Remote JARVIS is configured. Choose whether this phone may use that connection for synchronization-capable features.":"No remote JARVIS connection is configured. Local memory remains on this phone until you explicitly configure one.";boolean enabled=preferences.getBoolean("backup_sync_enabled",false);int initial=enabled&&remoteConfigured?1:0;new AlertDialog.Builder(this).setTitle("Backup & Sync").setMessage(message).setSingleChoiceItems(new String[]{"Local only","Allow configured remote sync"},initial,null).setPositiveButton(remoteConfigured?"SAVE":"CONFIGURE CONNECTION",(dialog,which)->{if(remoteConfigured){AlertDialog d=(AlertDialog)dialog;int selected=d.getListView().getCheckedItemPosition();if(selected<0)selected=initial;preferences.edit().putBoolean("backup_sync_enabled",selected==1).apply();}else{startActivity(new Intent(this,DeveloperSettingsActivity.class));}render();}).setNegativeButton("CANCEL",null).show();}
 
     private void showDefaultAppSettings(){
         String[] choices={"Browser used by JARVIS","Android system default apps"};
@@ -165,7 +162,6 @@ public class SettingsActivity extends Activity {
     private String voiceModelSummary(){return preferences.getString("voice_model_label","System voice");}
     private String languageSummary(){String tag=preferences.getString("language","system");if("system".equalsIgnoreCase(tag))return "Follow Android system — "+getResources().getConfiguration().getLocales().get(0).getDisplayLanguage();Locale locale=Locale.forLanguageTag(tag);return locale.getDisplayName();}
     private String permissionSummary(){return "Microphone, contacts, calendar, notifications and screen control";}
-    private String backupSummary(){if(!preferences.getBoolean("backup_sync_enabled",false))return "Local only";return new RemoteGoalStateStore(this).loadConnection()==null?"Local only — remote connection not configured":"Configured remote sync allowed";}
     private String widgetLockSummary(){return preferences.getBoolean("lock_screen_assistant_enabled",true)?"Lock-screen assistant enabled":"Lock-screen assistant disabled";}
     private void requestAssistant(){RoleManager manager=getSystemService(RoleManager.class);if(manager==null||!manager.isRoleAvailable(RoleManager.ROLE_ASSISTANT)){Toast.makeText(this,"Android did not expose the Assistant role on this device.",Toast.LENGTH_LONG).show();return;}if(manager.isRoleHeld(RoleManager.ROLE_ASSISTANT)){JarvisVoiceInteractionService.refreshPassiveWakePreference();Toast.makeText(this,"JARVIS is already your default assistant.",Toast.LENGTH_SHORT).show();return;}startActivity(manager.createRequestRoleIntent(RoleManager.ROLE_ASSISTANT));}
     private void launchAppDetails(){startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName())));}
