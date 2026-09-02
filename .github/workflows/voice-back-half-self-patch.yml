@@ -1,0 +1,72 @@
+name: Voice Back Half Self Patch
+
+on:
+  push:
+    branches:
+      - fix/voice-back-half-tts-listener-error-20260902
+    paths:
+      - '.github/workflows/voice-back-half-self-patch.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-listener-return:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: fix/voice-back-half-tts-listener-error-20260902
+      - name: Apply narrow TTS listener ERROR fix
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('android/app/src/main/java/com/jarvis/mobile/assistant/JarvisVoiceSession.java')
+          source = path.read_text()
+          old = '''            engine.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                @Override public void onStart(String utteranceId) {
+                    if (!isCurrentSpeechCallback(utteranceId)) return;
+                    invalidateTtsStartWatchdog();
+                }
+                @Override public void onDone(String utteranceId) {
+                    if (output != null) output.post(() -> finishSpeechCallback(utteranceId));
+                }
+                @Override public void onError(String utteranceId) {
+                    if (output != null) output.post(() -> finishSpeechCallback(utteranceId));
+                }
+                @Override public void onStop(String utteranceId, boolean interrupted) {
+                    if (output != null) output.post(() -> finishSpeechCallback(utteranceId));
+                }
+            });'''
+          new = '''            int listenerResult = engine.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                @Override public void onStart(String utteranceId) {
+                    if (!isCurrentSpeechCallback(utteranceId)) return;
+                    invalidateTtsStartWatchdog();
+                }
+                @Override public void onDone(String utteranceId) {
+                    if (output != null) output.post(() -> finishSpeechCallback(utteranceId));
+                }
+                @Override public void onError(String utteranceId) {
+                    if (output != null) output.post(() -> finishSpeechCallback(utteranceId));
+                }
+                @Override public void onStop(String utteranceId, boolean interrupted) {
+                    if (output != null) output.post(() -> finishSpeechCallback(utteranceId));
+                }
+            });
+            if (listenerResult == TextToSpeech.ERROR) {
+                Log.w(VOICE_RECOGNIZER_TAG, "TTS progress-listener attachment returned ERROR; retiring speech engine");
+                invalidateSpeechCallback();
+                releaseTextToSpeechSafely();
+            }'''
+          if new in source:
+              raise SystemExit(0)
+          if old not in source:
+              raise SystemExit('expected listener block not found; refusing broad edit')
+          path.write_text(source.replace(old, new, 1))
+          PY
+          if git diff --quiet; then exit 0; fi
+          git config user.name "JARVIS Delivery Automation"
+          git config user.email "actions@users.noreply.github.com"
+          git add android/app/src/main/java/com/jarvis/mobile/assistant/JarvisVoiceSession.java
+          git commit -m "fix(android): handle TTS listener ERROR return"
+          git push origin HEAD:fix/voice-back-half-tts-listener-error-20260902
