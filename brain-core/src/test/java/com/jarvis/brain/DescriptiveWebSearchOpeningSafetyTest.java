@@ -7,6 +7,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class DescriptiveWebSearchOpeningSafetyTest {
     public static void main(String[] args) {
         descriptiveWebSearchOpeningFallsThroughToCortex();
+        directWebSearchWithNaturalQueryClauseStaysDeterministic();
         descriptiveNavigationDestinationFallsThroughToCortex();
         descriptiveDirectionsDestinationFallsThroughToCortex();
         descriptiveTimerOpeningFallsThroughToCortex();
@@ -23,6 +24,23 @@ public final class DescriptiveWebSearchOpeningSafetyTest {
         check(calls.get() == 1, "descriptive web-search-opening language must reach cortex");
         check(response.kind() == BrainResponse.Kind.CONVERSATION,
                 "descriptive web-search-opening language must not launch a web search");
+    }
+
+    private static void directWebSearchWithNaturalQueryClauseStaysDeterministic() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+
+        BrainResponse response = core.handle("Search the web for what to do when a car won't start.");
+
+        check(calls.get() == 0, "explicit web-search command with a natural query clause must not fall through to cortex");
+        check(response.kind() == BrainResponse.Kind.ACTION_PLAN,
+                "explicit web-search command with a natural query clause must create an action plan");
+        check(response.plan() != null && response.plan().steps().size() == 1,
+                "explicit web-search command must contain exactly one action");
+        check("web_search".equals(response.plan().steps().get(0).tool()),
+                "explicit web-search command must use web_search");
+        check("what to do when a car won't start".equals(response.plan().steps().get(0).args().get("query")),
+                "web-search query must preserve natural query clauses");
     }
 
     private static void descriptiveNavigationDestinationFallsThroughToCortex() {
