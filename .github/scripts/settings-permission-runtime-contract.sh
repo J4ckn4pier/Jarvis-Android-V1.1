@@ -13,7 +13,7 @@ fi
 grep -q 'Manifest.permission.RECORD_AUDIO' "$SETTINGS"
 grep -q 'Manifest.permission.READ_CONTACTS' "$SETTINGS"
 grep -q 'Manifest.permission.READ_CALENDAR' "$SETTINGS"
-grep -q 'Settings.Secure.ENABLED_NOTIFICATION_LISTENERS' "$SETTINGS"
+grep -q 'enabled_notification_listeners' "$SETTINGS"
 grep -q 'Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES' "$SETTINGS"
 grep -q 'checkSelfPermission' "$SETTINGS"
 grep -q 'Needs setup:' "$SETTINGS"
