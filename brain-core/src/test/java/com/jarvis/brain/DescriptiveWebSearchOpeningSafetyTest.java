@@ -3,7 +3,7 @@ package com.jarvis.brain;
 import java.time.Clock;
 import java.util.concurrent.atomic.AtomicInteger;
 
-/** Regression: descriptive command-looking openings must reach cortex. */
+/** Regression: descriptive command-looking openings must reach cortex instead of device actions. */
 public final class DescriptiveWebSearchOpeningSafetyTest {
     public static void main(String[] args) {
         descriptiveWebSearchOpeningFallsThroughToCortex();
