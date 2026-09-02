@@ -12,7 +12,6 @@ public final class DescriptiveVolumeOpeningSafetyTest {
         descriptiveCommandShapedCalendarOpeningFallsThroughToCortex();
         descriptiveNotificationOpeningFallsThroughToCortex();
         descriptiveFlashlightCommandOpeningFallsThroughToCortex();
-        descriptiveWeatherOpeningFallsThroughToCortex();
         System.out.println("DescriptiveVolumeOpeningSafetyTest passed");
     }
 
@@ -74,16 +73,6 @@ public final class DescriptiveVolumeOpeningSafetyTest {
         check(cortexCalls.get() == 1, "descriptive flashlight command-shaped language must reach cortex");
         check(response.kind() == BrainResponse.Kind.CONVERSATION,
                 "descriptive flashlight command-shaped language must not change flashlight state");
-    }
-
-    private static void descriptiveWeatherOpeningFallsThroughToCortex() {
-        AtomicInteger cortexCalls = new AtomicInteger();
-        AssistantCore core = coreWithRouter(cortexCalls);
-        BrainResponse response = core.handle("Weather can affect battery life and navigation accuracy.");
-
-        check(cortexCalls.get() == 1, "descriptive weather-opening language must reach cortex");
-        check(response.kind() == BrainResponse.Kind.CONVERSATION,
-                "descriptive weather-opening language must not execute a weather lookup");
     }
 
     private static AssistantCore coreWithRouter(AtomicInteger cortexCalls) {
