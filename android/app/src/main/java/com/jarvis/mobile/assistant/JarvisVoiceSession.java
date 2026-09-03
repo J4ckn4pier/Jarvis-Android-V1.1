@@ -497,6 +497,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
                         return;
                     }
                     if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY
+                            || error == SpeechRecognizer.ERROR_CLIENT
                             || error == SpeechRecognizer.ERROR_SERVER
                             || error == SpeechRecognizer.ERROR_SERVER_DISCONNECTED
                             || error == SpeechRecognizer.ERROR_TOO_MANY_REQUESTS) {
