@@ -14,6 +14,7 @@ import com.jarvis.mobile.actions.AndroidAccessibilityActions;
 import com.jarvis.mobile.actions.AndroidAlarmActions;
 import com.jarvis.mobile.actions.AndroidAppActions;
 import com.jarvis.mobile.actions.AndroidCalendarEventActions;
+import com.jarvis.mobile.actions.AndroidConversationalCallActions;
 import com.jarvis.mobile.actions.AndroidDialerActions;
 import com.jarvis.mobile.actions.AndroidEmailActions;
 import com.jarvis.mobile.actions.AndroidFlashlightActions;
@@ -41,6 +42,7 @@ public final class AndroidToolRegistryFactory {
         AndroidAlarmActions alarm = new AndroidAlarmActions(appContext);
         AndroidAppActions apps = new AndroidAppActions(appContext);
         AndroidCalendarEventActions calendarEvents = new AndroidCalendarEventActions(appContext);
+        AndroidConversationalCallActions conversationalCalls = new AndroidConversationalCallActions(callTransport);
         AndroidDialerActions dialer = new AndroidDialerActions(appContext);
         AndroidEmailActions email = new AndroidEmailActions(appContext);
         AndroidFlashlightActions flashlight = new AndroidFlashlightActions(appContext);
@@ -61,6 +63,7 @@ public final class AndroidToolRegistryFactory {
         });
         register(registry, "open_dialer", false, Set.of("phone", "phone app", "dialer"), Set.of(), "Open Android phone dialer", ToolExecutionClass.DEVICE_REFLEX, args -> dialer.openDialer());
         register(registry, "call_contact", true, Set.of("call contact", "phone contact"), Set.of("recipient"), "Place an approved phone call to one exact contact or explicit phone number", ToolExecutionClass.CONSEQUENTIAL, args -> dialer.call(args.get("recipient")));
+        register(registry, "place_conversational_call", true, Set.of("call business", "phone agent"), Set.of("business", "destination", "represented_user", "preferred_time"), "Conduct an approved outbound conversational call only when a duplex telephony transport is actually connected", ToolExecutionClass.CONSEQUENTIAL, args -> conversationalCalls.call(args.get("destination"), args.get("business"), args.get("represented_user"), args.get("preferred_time")));
         register(registry, "open_app", false, Set.of("launch app", "open application"), Set.of("app"), "Open an installed app by exact visible app name", ToolExecutionClass.DEVICE_REFLEX, args -> apps.open(args.get("app")));
         register(registry, "web_search", false, Set.of("search web", "web search", "search online", "look up online"), Set.of("query"), "Search the web", ToolExecutionClass.DEVICE_REFLEX, args -> web.search(args.get("query")));
         register(registry, "set_timer", false, Set.of("timer"), Set.of("amount", "unit"), "Set Android timer", ToolExecutionClass.DEVICE_REFLEX, args -> timer.setTimer(args.get("amount"), args.get("unit")));
@@ -75,7 +78,7 @@ public final class AndroidToolRegistryFactory {
         register(registry, "volume_control", false, Set.of("volume", "volume up", "volume down", "mute", "unmute"), Set.of("action"), "Control Android volume", ToolExecutionClass.DEVICE_REFLEX, args -> volume.control(args.get("action")));
         register(registry, "set_flashlight", false, Set.of("flashlight", "torch"), Set.of("state"), "Set flashlight state", ToolExecutionClass.DEVICE_REFLEX, args -> flashlight.setState(args.get("state")));
         register(registry, "calendar_query", false, Set.of("calendar", "schedule"), Set.of("when"), "Read calendar commitments", ToolExecutionClass.DEVICE_REFLEX, args -> calendar.commitments(args.get("when")));
-        register(registry, "create_reminder", false, Set.of("reminder", "remind me"), Set.of("request"), "Open the Android calendar editor with the requested reminder details for user confirmation", ToolExecutionClass.DEVICE_REFLEX, args -> reminders.prepareReminder(args.get("request")));
+        register(registry, "create_reminder", false, Set.of("reminder", "remind me"), Set.of("title", "start_millis"), "Open the Android calendar editor with a resolved reminder title and epoch-millis start time for user confirmation", ToolExecutionClass.DEVICE_REFLEX, args -> reminders.prepareReminder(args.get("title"), args.get("start_millis")));
         register(registry, "compose_calendar_event", false, Set.of("create calendar event", "add calendar event", "schedule event", "invite attendees"), Set.of("title", "start_millis", "end_millis"), "Open a structured calendar event draft for user confirmation, optionally including location and attendee emails", ToolExecutionClass.DEVICE_REFLEX, args -> calendarEvents.prepare(args.get("title"), args.get("start_millis"), args.get("end_millis"), args.get("location"), args.get("attendees")));
         register(registry, "notification_query", false, Set.of("notifications", "notification"), Set.of(), "Read captured notifications", ToolExecutionClass.DEVICE_REFLEX, args -> { String notifications = JarvisDatabase.get(appContext).recentNotifications(10); return notifications.isBlank() ? "No captured notifications." : notifications; });
         register(registry, "compose_email", false, Set.of("email", "compose email", "draft email"), Set.of("recipient", "subject", "body"), "Open an Android email draft for user review without sending it", ToolExecutionClass.DEVICE_REFLEX, args -> email.prepareEmail(args.get("recipient"), args.get("subject"), args.get("body")));

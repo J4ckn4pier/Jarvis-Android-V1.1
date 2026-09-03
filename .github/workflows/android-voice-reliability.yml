@@ -1,0 +1,39 @@
+name: Android Voice Reliability
+
+on:
+  pull_request:
+    paths:
+      - 'android/app/src/main/java/com/jarvis/mobile/assistant/**'
+      - 'brain-core/src/test/java/com/jarvis/brain/AndroidVoiceRecognitionAvailabilityRecoveryContractTest.java'
+      - '.github/workflows/android-voice-reliability.yml'
+  push:
+    branches:
+      - feature/product-local-cortex
+    paths:
+      - 'android/app/src/main/java/com/jarvis/mobile/assistant/**'
+      - 'brain-core/src/test/java/com/jarvis/brain/AndroidVoiceRecognitionAvailabilityRecoveryContractTest.java'
+      - '.github/workflows/android-voice-reliability.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  recognition-availability-recovery:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Compile brain and Android voice contract sources
+        working-directory: brain-core
+        run: |
+          rm -rf out
+          mkdir -p out
+          javac -d out $(find src/main/java src/test/java -name '*.java' | sort)
+      - name: Verify Samsung recognition availability recovery
+        working-directory: brain-core
+        run: java -cp out com.jarvis.brain.AndroidVoiceRecognitionAvailabilityRecoveryContractTest

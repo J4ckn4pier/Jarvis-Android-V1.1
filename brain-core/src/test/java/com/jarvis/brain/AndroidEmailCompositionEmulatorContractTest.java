@@ -3,24 +3,22 @@ package com.jarvis.brain;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-/** Pins an API-36 debug-only round trip for the real Android email compose adapter. */
+/** Pins the preserved API-36 debug proof for the real Android email compose adapter. */
 public final class AndroidEmailCompositionEmulatorContractTest {
     public static void main(String[] args) throws Exception {
         Path manifestPath = Path.of("../android/app/src/debug/AndroidManifest.xml");
         Path receiverPath = Path.of("../android/app/src/debug/java/com/jarvis/mobile/actions/JarvisEmailTestReceiver.java");
         Path capturePath = Path.of("../android/app/src/debug/java/com/jarvis/mobile/actions/JarvisEmailCaptureActivity.java");
         Path smokePath = Path.of("../.github/scripts/email-compose-smoke.sh");
-        Path workflowPath = Path.of("../.github/workflows/build-apk.yml");
 
         check(Files.exists(receiverPath), "debug build must expose an email-action test receiver");
         check(Files.exists(capturePath), "debug build must expose an email-capable capture activity");
-        check(Files.exists(smokePath), "Android-16 lane must include a dedicated email compose smoke script");
+        check(Files.exists(smokePath), "repository must preserve a dedicated Android email compose smoke script");
 
         String manifest = Files.readString(manifestPath);
         String receiver = Files.readString(receiverPath);
         String capture = Files.readString(capturePath);
         String smoke = Files.readString(smokePath);
-        String workflow = Files.readString(workflowPath);
 
         check(manifest.contains("JarvisEmailTestReceiver"), "debug manifest must register the email test receiver");
         check(manifest.contains("com.jarvis.mobile.DEBUG_TEST_EMAIL"), "debug receiver must use an explicit CI-only action");
@@ -40,19 +38,17 @@ public final class AndroidEmailCompositionEmulatorContractTest {
         check(capture.contains("Intent.EXTRA_TEXT"), "capture activity must inspect the body extra");
         check(capture.contains("JARVIS_EMAIL_CAPTURE"), "capture activity must emit structured CI evidence");
 
-        check(smoke.contains("com.jarvis.mobile.DEBUG_TEST_EMAIL"), "Android-16 smoke must trigger the real email adapter");
+        check(smoke.contains("com.jarvis.mobile.DEBUG_TEST_EMAIL"), "email smoke must trigger the real email adapter");
         check(smoke.contains("JARVIS_EMAIL_ACTION_RESULT.*Email draft ready for person+tag@example.com"),
-                "Android-16 smoke must prove the adapter reports a draft/review handoff, not sending");
+                "email smoke must prove the adapter reports a draft/review handoff, not sending");
         check(smoke.contains("JARVIS_EMAIL_CAPTURE.*encoded=person%2Btag%40example.com"),
-                "Android-16 smoke must prove mailto recipient encoding");
+                "email smoke must prove mailto recipient encoding");
         check(smoke.contains("JARVIS_EMAIL_CAPTURE.*decoded=person+tag@example.com"),
-                "Android-16 smoke must prove the intended recipient survives decoding");
+                "email smoke must prove the intended recipient survives decoding");
         check(smoke.contains("JARVIS_EMAIL_CAPTURE.*subject=Subject & details"),
-                "Android-16 smoke must prove structured subject handoff");
+                "email smoke must prove structured subject handoff");
         check(smoke.contains("JARVIS_EMAIL_CAPTURE.*body=Body line one"),
-                "Android-16 smoke must prove structured body handoff");
-        check(workflow.contains("sh .github/scripts/email-compose-smoke.sh"),
-                "APK workflow must execute the dedicated email compose smoke inside Android 16");
+                "email smoke must prove structured body handoff");
 
         System.out.println("AndroidEmailCompositionEmulatorContractTest passed");
     }

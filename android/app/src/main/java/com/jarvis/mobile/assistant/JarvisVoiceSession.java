@@ -1,6 +1,7 @@
 package com.jarvis.mobile.assistant;
 
 import android.Manifest;
+import android.app.KeyguardManager;
 import android.content.Context;
 import android.content.Intent;
 import android.content.SharedPreferences;
@@ -44,9 +45,17 @@ import java.util.function.Supplier;
 public class JarvisVoiceSession extends VoiceInteractionSession implements TextToSpeech.OnInitListener {
     private static final long CONVERSATION_WINDOW_MILLIS = 10 * 60 * 1000L;
     private static final long NEXT_LISTEN_DELAY_MILLIS = 180L;
+    private static final long RECOGNIZER_SERVICE_RETRY_BASE_MILLIS = 350L;
+    private static final long RECOGNIZER_SERVICE_RETRY_MAX_MILLIS = 4000L;
+    private static final long ACTIVE_END_OF_SPEECH_TIMEOUT_MILLIS = 3000L;
+    private static final long ACTIVE_RECOGNIZER_READY_TIMEOUT_MILLIS = 4000L;
+    private static final long TTS_START_CALLBACK_TIMEOUT_MILLIS = 4000L;
+    private static final long TTS_TERMINAL_CALLBACK_TIMEOUT_MIN_MILLIS = 8000L;
+    private static final long TTS_TERMINAL_CALLBACK_TIMEOUT_MAX_MILLIS = 60000L;
     private static final String TEST_TAG = "JARVIS_ASSISTANT_TEST";
     private static final String SHARED_BRAIN_TAG = "JARVIS_SHARED_BRAIN_ACTIVE";
     private static final String RUNTIME_FAILURE_TAG = "JARVIS_RUNTIME_FAILURE";
+    private static final String VOICE_RECOGNIZER_TAG = "JARVIS_VOICE_RECOGNIZER";
     private static final String TEST_COMMAND_EXTRA = "jarvis_test_command";
 
     private final AdaptiveEndpointingPolicy endpointing = new AdaptiveEndpointingPolicy();
@@ -65,8 +74,18 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
     private boolean sessionVisible;
     private boolean autoListenTriggered;
     private boolean resumeAfterSpeech;
+    private boolean destroyed;
     private long conversationDeadlineElapsedRealtime;
     private long sessionGeneration;
+    private long recognitionGeneration;
+    private long recognitionTerminalWatchdogGeneration;
+    private long recognitionReadyWatchdogGeneration;
+    private long speechGeneration;
+    private volatile long ttsStartWatchdogGeneration;
+    private long ttsTerminalWatchdogGeneration;
+    private long listenScheduleGeneration;
+    private int recognizerServiceFailureCount;
+    private volatile String activeUtteranceId = "";
     private String lastCommand = "";
     private String lastPartial = "";
 
@@ -77,9 +96,10 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
 
     @Override public void onCreate() {
         super.onCreate();
+        destroyed = false;
         preferences = getContext().getSharedPreferences("jarvis_shell", Context.MODE_PRIVATE);
         brain = new AndroidBrainRuntime(getContext());
-        textToSpeech = new TextToSpeech(getContext(), this);
+        initializeTextToSpeechSafely();
     }
 
     @Override public View onCreateContentView() {
@@ -163,6 +183,12 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
 
     @Override public void onShow(Bundle args, int flags) {
         super.onShow(args, flags);
+        if (!lockScreenAssistantAllowed()) {
+            Log.i(TEST_TAG, "JARVIS_LOCK_SCREEN_BLOCKED");
+            sessionVisible = false;
+            hide();
+            return;
+        }
         sessionGeneration++;
         sessionVisible = true;
         beginConversationWindowIfNeeded();
@@ -179,39 +205,55 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         }
     }
 
-    private String debugTestCommand(Bundle args) {
-        if ((getContext().getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0 || args == null) {
-            return "";
+    private boolean lockScreenAssistantAllowed() {
+        boolean enabled = preferences == null || preferences.getBoolean("lock_screen_assistant_enabled", true);
+        if (enabled) return true;
+        try {
+            KeyguardManager keyguard = (KeyguardManager) getContext().getSystemService(Context.KEYGUARD_SERVICE);
+            return keyguard == null || !keyguard.isDeviceLocked();
+        } catch (RuntimeException lockStateFailure) {
+            Log.w(VOICE_RECOGNIZER_TAG, "Lock-screen state probe failed; blocking Assistant session", lockStateFailure);
+            return false;
         }
+    }
+
+    private String debugTestCommand(Bundle args) {
+        if ((getContext().getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) == 0 || args == null) return "";
         String command = args.getString(TEST_COMMAND_EXTRA, "");
         return command == null ? "" : command.trim();
     }
 
     @Override public void onHide() {
         sessionGeneration++;
+        recognitionGeneration++;
+        recognizerServiceFailureCount = 0;
+        invalidateRecognitionTerminalWatchdog();
+        invalidateRecognitionReadyWatchdog();
         sessionVisible = false;
         autoListenTriggered = false;
         resumeAfterSpeech = false;
         conversationDeadlineElapsedRealtime = 0L;
+        invalidateScheduledListen();
         bargeInMonitor.stop();
-        if (speechRecognizer != null) speechRecognizer.cancel();
-        if (textToSpeech != null) textToSpeech.stop();
+        releaseSpeechRecognizerSafely();
+        invalidateSpeechCallback();
+        stopTextToSpeechSafely();
         setActive(false);
         super.onHide();
     }
 
     private void beginConversationWindowIfNeeded() {
         long now = SystemClock.elapsedRealtime();
-        if (conversationDeadlineElapsedRealtime <= now) {
-            conversationDeadlineElapsedRealtime = now + CONVERSATION_WINDOW_MILLIS;
-        }
+        if (conversationDeadlineElapsedRealtime <= now) conversationDeadlineElapsedRealtime = now + CONVERSATION_WINDOW_MILLIS;
     }
 
     private void interruptSpeechAndListen() {
         beginConversationWindowIfNeeded();
         resumeAfterSpeech = false;
+        invalidateScheduledListen();
         bargeInMonitor.stop();
-        if (textToSpeech != null) textToSpeech.stop();
+        invalidateSpeechCallback();
+        stopTextToSpeechSafely();
         startListening();
     }
 
@@ -221,8 +263,10 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         surface.post(() -> {
             if (!conversationWindowOpen()) return;
             resumeAfterSpeech = false;
+            invalidateScheduledListen();
             bargeInMonitor.stop();
-            if (textToSpeech != null) textToSpeech.stop();
+            invalidateSpeechCallback();
+            stopTextToSpeechSafely();
             startListening();
         });
     }
@@ -238,90 +282,343 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         startListening();
     }
 
+    private void invalidateScheduledListen() {
+        listenScheduleGeneration++;
+    }
+
     private void scheduleNextListen() {
+        long scheduledGeneration = ++listenScheduleGeneration;
         if (!viewReady || !conversationWindowOpen() || output == null) {
             setActive(false);
             return;
         }
         output.postDelayed(() -> {
+            if (scheduledGeneration != listenScheduleGeneration) return;
             if (conversationWindowOpen()) startListening();
             else setActive(false);
         }, NEXT_LISTEN_DELAY_MILLIS);
     }
 
+    private void scheduleRecognitionServiceRecovery() {
+        int failureCount = ++recognizerServiceFailureCount;
+        int shift = Math.min(4, Math.max(0, failureCount - 1));
+        long retryDelay = Math.min(RECOGNIZER_SERVICE_RETRY_MAX_MILLIS,
+                RECOGNIZER_SERVICE_RETRY_BASE_MILLIS * (1L << shift));
+        long scheduledGeneration = ++listenScheduleGeneration;
+        if (!viewReady || !conversationWindowOpen() || output == null) {
+            setActive(false);
+            return;
+        }
+        output.postDelayed(() -> {
+            if (scheduledGeneration != listenScheduleGeneration) return;
+            if (conversationWindowOpen()) startListening();
+            else setActive(false);
+        }, retryDelay);
+    }
+
+    private void invalidateRecognitionTerminalWatchdog() {
+        recognitionTerminalWatchdogGeneration++;
+    }
+
+    private void scheduleRecognitionTerminalWatchdog(long listeningGeneration) {
+        long watchdogGeneration = ++recognitionTerminalWatchdogGeneration;
+        TextView surface = output;
+        if (surface == null) return;
+        surface.postDelayed(() -> {
+            if (watchdogGeneration != recognitionTerminalWatchdogGeneration) return;
+            handleRecognitionTerminalTimeout(listeningGeneration);
+        }, ACTIVE_END_OF_SPEECH_TIMEOUT_MILLIS);
+    }
+
+    private void handleRecognitionTerminalTimeout(long listeningGeneration) {
+        if (listeningGeneration != recognitionGeneration || !sessionVisible) return;
+        Log.w(VOICE_RECOGNIZER_TAG, "Active recognizer ended speech without terminal callback; rebuilding");
+        recognitionGeneration++;
+        invalidateRecognitionTerminalWatchdog();
+        invalidateRecognitionReadyWatchdog();
+        releaseSpeechRecognizerSafely();
+        setActive(false);
+        if (output != null) output.setText("Listening paused briefly; I’ll reopen it.");
+        scheduleRecognitionServiceRecovery();
+    }
+
+    private void invalidateRecognitionReadyWatchdog() {
+        recognitionReadyWatchdogGeneration++;
+    }
+
+    private void scheduleRecognitionReadyWatchdog(long listeningGeneration) {
+        long watchdogGeneration = ++recognitionReadyWatchdogGeneration;
+        TextView surface = output;
+        if (surface == null) return;
+        surface.postDelayed(() -> {
+            if (watchdogGeneration != recognitionReadyWatchdogGeneration) return;
+            handleRecognitionReadyTimeout(listeningGeneration);
+        }, ACTIVE_RECOGNIZER_READY_TIMEOUT_MILLIS);
+    }
+
+    private void handleRecognitionReadyTimeout(long listeningGeneration) {
+        if (listeningGeneration != recognitionGeneration || !sessionVisible) return;
+        Log.w(VOICE_RECOGNIZER_TAG, "Active recognizer never became ready; rebuilding");
+        recognitionGeneration++;
+        invalidateRecognitionReadyWatchdog();
+        invalidateRecognitionTerminalWatchdog();
+        releaseSpeechRecognizerSafely();
+        setActive(false);
+        if (output != null) output.setText("Listening paused briefly; I’ll reopen it.");
+        scheduleRecognitionServiceRecovery();
+    }
+
+    private Boolean microphonePermissionGrantedSafely() {
+        try {
+            return getContext().checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+        } catch (RuntimeException permissionProbeFailure) {
+            Log.w(VOICE_RECOGNIZER_TAG, "MICROPHONE_PERMISSION_PROBE_FAILED", permissionProbeFailure);
+            return null;
+        }
+    }
+
+    private Boolean recognitionAvailableSafely() {
+        try {
+            return SpeechRecognizer.isRecognitionAvailable(getContext());
+        } catch (RuntimeException availabilityFailure) {
+            Log.w(VOICE_RECOGNIZER_TAG, "Active recognizer availability probe failed; retrying", availabilityFailure);
+            return null;
+        }
+    }
+
+    private SpeechRecognizer createActiveSpeechRecognizerWithFallback() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            try {
+                if (SpeechRecognizer.isOnDeviceRecognitionAvailable(getContext())) {
+                    try {
+                        return SpeechRecognizer.createOnDeviceSpeechRecognizer(getContext());
+                    } catch (RuntimeException dedicatedFailure) {
+                        Log.w(VOICE_RECOGNIZER_TAG,
+                                "Active on-device recognizer creation failed; falling back to system recognizer",
+                                dedicatedFailure);
+                    }
+                }
+            } catch (RuntimeException availabilityFailure) {
+                Log.w(VOICE_RECOGNIZER_TAG,
+                        "Active on-device recognizer probe failed; falling back to system recognizer",
+                        availabilityFailure);
+            }
+        }
+        return SpeechRecognizer.createSpeechRecognizer(getContext());
+    }
+
     private void startListening() {
+        invalidateScheduledListen();
+        invalidateRecognitionTerminalWatchdog();
+        invalidateRecognitionReadyWatchdog();
         bargeInMonitor.stop();
         if (!conversationWindowOpen()) {
             if (output != null) output.setText("Conversation paused. Tap LISTEN when you want me again.");
             setActive(false);
             return;
         }
-        if (getContext().checkSelfPermission(Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
-            output.setText("Open JARVIS once and grant Microphone permission.");
+        Boolean microphonePermissionGranted = microphonePermissionGrantedSafely();
+        if (microphonePermissionGranted == null) {
+            if (output != null) output.setText("Listening paused briefly; I’ll reopen it.");
+            setActive(false);
+            scheduleRecognitionServiceRecovery();
+            return;
+        }
+        if (!microphonePermissionGranted) {
+            if (output != null) output.setText("Open JARVIS once and grant Microphone permission.");
             setActive(false);
             return;
         }
-        if (!SpeechRecognizer.isRecognitionAvailable(getContext())) {
-            output.setText("Android speech recognition is unavailable.");
+        Boolean recognitionAvailable = recognitionAvailableSafely();
+        if (recognitionAvailable == null) {
+            if (output != null) output.setText("Listening paused briefly; I’ll reopen it.");
+            setActive(false);
+            scheduleRecognitionServiceRecovery();
+            return;
+        }
+        if (!recognitionAvailable) {
+            if (output != null) output.setText("Android speech recognition is unavailable.");
             setActive(false);
             return;
         }
         lastPartial = "";
-        if (speechRecognizer != null) speechRecognizer.destroy();
-        speechRecognizer = Build.VERSION.SDK_INT >= 31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(getContext())
-                ? SpeechRecognizer.createOnDeviceSpeechRecognizer(getContext())
-                : SpeechRecognizer.createSpeechRecognizer(getContext());
-        speechRecognizer.setRecognitionListener(new RecognitionListener() {
-            @Override public void onReadyForSpeech(Bundle params) { output.setText("Listening…"); setActive(true); }
-            @Override public void onBeginningOfSpeech() {
-                if (textToSpeech != null) textToSpeech.stop();
-                resumeAfterSpeech = false;
-                output.setText("I’m listening.");
-            }
-            @Override public void onRmsChanged(float rmsdB) { }
-            @Override public void onBufferReceived(byte[] buffer) { }
-            @Override public void onEndOfSpeech() { output.setText("Thinking…"); }
-            @Override public void onError(int error) {
-                output.setText(error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
-                        ? "I didn’t catch that. I’m still listening."
-                        : "Listening paused briefly; I’ll reopen it.");
-                setActive(false);
-                scheduleNextListen();
-            }
-            @Override public void onResults(Bundle results) {
-                ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-                if (matches == null || matches.isEmpty()) {
-                    output.setText("I didn’t catch that.");
+        long listeningGeneration = ++recognitionGeneration;
+        try {
+            if (speechRecognizer != null) speechRecognizer.destroy();
+            speechRecognizer = createActiveSpeechRecognizerWithFallback();
+            speechRecognizer.setRecognitionListener(new RecognitionListener() {
+                private boolean terminalDelivered;
+
+                private boolean stale() {
+                    return listeningGeneration != recognitionGeneration || !sessionVisible || terminalDelivered;
+                }
+
+                private boolean claimTerminal() {
+                    if (stale()) return false;
+                    terminalDelivered = true;
+                    invalidateRecognitionReadyWatchdog();
+                    invalidateRecognitionTerminalWatchdog();
+                    return true;
+                }
+
+                @Override public void onReadyForSpeech(Bundle params) {
+                    if (stale()) return;
+                    recognizerServiceFailureCount = 0;
+                    invalidateRecognitionReadyWatchdog();
+                    output.setText("Listening…");
+                    setActive(true);
+                }
+                @Override public void onBeginningOfSpeech() {
+                    if (stale()) return;
+                    invalidateRecognitionReadyWatchdog();
+                    invalidateSpeechCallback();
+                    stopTextToSpeechSafely();
+                    resumeAfterSpeech = false;
+                    output.setText("I’m listening.");
+                }
+                @Override public void onRmsChanged(float rmsdB) {
+                    if (stale()) return;
+                    invalidateRecognitionReadyWatchdog();
+                }
+                @Override public void onBufferReceived(byte[] buffer) {
+                    if (stale()) return;
+                    invalidateRecognitionReadyWatchdog();
+                }
+                @Override public void onEndOfSpeech() {
+                    if (stale()) return;
+                    invalidateRecognitionReadyWatchdog();
+                    output.setText("Thinking…");
+                    scheduleRecognitionTerminalWatchdog(listeningGeneration);
+                }
+                @Override public void onError(int error) {
+                    if (!claimTerminal()) return;
+                    if (error == SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS) {
+                        handleRecognitionPermissionLoss();
+                        return;
+                    }
+                    if (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY
+                            || error == SpeechRecognizer.ERROR_CLIENT
+                            || error == SpeechRecognizer.ERROR_SERVER
+                            || error == SpeechRecognizer.ERROR_SERVER_DISCONNECTED
+                            || error == SpeechRecognizer.ERROR_TOO_MANY_REQUESTS) {
+                        Log.w(VOICE_RECOGNIZER_TAG, "Active recognizer service failure " + error + "; rebuilding with backoff");
+                        recognitionGeneration++;
+                        invalidateRecognitionTerminalWatchdog();
+                        invalidateRecognitionReadyWatchdog();
+                        releaseSpeechRecognizerSafely();
+                        output.setText("Listening paused briefly; I’ll reopen it.");
+                        setActive(false);
+                        scheduleRecognitionServiceRecovery();
+                        return;
+                    }
+                    output.setText(error == SpeechRecognizer.ERROR_NO_MATCH || error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT
+                            ? "I didn’t catch that. I’m still listening."
+                            : "Listening paused briefly; I’ll reopen it.");
                     setActive(false);
                     scheduleNextListen();
-                    return;
                 }
-                float[] scores = results.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES);
-                double confidence = scores != null && scores.length > 0 && scores[0] >= 0.0f
-                        ? Math.min(1.0, scores[0])
-                        : 0.0;
-                execute(matches.get(0), confidence);
-            }
-            @Override public void onPartialResults(Bundle partialResults) {
-                ArrayList<String> partial = partialResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-                if (partial != null && !partial.isEmpty()) {
-                    lastPartial = partial.get(0);
-                    output.setText(lastPartial);
-                    Log.d("JARVIS_ENDPOINTING", "partial completeSilenceHintMs=" + endpointing.completeSilenceMillis(lastPartial));
+                @Override public void onResults(Bundle results) {
+                    if (!claimTerminal()) return;
+                    handleRecognitionResultsSafely(results);
                 }
+                @Override public void onPartialResults(Bundle partialResults) {
+                    if (stale()) return;
+                    invalidateRecognitionReadyWatchdog();
+                    handleRecognitionPartialSafely(partialResults);
+                }
+                @Override public void onEvent(int eventType, Bundle params) {
+                    if (stale()) return;
+                    invalidateRecognitionReadyWatchdog();
+                }
+            });
+            Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
+            intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, configuredLanguage().toLanguageTag());
+            intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
+            intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, endpointing.minimumUtteranceMillis());
+            intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, endpointing.possiblyCompleteSilenceMillis(""));
+            intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, endpointing.completeSilenceMillis(""));
+            scheduleRecognitionReadyWatchdog(listeningGeneration);
+            speechRecognizer.startListening(intent);
+        } catch (RuntimeException recognitionFailure) {
+            recoverRecognitionStartFailure(recognitionFailure);
+        }
+    }
+
+    private void handleRecognitionResultsSafely(Bundle results) {
+        try {
+            ArrayList<String> matches = results == null ? null : results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+            if (matches == null || matches.isEmpty()) {
+                output.setText("I didn’t catch that.");
+                setActive(false);
+                scheduleNextListen();
+                return;
             }
-            @Override public void onEvent(int eventType, Bundle params) { }
-        });
-        Intent intent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
-        intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, configuredLanguage().toLanguageTag());
-        intent.putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true);
-        intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, endpointing.minimumUtteranceMillis());
-        intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS,
-                endpointing.possiblyCompleteSilenceMillis(""));
-        intent.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS,
-                endpointing.completeSilenceMillis(""));
-        speechRecognizer.startListening(intent);
+            float[] scores = results.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES);
+            double confidence = scores != null && scores.length > 0 && scores[0] >= 0.0f ? Math.min(1.0, scores[0]) : 0.0;
+            execute(matches.get(0), confidence);
+        } catch (RuntimeException resultFailure) {
+            recoverRecognitionResultCallback(resultFailure);
+        }
+    }
+
+    private void handleRecognitionPartialSafely(Bundle partialResults) {
+        try {
+            ArrayList<String> partial = partialResults == null ? null : partialResults.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+            if (partial != null && !partial.isEmpty()) {
+                lastPartial = partial.get(0);
+                output.setText(lastPartial);
+                Log.d("JARVIS_ENDPOINTING", "partial completeSilenceHintMs=" + endpointing.completeSilenceMillis(lastPartial));
+            }
+        } catch (RuntimeException resultFailure) {
+            recoverRecognitionResultCallback(resultFailure);
+        }
+    }
+
+    private void recoverRecognitionResultCallback(RuntimeException resultFailure) {
+        Log.w(VOICE_RECOGNIZER_TAG, "ACTIVE_RECOGNITION_RESULTS_CALLBACK_FAILED", resultFailure);
+        recognitionGeneration++;
+        invalidateRecognitionTerminalWatchdog();
+        invalidateRecognitionReadyWatchdog();
+        releaseSpeechRecognizerSafely();
+        setActive(false);
+        if (output != null) output.setText("Listening paused briefly; I’ll reopen it.");
+        scheduleRecognitionServiceRecovery();
+    }
+
+    private void handleRecognitionPermissionLoss() {
+        Log.w(VOICE_RECOGNIZER_TAG, "Microphone permission lost during active recognition; stopping automatic relisten");
+        recognitionGeneration++;
+        invalidateRecognitionTerminalWatchdog();
+        invalidateRecognitionReadyWatchdog();
+        invalidateScheduledListen();
+        bargeInMonitor.stop();
+        releaseSpeechRecognizerSafely();
+        setActive(false);
+        if (output != null) output.setText("Microphone permission is required. Open JARVIS and grant Microphone permission to continue.");
+    }
+
+    private void releaseSpeechRecognizerSafely() {
+        SpeechRecognizer recognizer = speechRecognizer;
+        speechRecognizer = null;
+        if (recognizer == null) return;
+        try { recognizer.cancel(); } catch (RuntimeException cleanupFailure) {
+            Log.w(VOICE_RECOGNIZER_TAG, "Active recognizer cancel failed during lifecycle cleanup", cleanupFailure);
+        }
+        try { recognizer.destroy(); } catch (RuntimeException cleanupFailure) {
+            Log.w(VOICE_RECOGNIZER_TAG, "Active recognizer destroy failed during lifecycle cleanup", cleanupFailure);
+        }
+    }
+
+    private void recoverRecognitionStartFailure(RuntimeException recognitionFailure) {
+        Log.w(VOICE_RECOGNIZER_TAG, "Active recognizer failed to start; rebuilding with service backoff", recognitionFailure);
+        recognitionGeneration++;
+        invalidateRecognitionTerminalWatchdog();
+        invalidateRecognitionReadyWatchdog();
+        releaseSpeechRecognizerSafely();
+        setActive(false);
+        if (output != null) output.setText("Listening paused briefly; I’ll reopen it.");
+        scheduleRecognitionServiceRecovery();
     }
 
     private void execute(String command, double confidence) {
@@ -348,12 +645,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
             return work.get();
         } catch (RuntimeException failure) {
             Log.e(RUNTIME_FAILURE_TAG, "Unexpected shared brain runtime failure", failure);
-            return new RuntimeSurfacePresentation(
-                    AssistantSurfaceState.ERROR,
-                    "I hit an unexpected problem while handling that.",
-                    RUNTIME_FAILURE_TAG,
-                    RuntimeSurfaceAction.NONE,
-                    RuntimeSurfaceAction.NONE);
+            return new RuntimeSurfacePresentation(AssistantSurfaceState.ERROR, "I hit an unexpected problem while handling that.", RUNTIME_FAILURE_TAG, RuntimeSurfaceAction.NONE, RuntimeSurfaceAction.NONE);
         }
     }
 
@@ -370,22 +662,20 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         primaryButton.setVisibility(approval || recovery ? View.VISIBLE : View.GONE);
         primaryButton.setText(recovery ? "RETRY" : "APPROVE");
         primaryButton.setContentDescription(recovery ? "JARVIS RETRY action" : "JARVIS APPROVE action");
-        primaryButton.setOnClickListener(v -> submitBrainWork(recovery
-                ? brain::retryPresentation
-                : brain::approvePresentation));
+        primaryButton.setOnClickListener(v -> submitBrainWork(recovery ? brain::retryPresentation : brain::approvePresentation));
         cancelButton.setContentDescription("JARVIS CANCEL action");
         cancelButton.setVisibility(approval || recovery ? View.VISIBLE : View.GONE);
 
+        invalidateScheduledListen();
         bargeInMonitor.stop();
         resumeAfterSpeech = conversationWindowOpen();
         if (!text.isBlank() && textToSpeech != null && voiceEnabled()) {
             applyVoicePreferences();
-            int result = textToSpeech.speak(text, TextToSpeech.QUEUE_FLUSH, null, "jarvis-session");
-            if (result == TextToSpeech.SUCCESS) {
-                bargeInMonitor.start(this::handleHandsFreeBargeIn);
-            } else if (resumeAfterSpeech) {
-                resumeAfterSpeech = false;
-                scheduleNextListen();
+            String utteranceId = beginSpeechCallback();
+            if (speakResponseSafely(text, utteranceId)) bargeInMonitor.start(this::handleHandsFreeBargeIn);
+            else {
+                invalidateSpeechCallback();
+                if (resumeAfterSpeech) { resumeAfterSpeech = false; scheduleNextListen(); }
             }
         } else if (resumeAfterSpeech) {
             resumeAfterSpeech = false;
@@ -394,17 +684,125 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         setActive(false);
     }
 
+    private boolean speakResponseSafely(String text, String utteranceId) {
+        TextToSpeech engine = textToSpeech;
+        if (engine == null) return false;
+        try {
+            boolean accepted = engine.speak(text, TextToSpeech.QUEUE_FLUSH, null, utteranceId) == TextToSpeech.SUCCESS;
+            if (accepted) {
+                scheduleTtsStartWatchdog(utteranceId);
+                scheduleTtsTerminalWatchdog(utteranceId, text);
+            }
+            return accepted;
+        } catch (RuntimeException speechFailure) {
+            Log.w(VOICE_RECOGNIZER_TAG, "TTS playback failed; continuing without spoken output", speechFailure);
+            return false;
+        }
+    }
+
+    private String beginSpeechCallback() {
+        speechGeneration++;
+        activeUtteranceId = "jarvis-session-" + speechGeneration;
+        return activeUtteranceId;
+    }
+
+    private void invalidateTtsStartWatchdog() {
+        ttsStartWatchdogGeneration++;
+    }
+
+    private void scheduleTtsStartWatchdog(String utteranceId) {
+        long watchdogGeneration = ++ttsStartWatchdogGeneration;
+        TextView surface = output;
+        if (surface == null) return;
+        surface.postDelayed(() -> {
+            if (watchdogGeneration != ttsStartWatchdogGeneration) return;
+            handleTtsStartTimeout(utteranceId);
+        }, TTS_START_CALLBACK_TIMEOUT_MILLIS);
+    }
+
+    private void handleTtsStartTimeout(String utteranceId) {
+        if (!isCurrentSpeechCallback(utteranceId) || !sessionVisible) return;
+        Log.w(VOICE_RECOGNIZER_TAG, "TTS start callback timed out; reopening listening");
+        invalidateSpeechCallback();
+        bargeInMonitor.stop();
+        stopTextToSpeechSafely();
+        if (!resumeAfterSpeech) return;
+        resumeAfterSpeech = false;
+        scheduleNextListen();
+    }
+
+    private void invalidateTtsTerminalWatchdog() {
+        ttsTerminalWatchdogGeneration++;
+    }
+
+    private long ttsTerminalCallbackTimeoutMillis(String text) {
+        long textLength = text == null ? 0L : text.length();
+        long estimatedSpeechMillis = 4000L + textLength * 75L;
+        return Math.min(TTS_TERMINAL_CALLBACK_TIMEOUT_MAX_MILLIS,
+                Math.max(TTS_TERMINAL_CALLBACK_TIMEOUT_MIN_MILLIS, estimatedSpeechMillis));
+    }
+
+    private void scheduleTtsTerminalWatchdog(String utteranceId, String text) {
+        long watchdogGeneration = ++ttsTerminalWatchdogGeneration;
+        TextView surface = output;
+        if (surface == null) return;
+        surface.postDelayed(() -> {
+            if (watchdogGeneration != ttsTerminalWatchdogGeneration) return;
+            handleTtsTerminalTimeout(utteranceId);
+        }, ttsTerminalCallbackTimeoutMillis(text));
+    }
+
+    private void handleTtsTerminalTimeout(String utteranceId) {
+        if (!isCurrentSpeechCallback(utteranceId) || !sessionVisible) return;
+        Log.w(VOICE_RECOGNIZER_TAG, "TTS terminal callback timed out; reopening listening");
+        invalidateSpeechCallback();
+        bargeInMonitor.stop();
+        stopTextToSpeechSafely();
+        if (!resumeAfterSpeech) return;
+        resumeAfterSpeech = false;
+        scheduleNextListen();
+    }
+
+    private void invalidateSpeechCallback() {
+        speechGeneration++;
+        activeUtteranceId = "";
+        invalidateTtsStartWatchdog();
+        invalidateTtsTerminalWatchdog();
+    }
+
+    private boolean isCurrentSpeechCallback(String utteranceId) {
+        return utteranceId != null && !utteranceId.isBlank() && utteranceId.equals(activeUtteranceId);
+    }
+
+    private void finishSpeechCallback(String utteranceId) {
+        if (!isCurrentSpeechCallback(utteranceId)) return;
+        invalidateSpeechCallback();
+        bargeInMonitor.stop();
+        if (!resumeAfterSpeech) return;
+        resumeAfterSpeech = false;
+        scheduleNextListen();
+    }
+
     private boolean voiceEnabled() {
         return preferences == null || preferences.getBoolean("voice_enabled", true);
     }
 
     private void applyVoicePreferences() {
-        if (textToSpeech == null) return;
-        textToSpeech.setLanguage(configuredLanguage());
+        TextToSpeech engine = textToSpeech;
+        if (engine == null) return;
+        try {
+            engine.setLanguage(configuredLanguage());
+        } catch (RuntimeException preferenceFailure) {
+            Log.w(VOICE_RECOGNIZER_TAG, "TTS language preference failed", preferenceFailure);
+        }
         float rate = preferences == null ? 1.0f : preferences.getFloat("voice_rate", 1.0f);
         if (rate < 0.5f) rate = 0.5f;
         if (rate > 1.5f) rate = 1.5f;
-        textToSpeech.setSpeechRate(rate);
+        try {
+            engine.setSpeechRate(rate);
+        } catch (RuntimeException preferenceFailure) {
+            Log.w(VOICE_RECOGNIZER_TAG, "TTS speech-rate preference failed", preferenceFailure);
+        }
     }
 
     private Locale configuredLanguage() {
@@ -425,9 +823,7 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
             core.setText(active ? "◎" : "◉");
             core.setTextColor(active ? Color.WHITE : color(R.color.jarvis_cyan));
         }
-        if (background != null) {
-            background.setBackgroundColor(active ? color(R.color.jarvis_bg_panel_raised) : color(R.color.jarvis_bg));
-        }
+        if (background != null) background.setBackgroundColor(active ? color(R.color.jarvis_bg_panel_raised) : color(R.color.jarvis_bg));
     }
 
     private TextView text(String value, float size, int color) {
@@ -448,54 +844,94 @@ public class JarvisVoiceSession extends VoiceInteractionSession implements TextT
         return button;
     }
 
-    private int color(int resourceId) {
-        return getContext().getColor(resourceId);
+    private int color(int resourceId) { return getContext().getColor(resourceId); }
+    private int dp(int value) { return Math.round(value * getContext().getResources().getDisplayMetrics().density); }
+
+    private void initializeTextToSpeechSafely() {
+        textToSpeech = null;
+        try {
+            textToSpeech = new TextToSpeech(getContext(), this);
+        } catch (RuntimeException initializationFailure) {
+            textToSpeech = null;
+            Log.w(VOICE_RECOGNIZER_TAG, "TTS initialization failed; continuing without spoken output", initializationFailure);
+        }
     }
 
-    private int dp(int value) {
-        return Math.round(value * getContext().getResources().getDisplayMetrics().density);
+    private void stopTextToSpeechSafely() {
+        TextToSpeech engine = textToSpeech;
+        if (engine == null) return;
+        try { engine.stop(); } catch (RuntimeException stopFailure) {
+            Log.w(VOICE_RECOGNIZER_TAG, "TTS stop failed during voice-session transition", stopFailure);
+        }
+    }
+
+    private void releaseTextToSpeechSafely() {
+        TextToSpeech engine = textToSpeech;
+        textToSpeech = null;
+        if (engine == null) return;
+        try { engine.stop(); } catch (RuntimeException cleanupFailure) {
+            Log.w(VOICE_RECOGNIZER_TAG, "TTS stop failed during voice-session cleanup", cleanupFailure);
+        }
+        try { engine.shutdown(); } catch (RuntimeException cleanupFailure) {
+            Log.w(VOICE_RECOGNIZER_TAG, "TTS shutdown failed during voice-session cleanup", cleanupFailure);
+        }
+    }
+
+    private void attachTtsProgressListenerSafely() {
+        TextToSpeech engine = textToSpeech;
+        if (engine == null) return;
+        try {
+            int listenerResult = engine.setOnUtteranceProgressListener(new UtteranceProgressListener() {
+                @Override public void onStart(String utteranceId) {
+                    if (!isCurrentSpeechCallback(utteranceId)) return;
+                    invalidateTtsStartWatchdog();
+                }
+                @Override public void onDone(String utteranceId) {
+                    if (output != null) output.post(() -> finishSpeechCallback(utteranceId));
+                }
+                @Override public void onError(String utteranceId) {
+                    if (output != null) output.post(() -> finishSpeechCallback(utteranceId));
+                }
+                @Override public void onStop(String utteranceId, boolean interrupted) {
+                    if (output != null) output.post(() -> finishSpeechCallback(utteranceId));
+                }
+            });
+            if (listenerResult == TextToSpeech.ERROR) {
+                Log.w(VOICE_RECOGNIZER_TAG, "TTS progress-listener attachment returned ERROR; retiring speech engine");
+                invalidateSpeechCallback();
+                releaseTextToSpeechSafely();
+            }
+        } catch (RuntimeException listenerFailure) {
+            Log.w(VOICE_RECOGNIZER_TAG, "TTS progress-listener attachment failed; retiring speech engine", listenerFailure);
+            invalidateSpeechCallback();
+            releaseTextToSpeechSafely();
+        }
     }
 
     @Override public void onInit(int status) {
+        if (destroyed) return;
         if (status == TextToSpeech.SUCCESS && textToSpeech != null) {
             applyVoicePreferences();
-            textToSpeech.setOnUtteranceProgressListener(new UtteranceProgressListener() {
-                @Override public void onStart(String utteranceId) { }
-
-                @Override public void onDone(String utteranceId) {
-                    if (!"jarvis-session".equals(utteranceId)) return;
-                    bargeInMonitor.stop();
-                    if (!resumeAfterSpeech) return;
-                    resumeAfterSpeech = false;
-                    if (output != null) output.post(JarvisVoiceSession.this::scheduleNextListen);
-                }
-
-                @Override public void onError(String utteranceId) {
-                    if (!"jarvis-session".equals(utteranceId)) return;
-                    bargeInMonitor.stop();
-                    if (!resumeAfterSpeech) return;
-                    resumeAfterSpeech = false;
-                    if (output != null) output.post(JarvisVoiceSession.this::scheduleNextListen);
-                }
-            });
+            attachTtsProgressListenerSafely();
         }
     }
 
     @Override public void onDestroy() {
+        destroyed = true;
         sessionGeneration++;
+        recognitionGeneration++;
+        recognizerServiceFailureCount = 0;
+        invalidateRecognitionTerminalWatchdog();
+        invalidateRecognitionReadyWatchdog();
         sessionVisible = false;
         resumeAfterSpeech = false;
         conversationDeadlineElapsedRealtime = 0L;
+        invalidateScheduledListen();
         bargeInMonitor.stop();
         brainExecutor.shutdownNow();
-        if (speechRecognizer != null) {
-            speechRecognizer.cancel();
-            speechRecognizer.destroy();
-        }
-        if (textToSpeech != null) {
-            textToSpeech.stop();
-            textToSpeech.shutdown();
-        }
+        releaseSpeechRecognizerSafely();
+        invalidateSpeechCallback();
+        releaseTextToSpeechSafely();
         super.onDestroy();
     }
 }

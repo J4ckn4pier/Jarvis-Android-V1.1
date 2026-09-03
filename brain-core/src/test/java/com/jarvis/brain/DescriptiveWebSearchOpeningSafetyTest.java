@@ -1,0 +1,215 @@
+package com.jarvis.brain;
+
+import java.time.Clock;
+import java.util.concurrent.atomic.AtomicInteger;
+
+/** Regression: descriptive command-looking openings must reach cortex instead of device actions. */
+public final class DescriptiveWebSearchOpeningSafetyTest {
+    public static void main(String[] args) {
+        descriptiveWebSearchOpeningFallsThroughToCortex();
+        directWebSearchWithNaturalQueryClauseStaysDeterministic();
+        descriptiveNavigationDestinationFallsThroughToCortex();
+        descriptiveDirectionsDestinationFallsThroughToCortex();
+        descriptiveTimerOpeningFallsThroughToCortex();
+        descriptiveAlarmOpeningFallsThroughToCortex();
+        descriptiveCallOpeningFallsThroughToCortex();
+        directCallToKnownRecipientStaysDeterministic();
+        descriptiveCalendarOpeningFallsThroughToCortex();
+        directCalendarQueryStaysDeterministic();
+        descriptiveNotificationOpeningFallsThroughToCortex();
+        directNotificationQueryStaysDeterministic();
+        conditionalMessageRequestFallsThroughToCortex();
+        directMessageToKnownRecipientStaysDeterministic();
+        System.out.println("DescriptiveWebSearchOpeningSafetyTest passed");
+    }
+
+    private static void descriptiveWebSearchOpeningFallsThroughToCortex() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+
+        BrainResponse response = core.handle("Search the web for information is a common research skill.");
+
+        check(calls.get() == 1, "descriptive web-search-opening language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "descriptive web-search-opening language must not launch a web search");
+    }
+
+    private static void directWebSearchWithNaturalQueryClauseStaysDeterministic() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+
+        BrainResponse response = core.handle("Search the web for what to do when a car won't start.");
+
+        check(calls.get() == 0, "explicit web-search command with a natural query clause must not fall through to cortex");
+        check(response.kind() == BrainResponse.Kind.ACTION_PLAN,
+                "explicit web-search command with a natural query clause must create an action plan");
+        check(response.plan() != null && response.plan().steps().size() == 1,
+                "explicit web-search command must contain exactly one action");
+        check("web_search".equals(response.plan().steps().get(0).tool()),
+                "explicit web-search command must use web_search");
+        check("what to do when a car won't start".equals(response.plan().steps().get(0).arguments().get("query")),
+                "web-search query must preserve natural query clauses");
+    }
+
+    private static void descriptiveNavigationDestinationFallsThroughToCortex() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+
+        BrainResponse response = core.handle("Navigate to work is a phrase people use with voice assistants.");
+
+        check(calls.get() == 1, "descriptive navigation-destination language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "descriptive navigation-destination language must not start navigation");
+    }
+
+    private static void descriptiveDirectionsDestinationFallsThroughToCortex() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+
+        BrainResponse response = core.handle("Directions to Denver can be useful when planning a trip.");
+
+        check(calls.get() == 1, "descriptive directions-destination language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "descriptive directions-destination language must not start navigation");
+    }
+
+    private static void descriptiveTimerOpeningFallsThroughToCortex() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+
+        BrainResponse response = core.handle("Set a timer for 10 minutes is a common focus technique.");
+
+        check(calls.get() == 1, "descriptive timer-opening language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "descriptive timer-opening language must not set a timer");
+    }
+
+    private static void descriptiveAlarmOpeningFallsThroughToCortex() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+
+        BrainResponse response = core.handle("Set an alarm for 7 am is a typical morning routine.");
+
+        check(calls.get() == 1, "descriptive alarm-opening language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "descriptive alarm-opening language must not set an alarm");
+    }
+
+    private static void descriptiveCallOpeningFallsThroughToCortex() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+
+        BrainResponse response = core.handle("Call quality matters for remote work.");
+
+        check(calls.get() == 1, "descriptive call-opening language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "descriptive call-opening language must not prepare a phone call");
+    }
+
+    private static void directCallToKnownRecipientStaysDeterministic() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+
+        BrainResponse response = core.handle("Call mom");
+
+        check(calls.get() == 0, "direct call to a known recipient must not fall through to cortex");
+        check(response.kind() == BrainResponse.Kind.ACTION_PLAN,
+                "direct call to a known recipient must create an action plan");
+        check(response.plan() != null && response.plan().steps().size() == 1,
+                "direct call must contain exactly one action");
+        check("call_contact".equals(response.plan().steps().get(0).tool()),
+                "direct call must use call_contact");
+    }
+
+    private static void descriptiveCalendarOpeningFallsThroughToCortex() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+
+        BrainResponse response = core.handle("What's on my calendar can reveal a lot about my routine.");
+
+        check(calls.get() == 1, "descriptive calendar-opening language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "descriptive calendar-opening language must not query the calendar");
+    }
+
+    private static void directCalendarQueryStaysDeterministic() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+
+        BrainResponse response = core.handle("What's on my calendar tomorrow?");
+
+        check(calls.get() == 0, "direct calendar query must not fall through to cortex");
+        check(response.kind() == BrainResponse.Kind.ACTION_PLAN,
+                "direct calendar query must create an action plan");
+        check(response.plan() != null && response.plan().steps().size() == 1,
+                "direct calendar query must contain exactly one action");
+        check("calendar_query".equals(response.plan().steps().get(0).tool()),
+                "direct calendar query must use calendar_query");
+    }
+
+    private static void descriptiveNotificationOpeningFallsThroughToCortex() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+
+        BrainResponse response = core.handle("What notifications are useful for staying organized?");
+
+        check(calls.get() == 1, "descriptive notification-opening language must reach cortex");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "descriptive notification-opening language must not query device notifications");
+    }
+
+    private static void directNotificationQueryStaysDeterministic() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+
+        BrainResponse response = core.handle("What notifications do I have?");
+
+        check(calls.get() == 0, "direct notification query must not fall through to cortex");
+        check(response.kind() == BrainResponse.Kind.ACTION_PLAN,
+                "direct notification query must create an action plan");
+        check(response.plan() != null && response.plan().steps().size() == 1,
+                "direct notification query must contain exactly one action");
+        check("notification_query".equals(response.plan().steps().get(0).tool()),
+                "direct notification query must use notification_query");
+    }
+
+    private static void conditionalMessageRequestFallsThroughToCortex() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+
+        BrainResponse response = core.handle("Message Mom when I get home.");
+
+        check(calls.get() == 1, "conditional message request must reach cortex instead of sending the condition as message text");
+        check(response.kind() == BrainResponse.Kind.CONVERSATION,
+                "conditional message request must not prepare an immediate send_message action");
+    }
+
+    private static void directMessageToKnownRecipientStaysDeterministic() {
+        AtomicInteger calls = new AtomicInteger();
+        AssistantCore core = coreWithRouter(calls);
+
+        BrainResponse response = core.handle("Text mom I'm on my way.");
+
+        check(calls.get() == 0, "direct message to a known recipient must not fall through to cortex");
+        check(response.kind() == BrainResponse.Kind.ACTION_PLAN,
+                "direct message to a known recipient must create an action plan");
+        check(response.plan() != null && response.plan().steps().size() == 1,
+                "direct message must contain exactly one action");
+        check("send_message".equals(response.plan().steps().get(0).tool()),
+                "direct message must use send_message");
+    }
+
+    private static AssistantCore coreWithRouter(AtomicInteger calls) {
+        BrainEngine brain = BrainEngine.createDefault(Clock.systemUTC());
+        brain.beginInvokedConversation();
+        ReasoningRouter router = request -> {
+            calls.incrementAndGet();
+            return new ReasoningResult("test-cortex", "Cortex handled it.", null);
+        };
+        return new AssistantCore(brain, router, ToolRegistry.standard());
+    }
+
+    private static void check(boolean value, String label) {
+        if (!value) throw new AssertionError(label);
+    }
+}

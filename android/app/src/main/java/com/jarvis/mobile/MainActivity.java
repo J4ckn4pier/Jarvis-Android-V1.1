@@ -95,6 +95,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     private boolean pulseFrame;
     private boolean destroyed;
     private boolean continuedConversation;
+    private boolean passiveWakePausedForConversation;
     private SharedPreferences preferences;
     private boolean commandTestMode;
 
@@ -122,7 +123,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             return;
         }
         if ((getApplicationInfo().flags & ApplicationInfo.FLAG_DEBUGGABLE) != 0) {
-            Log.i(UI_TEST_TAG, "JARVIS_HOME_READY Original HUD Welcome Sir");
+            Log.i(UI_TEST_TAG, "JARVIS_HOME_READY Original HUD " + profileGreeting());
         }
 
         requestRuntimePermissions();
@@ -194,7 +195,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
                 dp(220), dp(220), Gravity.CENTER);
         root.addView(core, coreParams);
 
-        status = hudText("Welcome Sir!", 16, Color.WHITE);
+        status = hudText(profileGreeting(), 16, Color.WHITE);
         status.setGravity(Gravity.CENTER);
         status.setMaxLines(8);
         status.setPadding(dp(20), dp(14), dp(20), dp(14));
@@ -361,7 +362,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
 
     private void runCandidates(ArrayList<String> candidates, float[] scores) {
         if (candidates == null || candidates.isEmpty()) {
-            setActive(false, "I didn’t catch that. Tap the core to try again.");
+            endConversationAndRearmPassiveWake("I didn’t catch that. Tap the core to try again.");
             return;
         }
         double confidence = scores != null && scores.length > 0 && scores[0] >= 0.0f
@@ -467,6 +468,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             status.setText("Android speech recognition is unavailable on this device.");
             return;
         }
+        pausePassiveWakeForConversation();
         continuedConversation = !commandTestMode;
         if (speechRecognizer != null) speechRecognizer.destroy();
         speechRecognizer = Build.VERSION.SDK_INT >= 31 && SpeechRecognizer.isOnDeviceRecognitionAvailable(this)
@@ -483,17 +485,15 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             @Override public void onEndOfSpeech() { setActive(true, "Processing ..."); }
             @Override public void onError(int error) {
                 if (error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT || error == SpeechRecognizer.ERROR_NO_MATCH) {
-                    continuedConversation = false;
-                    setActive(false, "Conversation paused. Say “Jarvis” when you need me again.");
+                    endConversationAndRearmPassiveWake("Conversation paused. Say “Jarvis” when you need me again.");
                 } else {
-                    setActive(false, "Listening stopped: " + speechError(error));
+                    endConversationAndRearmPassiveWake("Listening stopped: " + speechError(error));
                 }
             }
             @Override public void onResults(Bundle results) {
                 ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
                 if (matches == null || matches.isEmpty()) {
-                    continuedConversation = false;
-                    setActive(false, "I didn’t catch that. Say “Jarvis” when you need me again.");
+                    endConversationAndRearmPassiveWake("I didn’t catch that. Say “Jarvis” when you need me again.");
                     return;
                 }
                 float[] scores = results.getFloatArray(SpeechRecognizer.CONFIDENCE_SCORES);
@@ -511,6 +511,24 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         intent.putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 3);
         intent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, configuredLanguage().toLanguageTag());
         speechRecognizer.startListening(intent);
+    }
+
+    private void pausePassiveWakeForConversation() {
+        if (passiveWakePausedForConversation) return;
+        JarvisVoiceInteractionService.pausePassiveWakeForSession();
+        passiveWakePausedForConversation = true;
+    }
+
+    private void rearmPassiveWakeAfterConversation() {
+        if (!passiveWakePausedForConversation) return;
+        passiveWakePausedForConversation = false;
+        JarvisVoiceInteractionService.rearmPassiveWakeAfterSession();
+    }
+
+    private void endConversationAndRearmPassiveWake(String message) {
+        continuedConversation = false;
+        setActive(false, message);
+        rearmPassiveWakeAfterConversation();
     }
 
     private void setActive(boolean value, String message) {
@@ -543,6 +561,14 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         if (checkSelfPermission(permission) != PackageManager.PERMISSION_GRANTED) missing.add(permission);
     }
 
+    @Override public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == PERMISSION_REQUEST &&
+                checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            JarvisVoiceInteractionService.refreshPassiveWakePreference();
+        }
+    }
+
     private void requestAssistantRole() {
         RoleManager roleManager = getSystemService(RoleManager.class);
         if (roleManager == null || !roleManager.isRoleAvailable(RoleManager.ROLE_ASSISTANT)) {
@@ -550,6 +576,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
             return;
         }
         if (roleManager.isRoleHeld(RoleManager.ROLE_ASSISTANT)) {
+            JarvisVoiceInteractionService.refreshPassiveWakePreference();
             status.setText("JARVIS is already your default Android Assistant.");
             return;
         }
@@ -559,13 +586,19 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     @Override protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == ASSISTANT_ROLE_REQUEST) {
-            status.setText(resultCode == RESULT_OK ? "JARVIS is now your default Android Assistant." : "Assistant selection was not completed.");
+            if (resultCode == RESULT_OK) {
+                JarvisVoiceInteractionService.refreshPassiveWakePreference();
+                status.setText("JARVIS is now your default Android Assistant.");
+            } else {
+                status.setText("Assistant selection was not completed.");
+            }
         }
     }
 
     @Override protected void onResume() {
         super.onResume();
         applyThemeFrame(false);
+        refreshProfileGreetingIfIdle();
         String mode = preferences.getString("operating_mode", "normal");
         if ("normal".equals(mode)) {
             modeStatus.setVisibility(View.GONE);
@@ -607,6 +640,18 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         return configured.getLanguage().isBlank() ? Locale.getDefault() : configured;
     }
 
+    private String profileGreeting() {
+        String profile = preferences == null ? "Sir" : preferences.getString("profile_name", "Sir");
+        if (profile == null || profile.isBlank()) profile = "Sir";
+        return "Welcome " + profile.trim() + "!";
+    }
+
+    private void refreshProfileGreetingIfIdle() {
+        if (status == null || active || decisionPanel == null || decisionPanel.getVisibility() == View.VISIBLE) return;
+        CharSequence current = status.getText();
+        if (current == null || current.toString().startsWith("Welcome ")) status.setText(profileGreeting());
+    }
+
     private void speak(String text) {
         if (preferences.getBoolean("voice_enabled", true) && textToSpeech != null) {
             applyVoicePreferences();
@@ -618,9 +663,14 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
     }
 
     private void resumeListeningAfterSpeech() {
-        if (destroyed || commandTestMode || !continuedConversation) return;
+        if (destroyed || commandTestMode) return;
+        if (!continuedConversation) {
+            rearmPassiveWakeAfterConversation();
+            return;
+        }
         ui.postDelayed(() -> {
             if (!destroyed && continuedConversation) listen();
+            else rearmPassiveWakeAfterConversation();
         }, FOLLOW_UP_DELAY_MS);
     }
 
@@ -666,6 +716,7 @@ public class MainActivity extends Activity implements TextToSpeech.OnInitListene
         destroyed = true;
         active = false;
         continuedConversation = false;
+        rearmPassiveWakeAfterConversation();
         ui.removeCallbacksAndMessages(null);
         brainExecutor.shutdownNow();
         if (speechRecognizer != null) speechRecognizer.destroy();

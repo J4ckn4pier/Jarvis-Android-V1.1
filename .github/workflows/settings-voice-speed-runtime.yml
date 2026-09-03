@@ -1,0 +1,37 @@
+name: Settings Voice Speed Runtime Truth
+
+on:
+  pull_request:
+    branches:
+      - feature/product-local-cortex
+    paths:
+      - '.github/scripts/settings-voice-speed-runtime-contract.sh'
+      - 'android/app/src/main/java/com/jarvis/mobile/SettingsActivity.java'
+      - 'android/app/src/main/java/com/jarvis/mobile/assistant/JarvisVoiceSession.java'
+      - '.github/workflows/settings-voice-speed-runtime.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  voice-speed-runtime-truth:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Verify visible Voice Speed matches runtime
+        run: sh .github/scripts/settings-voice-speed-runtime-contract.sh
+      - name: Set up Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.11.1'
+      - name: Compile Settings production sources
+        working-directory: android
+        run: gradle :app:compileDebugJavaWithJavac --stacktrace

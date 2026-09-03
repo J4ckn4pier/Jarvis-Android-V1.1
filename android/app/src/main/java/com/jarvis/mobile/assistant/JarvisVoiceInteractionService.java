@@ -1,8 +1,12 @@
 package com.jarvis.mobile.assistant;
 
+import android.Manifest;
 import android.content.Context;
 import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.service.voice.VoiceInteractionService;
 import android.service.voice.VoiceInteractionSession;
 import android.util.Log;
@@ -12,8 +16,17 @@ public class JarvisVoiceInteractionService extends VoiceInteractionService {
     private static final String TEST_TAG = "JARVIS_ASSISTANT_TEST";
     private static final String WAKE_TAG = "JARVIS_PASSIVE_WAKE";
     private static final String TEST_COMMAND_EXTRA = "jarvis_test_command";
+    private static final long PASSIVE_WAKE_RETRY_DELAY_MS = 2500L;
+    private static final long WAKE_SESSION_SHOW_TIMEOUT_MS = 5000L;
     private static volatile JarvisVoiceInteractionService activeInstance;
+    private final Handler main = new Handler(Looper.getMainLooper());
+    private final Runnable passiveWakeRetry = () -> armPassiveWake("retry after transient startup failure");
+    private final Runnable wakeSessionShowWatchdog = () -> {
+        Log.w(WAKE_TAG, "JARVIS_PASSIVE_WAKE_SESSION_SHOW_TIMEOUT");
+        armPassiveWake("wake session show timeout");
+    };
     private WakeWordDetectorPort wakeWordDetector;
+    private boolean passiveWakeStartThrew;
 
     @Override public void onReady() {
         super.onReady();
@@ -23,26 +36,42 @@ public class JarvisVoiceInteractionService extends VoiceInteractionService {
     }
 
     private void showWakeSession() {
-        showSession(new Bundle(), VoiceInteractionSession.SHOW_WITH_ASSIST);
-        Log.i(WAKE_TAG, "JARVIS_PASSIVE_WAKE_TRIGGERED");
+        main.removeCallbacks(wakeSessionShowWatchdog);
+        try {
+            showSession(new Bundle(), VoiceInteractionSession.SHOW_WITH_ASSIST);
+            main.postDelayed(wakeSessionShowWatchdog, WAKE_SESSION_SHOW_TIMEOUT_MS);
+            Log.i(WAKE_TAG, "JARVIS_PASSIVE_WAKE_TRIGGERED");
+        } catch (RuntimeException failure) {
+            main.removeCallbacks(wakeSessionShowWatchdog);
+            Log.w(WAKE_TAG, "JARVIS_PASSIVE_WAKE_SESSION_SHOW_FAILED", failure);
+            armPassiveWake("wake session show failed");
+        }
     }
 
-    static void pausePassiveWakeForSession() {
+    public static void pausePassiveWakeForSession() {
         JarvisVoiceInteractionService service = activeInstance;
-        if (service != null) service.pausePassiveWake();
+        if (service != null) service.runWakeLifecycleOnMain(service::pausePassiveWake);
     }
 
-    static void rearmPassiveWakeAfterSession() {
+    public static void rearmPassiveWakeAfterSession() {
         JarvisVoiceInteractionService service = activeInstance;
-        if (service != null) service.armPassiveWake("assistant session hidden");
+        if (service != null) service.runWakeLifecycleOnMain(() -> service.armPassiveWake("assistant session hidden"));
     }
 
-    /** Called by the user-facing Wake Word switch so the control changes the live service now. */
+    /** Called by visible settings so changed wake/language configuration affects the live listener now. */
     public static void refreshPassiveWakePreference() {
         JarvisVoiceInteractionService service = activeInstance;
         if (service == null) return;
-        if (service.wakeEnabled()) service.armPassiveWake("user setting enabled");
-        else service.pausePassiveWake();
+        service.runWakeLifecycleOnMain(() -> {
+            service.pausePassiveWake();
+            service.wakeWordDetector = null;
+            if (service.wakeEnabled()) service.armPassiveWake("user setting enabled");
+        });
+    }
+
+    private void runWakeLifecycleOnMain(Runnable action) {
+        if (Looper.myLooper() == Looper.getMainLooper()) action.run();
+        else main.post(action);
     }
 
     private boolean wakeEnabled() {
@@ -50,26 +79,76 @@ public class JarvisVoiceInteractionService extends VoiceInteractionService {
     }
 
     private void pausePassiveWake() {
+        main.removeCallbacks(passiveWakeRetry);
+        main.removeCallbacks(wakeSessionShowWatchdog);
         if (wakeWordDetector == null) return;
         wakeWordDetector.stop();
         Log.i(WAKE_TAG, "JARVIS_PASSIVE_WAKE_PAUSED_FOR_SESSION");
     }
 
+    private WakeWordDetectorPort createWakeWordDetectorSafely() {
+        try {
+            return AndroidWakeWordDetectorFactory.create(this);
+        } catch (RuntimeException createFailure) {
+            Log.w(WAKE_TAG, "JARVIS_PASSIVE_WAKE_CREATE_FAILED", createFailure);
+            return null;
+        }
+    }
+
+    private boolean startPassiveWakeSafely() {
+        passiveWakeStartThrew = false;
+        try {
+            return wakeWordDetector.start(this::showWakeSession);
+        } catch (RuntimeException startFailure) {
+            passiveWakeStartThrew = true;
+            Log.w(WAKE_TAG, "JARVIS_PASSIVE_WAKE_START_FAILED", startFailure);
+            return false;
+        }
+    }
+
     private void armPassiveWake(String reason) {
+        main.removeCallbacks(passiveWakeRetry);
         if (!wakeEnabled()) {
             pausePassiveWake();
             Log.i(WAKE_TAG, "JARVIS_PASSIVE_WAKE_DISABLED reason=user setting");
             return;
         }
-        if (wakeWordDetector == null) wakeWordDetector = AndroidWakeWordDetectorFactory.create(this);
+        if (wakeWordDetector == null) wakeWordDetector = createWakeWordDetectorSafely();
+        if (wakeWordDetector == null) {
+            main.postDelayed(passiveWakeRetry, PASSIVE_WAKE_RETRY_DELAY_MS);
+            Log.w(WAKE_TAG, "JARVIS_PASSIVE_WAKE_RETRY_SCHEDULED reason=detector creation failed");
+            return;
+        }
         if (wakeWordDetector.isRunning()) return;
-        boolean started = wakeWordDetector.start(this::showWakeSession);
+        boolean started = startPassiveWakeSafely();
+        String detectorStatus = wakeWordDetector.status();
+        if (!started && (passiveWakeStartThrew || transientWakeStartupFailure(detectorStatus))) {
+            main.postDelayed(passiveWakeRetry, PASSIVE_WAKE_RETRY_DELAY_MS);
+            Log.w(WAKE_TAG, "JARVIS_PASSIVE_WAKE_RETRY_SCHEDULED reason=" + detectorStatus);
+        }
         Log.i(WAKE_TAG, started
                 ? "JARVIS_PASSIVE_WAKE_READY model=" + wakeWordDetector.modelDescriptor().identifier() + " reason=" + reason
-                : "JARVIS_PASSIVE_WAKE_DISABLED reason=" + wakeWordDetector.status());
+                : "JARVIS_PASSIVE_WAKE_DISABLED reason=" + detectorStatus);
+    }
+
+    private boolean transientWakeStartupFailure(String status) {
+        if (status == null) return false;
+        if (status.startsWith("microphone permission missing")) {
+            try {
+                return checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;
+            } catch (RuntimeException permissionProbeFailure) {
+                Log.w(WAKE_TAG, "JARVIS_PASSIVE_WAKE_PERMISSION_RECHECK_FAILED", permissionProbeFailure);
+                return true;
+            }
+        }
+        return status.startsWith("could not create Android recognizer")
+                || status.startsWith("could not verify Android offline recognizer")
+                || status.startsWith("Android speech recognition unavailable");
     }
 
     @Override public void onShutdown() {
+        main.removeCallbacks(passiveWakeRetry);
+        main.removeCallbacks(wakeSessionShowWatchdog);
         if (wakeWordDetector != null) { wakeWordDetector.stop(); wakeWordDetector = null; }
         if (activeInstance == this) activeInstance = null;
         Log.i(TEST_TAG, "JARVIS_VOICE_SERVICE_SHUTDOWN");

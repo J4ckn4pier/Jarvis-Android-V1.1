@@ -3,11 +3,14 @@ package com.jarvis.brain;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
-/** Static contract proving Android persists non-secret brain settings without absorbing credentials. */
+/** Static contract proving Android persists settings and applies profile/personality to user-facing behavior. */
 public final class AndroidSettingsPersistenceContractTest {
     public static void main(String[] args) throws Exception {
         Path adapterPath = Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/AndroidSharedPreferencesSettingsPersistence.java");
         Path runtimePath = Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/AndroidBrainRuntime.java");
+        Path preferenceContextPath = Path.of("../android/app/src/main/java/com/jarvis/mobile/brain/AndroidUserPreferenceContextSource.java");
+        Path settingsPath = Path.of("../android/app/src/main/java/com/jarvis/mobile/SettingsActivity.java");
+        Path stylePath = Path.of("src/main/java/com/jarvis/brain/ResponseStyleContract.java");
         check(Files.exists(adapterPath), "Android must bind a private persistence adapter for non-secret brain settings");
         String adapter = Files.readString(adapterPath);
         String lower = adapter.toLowerCase();
@@ -27,6 +30,40 @@ public final class AndroidSettingsPersistenceContractTest {
         check(runtime.contains("new AndroidSharedPreferencesSettingsPersistence(app)"),
                 "Android runtime must compose the persistent non-secret SettingsStore adapter");
         check(runtime.contains("new SettingsStore("), "Android runtime must construct SettingsStore from persistence");
+
+        check(Files.exists(preferenceContextPath),
+                "Profile and Personality controls must have a production reasoning-context binding, not persistence-only UI");
+        String preferenceContext = Files.readString(preferenceContextPath);
+        check(preferenceContext.contains("profile_name") && preferenceContext.contains("personality_label"),
+                "reasoning context must consume the exact user-facing Profile and Personality preferences");
+        check(runtime.contains("new AndroidUserPreferenceContextSource(app)"),
+                "Android runtime must include user Profile and Personality in assistant reasoning context");
+        String style = Files.readString(stylePath);
+        check(style.contains("user-selected personality") && style.contains("form of address"),
+                "provider response style must explicitly honor user-selected personality and address preferences");
+        check(runtime.contains("private String preferredAddress()"),
+                "deterministic Android runtime replies must use the saved Profile form of address too");
+        check(runtime.contains("getSharedPreferences(\"jarvis_shell\"") && runtime.contains("profile_name"),
+                "deterministic reply address must come from the same Profile setting shown to the user");
+        check(!runtime.contains("needs your approval, sir")
+                        && !runtime.contains("working on that, sir")
+                        && !runtime.contains("background task, sir")
+                        && !runtime.contains("Cancelled, sir")
+                        && !runtime.contains("Certainly, sir"),
+                "background-project replies must not bypass the user-selected Profile with hardcoded sir text");
+
+        check(Files.exists(settingsPath), "Android must provide the user-facing Settings activity");
+        String settings = Files.readString(settingsPath);
+        int backupStart = settings.indexOf("private void showBackupSyncSettings()");
+        int backupEnd = settings.indexOf("private void showWidgetLockSettings()", backupStart);
+        check(backupStart >= 0 && backupEnd > backupStart, "Backup & Sync settings must remain user-facing");
+        String backupSettings = settings.substring(backupStart, backupEnd);
+        int saveButton = backupSettings.indexOf(".setPositiveButton(");
+        int persistedWrite = backupSettings.indexOf("putBoolean(\"backup_sync_enabled\"");
+        check(saveButton >= 0 && persistedWrite > saveButton,
+                "Backup & Sync selection must not persist until the user confirms; CANCEL must leave the saved setting unchanged");
+        check(backupSettings.contains(".setNegativeButton(\"CANCEL\",null)"),
+                "Backup & Sync must retain a non-destructive CANCEL action");
 
         System.out.println("AndroidSettingsPersistenceContractTest passed");
     }

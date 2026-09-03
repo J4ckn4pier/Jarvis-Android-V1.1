@@ -11,12 +11,30 @@ public final class AndroidVoiceAecBargeInContractTest {
 
         check(monitor.contains("AcousticEchoCanceler.isAvailable()"),
                 "hands-free barge-in must fail closed when Android AEC is unavailable");
+        check(monitor.contains("private boolean isAecAvailableSafely()"),
+                "Samsung/OEM exceptions while probing AEC availability must be contained at the barge-in boundary");
+        check(monitor.contains("private int minimumBufferSizeSafely()"),
+                "Samsung/OEM exceptions while probing AudioRecord minimum buffer size must be contained at the barge-in boundary");
+        check(monitor.contains("private boolean isInitializedSafely(AudioRecord recorder)"),
+                "Samsung/OEM exceptions while reading AudioRecord initialization state must be contained before microphone ownership");
+        check(monitor.contains("private void releaseAudioRecordSafely(AudioRecord recorder)"),
+                "Samsung/OEM exceptions while releasing a rejected AudioRecord must not escape the TTS-to-microphone handoff boundary");
+        check(monitor.contains("private void releaseEchoCancelerSafely(AcousticEchoCanceler aec)"),
+                "Samsung/OEM AEC setup failures must release partially-created echo cancellers before a later voice turn");
+        check(monitor.contains("private boolean hasRecordAudioPermissionSafely()"),
+                "Samsung/OEM exceptions while probing runtime microphone permission must be contained at the AEC handoff boundary");
         check(monitor.contains("context.checkSelfPermission(Manifest.permission.RECORD_AUDIO)"),
                 "barge-in capture must explicitly re-check runtime microphone permission at the capture boundary");
+        check(monitor.contains("return context.checkSelfPermission(Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED;"),
+                "the exception-safe permission probe must preserve the granted-permission requirement");
         check(monitor.contains("PackageManager.PERMISSION_GRANTED"),
                 "barge-in capture may only proceed with granted microphone permission");
         check(monitor.contains("catch (SecurityException"),
                 "barge-in capture must fail closed if microphone permission is revoked between check and AudioRecord creation");
+        check(monitor.contains("if (read < 0) break;"),
+                "fatal Samsung/OEM AudioRecord read errors must terminate dead AEC capture instead of spinning forever");
+        check(monitor.contains("if (read == 0) continue;"),
+                "zero-length AEC reads may retry without conflating them with fatal negative AudioRecord errors");
         check(monitor.contains("MediaRecorder.AudioSource.VOICE_COMMUNICATION"),
                 "barge-in microphone path must request the communication audio source for echo handling");
         check(monitor.contains("AcousticEchoCanceler.create"),
