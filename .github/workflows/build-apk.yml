@@ -2,7 +2,7 @@ name: Build and Test JARVIS Prefrontal APK
 
 on:
   push:
-    branches: [main, brain-first-v1, feature/product-local-cortex]
+    branches: [main, brain-first-v1, feature/product-local-cortex, feature/claude-ui-delivery-refresh-2026-09-01]
   pull_request:
     branches: [main]
   workflow_dispatch:
@@ -106,13 +106,13 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
       - name: Stage single verified APK
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/brain-first-v1'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/brain-first-v1' || github.ref == 'refs/heads/feature/product-local-cortex' || github.ref == 'refs/heads/feature/claude-ui-delivery-refresh-2026-09-01'
         run: |
           mkdir -p release
           cp android/app/build/outputs/apk/debug/app-debug.apk release/JARVIS-Android-V1.1.apk
           sha256sum release/JARVIS-Android-V1.1.apk | tee release/SHA256.txt
       - uses: actions/upload-artifact@v4
-        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/brain-first-v1'
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/brain-first-v1' || github.ref == 'refs/heads/feature/product-local-cortex' || github.ref == 'refs/heads/feature/claude-ui-delivery-refresh-2026-09-01'
         with:
           name: JARVIS-Android-V1.1
           path: |
